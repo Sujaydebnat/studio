@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState } from 'react';
@@ -7,24 +8,49 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Printer, Loader2 } from 'lucide-react';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { useAuth, useFirestore } from '@/firebase';
+import { doc, getDoc } from 'firebase/firestore';
+import { useToast } from '@/hooks/use-toast';
 
 export default function LoginPage() {
   const router = useRouter();
+  const auth = useAuth();
+  const db = useFirestore();
+  const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!auth || !db) return;
+
     setLoading(true);
-    
-    // Simple mock logic: admin@printflow.com or staff@printflow.com
-    setTimeout(() => {
-      if (email.includes('admin')) {
-        router.push('/admin/dashboard');
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
+      
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        if (userData.role === 'admin') {
+          router.push('/admin/dashboard');
+        } else {
+          router.push('/staff/dashboard');
+        }
       } else {
-        router.push('/staff/dashboard');
+        // Default fallback if no profile exists yet
+        router.push('/admin/dashboard');
       }
-    }, 1500);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Login Failed",
+        description: error.message || "Invalid credentials",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -48,7 +74,7 @@ export default function LoginPage() {
               <Input 
                 id="email" 
                 type="email" 
-                placeholder="m@example.com" 
+                placeholder="admin@printflow.com" 
                 required 
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -58,7 +84,13 @@ export default function LoginPage() {
               <div className="flex items-center justify-between">
                 <Label htmlFor="password">Password</Label>
               </div>
-              <Input id="password" type="password" required />
+              <Input 
+                id="password" 
+                type="password" 
+                required 
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
             </div>
           </CardContent>
           <CardFooter>
@@ -76,8 +108,8 @@ export default function LoginPage() {
         </form>
       </Card>
       
-      <p className="mt-8 text-sm text-muted-foreground">
-        Demo: Use <code className="bg-muted px-1 rounded text-primary">admin@printflow.com</code> for Admin access.
+      <p className="mt-8 text-sm text-muted-foreground text-center max-w-xs">
+        Use your registered organizational email. Contact Admin if you cannot access your account.
       </p>
     </div>
   );

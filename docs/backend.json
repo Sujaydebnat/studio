@@ -1,0 +1,48 @@
+
+{
+  "entities": {
+    "Order": {
+      "title": "Order",
+      "description": "A printing or design work order",
+      "type": "object",
+      "properties": {
+        "customerName": { "type": "string" },
+        "phone": { "type": "string" },
+        "workType": { "type": "string" },
+        "status": { "type": "string", "enum": ["Pending", "Designing", "Printing", "Completed"] },
+        "priority": { "type": "string", "enum": ["Normal", "High", "Urgent"] },
+        "description": { "type": "string" },
+        "keywords": { "type": "string" },
+        "designBrief": { "type": "object" },
+        "previews": { "type": "array", "items": { "type": "string" } },
+        "assignedTo": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["customerName", "phone", "workType", "status"]
+    },
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Internal staff or admin profile",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "staff"] },
+        "email": { "type": "string" }
+      }
+    }
+  },
+  "auth": {
+    "providers": ["password"]
+  },
+  "firestore": {
+    "/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Collection of work orders"
+    },
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profiles for internal members"
+    }
+  }
+}

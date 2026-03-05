@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState } from 'react';
@@ -11,21 +12,32 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Sparkles, Loader2, ArrowLeft, Save, HelpCircle } from 'lucide-react';
 import { aiDesignBriefTool, type AIDesignBriefToolOutput } from '@/ai/flows/ai-design-brief-tool-flow';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { useFirestore } from '@/firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { useToast } from '@/hooks/use-toast';
 
 export default function NewOrderPage() {
   const router = useRouter();
+  const db = useFirestore();
+  const { toast } = useToast();
   const [loadingAI, setLoadingAI] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [designBrief, setDesignBrief] = useState<AIDesignBriefToolOutput | null>(null);
   const [formData, setFormData] = useState({
     customerName: '',
     phone: '',
     workType: '',
     keywords: '',
+    priority: 'Normal',
   });
 
   const handleGenerateBrief = async () => {
     if (!formData.workType || !formData.keywords) {
-      alert("Please select a work type and enter some keywords first!");
+      toast({
+        variant: "destructive",
+        title: "Missing Information",
+        description: "Please select a work type and enter some keywords first!",
+      });
       return;
     }
     
@@ -43,10 +55,43 @@ export default function NewOrderPage() {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // In a real app, save to Firestore here
-    router.push('/admin/orders');
+    if (!db) return;
+    if (!formData.customerName || !formData.phone || !formData.workType) {
+      toast({
+        variant: "destructive",
+        title: "Validation Error",
+        description: "Please fill in all required customer details.",
+      });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await addDoc(collection(db, 'orders'), {
+        ...formData,
+        status: 'Pending',
+        designBrief: designBrief || null,
+        previews: [],
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      
+      toast({
+        title: "Order Created",
+        description: "The new work order has been saved successfully.",
+      });
+      router.push('/admin/orders');
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Save Failed",
+        description: error.message || "Could not save the order.",
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -58,8 +103,9 @@ export default function NewOrderPage() {
           </Button>
           <h2 className="text-3xl font-bold font-headline">New Work Order</h2>
         </div>
-        <Button onClick={handleSubmit} className="bg-primary gap-2">
-          <Save className="w-4 h-4" /> Save Order
+        <Button onClick={handleSubmit} className="bg-primary gap-2" disabled={saving}>
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+          Save Order
         </Button>
       </div>
 
@@ -91,21 +137,36 @@ export default function NewOrderPage() {
                 onChange={(e) => setFormData({...formData, phone: e.target.value})}
               />
             </div>
-            <div className="space-y-2">
-              <Label>Work Type</Label>
-              <Select onValueChange={(val) => setFormData({...formData, workType: val})}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Banner">Banner</SelectItem>
-                  <SelectItem value="Visiting Card">Visiting Card</SelectItem>
-                  <SelectItem value="Poster">Poster</SelectItem>
-                  <SelectItem value="Flex Print">Flex Print</SelectItem>
-                  <SelectItem value="Logo Design">Logo Design</SelectItem>
-                  <SelectItem value="Social Media Graphic">Social Media Graphic</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Work Type</Label>
+                <Select onValueChange={(val) => setFormData({...formData, workType: val})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Banner">Banner</SelectItem>
+                    <SelectItem value="Visiting Card">Visiting Card</SelectItem>
+                    <SelectItem value="Poster">Poster</SelectItem>
+                    <SelectItem value="Flex Print">Flex Print</SelectItem>
+                    <SelectItem value="Logo Design">Logo Design</SelectItem>
+                    <SelectItem value="Social Media Graphic">Social Media Graphic</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Priority</Label>
+                <Select onValueChange={(val) => setFormData({...formData, priority: val})} defaultValue="Normal">
+                  <SelectTrigger>
+                    <SelectValue placeholder="Priority" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Normal">Normal</SelectItem>
+                    <SelectItem value="High">High</SelectItem>
+                    <SelectItem value="Urgent">Urgent</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -203,13 +264,6 @@ export default function NewOrderPage() {
                 </div>
               </div>
             </div>
-            
-            {designBrief.notes && (
-              <div className="p-4 bg-white/50 rounded-lg border border-accent/10">
-                <h4 className="font-bold text-sm uppercase text-muted-foreground mb-1">AI Notes</h4>
-                <p className="text-sm text-muted-foreground">{designBrief.notes}</p>
-              </div>
-            )}
           </CardContent>
           <CardFooter className="bg-accent/10 py-3 flex justify-end gap-2">
             <Button variant="ghost" size="sm" onClick={() => setDesignBrief(null)}>Clear Brief</Button>
