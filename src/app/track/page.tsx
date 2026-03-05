@@ -29,15 +29,24 @@ export default function TrackOrderPage() {
     setOrder(null);
 
     try {
-      // Clean order ID string
       const cleanedId = orderId.trim();
       const docRef = doc(db, 'orders', cleanedId);
-      const docSnap = await getDoc(docRef);
+      
+      // Attempt to get doc with specific error handling for connectivity
+      const docSnap = await getDoc(docRef).catch(err => {
+        if (err.code === 'unavailable' || err.message?.includes('offline')) {
+          throw new Error("offline");
+        }
+        throw err;
+      });
 
       if (docSnap.exists()) {
         const data = docSnap.data();
-        // Verification: last 4 digits of phone
-        if (data.phone && data.phone.replace(/\D/g, '').endsWith(phone.slice(-4))) {
+        // Verification logic: match last 4 digits of phone
+        const storedPhone = data.phone?.replace(/\D/g, '') || '';
+        const inputPhone = phone.replace(/\D/g, '');
+        
+        if (storedPhone.endsWith(inputPhone)) {
           setOrder({ id: docSnap.id, ...data });
         } else {
           setError("Verification failed. Please ensure the last 4 digits of the phone number are correct.");
@@ -47,8 +56,8 @@ export default function TrackOrderPage() {
       }
     } catch (e: any) {
       console.error("Tracking Error:", e);
-      if (e.message?.includes('offline') || e.code === 'unavailable') {
-        setError("Network error: Could not reach the PrintFlow database. Please refresh or check your connection.");
+      if (e.message === "offline") {
+        setError("PrintFlow system is currently offline or connection is restricted. Please check your internet and try again.");
       } else {
         setError("An unexpected error occurred. Please try again later.");
       }
@@ -118,7 +127,7 @@ export default function TrackOrderPage() {
 
         {error && (
           <div className="bg-destructive/10 text-destructive p-4 rounded-lg flex items-center gap-3 border border-destructive/20 animate-in fade-in slide-in-from-top-4">
-            {error.includes('Network') ? <WifiOff className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+            {error.includes('offline') ? <WifiOff className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
             <p className="text-sm font-medium">{error}</p>
           </div>
         )}

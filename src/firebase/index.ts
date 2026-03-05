@@ -5,8 +5,7 @@ import {
   initializeFirestore, 
   Firestore, 
   getFirestore, 
-  CACHE_SIZE_UNLIMITED,
-  terminate 
+  CACHE_SIZE_UNLIMITED 
 } from 'firebase/firestore';
 import { getAuth, Auth } from 'firebase/auth';
 import { firebaseConfig } from './config';
@@ -29,16 +28,17 @@ export function initializeFirebase(): {
 } {
   if (getApps().length === 0) {
     firebaseApp = initializeApp(firebaseConfig);
-    // Initialize Firestore with specific settings to handle cloud proxy issues
+    // Force Long Polling and disable auto-detect to strictly bypass blocked WebSockets
     firestore = initializeFirestore(firebaseApp, {
       experimentalForceLongPolling: true,
       experimentalAutoDetectLongPolling: false,
+      localCache: {
+        kind: 'persistent',
+      }
     });
     auth = getAuth(firebaseApp);
   } else {
     firebaseApp = getApp();
-    // Use the existing firestore instance if already initialized, 
-    // otherwise get the default one.
     try {
       firestore = getFirestore(firebaseApp);
     } catch (e) {
