@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState } from 'react';
@@ -15,6 +14,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { useFirestore } from '@/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
+import { Badge } from '@/components/ui/badge';
 
 export default function NewOrderPage() {
   const router = useRouter();
@@ -50,12 +52,17 @@ export default function NewOrderPage() {
       setDesignBrief(brief);
     } catch (error) {
       console.error("AI Brief Error:", error);
+      toast({
+        variant: "destructive",
+        title: "AI Generation Failed",
+        description: "Could not generate a design brief. Please try again.",
+      });
     } finally {
       setLoadingAI(false);
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!db) return;
     if (!formData.customerName || !formData.phone || !formData.workType) {
@@ -68,30 +75,35 @@ export default function NewOrderPage() {
     }
 
     setSaving(true);
-    try {
-      await addDoc(collection(db, 'orders'), {
-        ...formData,
-        status: 'Pending',
-        designBrief: designBrief || null,
-        previews: [],
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
+    const orderData = {
+      ...formData,
+      status: 'Pending',
+      designBrief: designBrief || null,
+      previews: [],
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    };
+
+    const ordersRef = collection(db, 'orders');
+    
+    // Mutation call without await for instant local cache update
+    addDoc(ordersRef, orderData)
+      .then(() => {
+        toast({
+          title: "Order Created",
+          description: "The new work order has been added to the queue.",
+        });
+        router.push('/admin/orders');
+      })
+      .catch(async (error) => {
+        const permissionError = new FirestorePermissionError({
+          path: 'orders',
+          operation: 'create',
+          requestResourceData: orderData,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+        setSaving(false);
       });
-      
-      toast({
-        title: "Order Created",
-        description: "The new work order has been saved successfully.",
-      });
-      router.push('/admin/orders');
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Save Failed",
-        description: error.message || "Could not save the order.",
-      });
-    } finally {
-      setSaving(false);
-    }
   };
 
   return (
@@ -202,6 +214,7 @@ export default function NewOrderPage() {
             </div>
             <Button 
               onClick={handleGenerateBrief} 
+              type="button"
               className="w-full bg-accent text-accent-foreground hover:bg-accent/90 gap-2"
               disabled={loadingAI}
             >
@@ -226,7 +239,7 @@ export default function NewOrderPage() {
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
               <span>{designBrief.title}</span>
-              <Badge className="bg-accent">AI Generated</Badge>
+              <Badge variant="default" className="bg-accent">AI Generated</Badge>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -267,23 +280,10 @@ export default function NewOrderPage() {
           </CardContent>
           <CardFooter className="bg-accent/10 py-3 flex justify-end gap-2">
             <Button variant="ghost" size="sm" onClick={() => setDesignBrief(null)}>Clear Brief</Button>
-            <Button size="sm" className="bg-accent text-accent-foreground hover:bg-accent/90">Keep Brief</Button>
+            <Button size="sm" className="bg-accent text-accent-foreground hover:bg-accent/90" onClick={() => toast({ title: "Brief Saved to Order" })}>Keep Brief</Button>
           </CardFooter>
         </Card>
       )}
     </div>
-  );
-}
-
-function Badge({ children, variant, className }: any) {
-  const styles = {
-    default: "bg-primary text-white",
-    secondary: "bg-secondary text-secondary-foreground",
-    accent: "bg-accent text-accent-foreground",
-  };
-  return (
-    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide ${className} ${styles[variant as keyof typeof styles] || styles.default}`}>
-      {children}
-    </span>
   );
 }
