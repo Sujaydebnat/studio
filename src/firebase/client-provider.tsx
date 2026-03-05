@@ -28,12 +28,23 @@ export function FirebaseClientProvider({ children }: FirebaseClientProviderProps
   // During SSR and initial hydration, we render a shell that matches the server
   // to avoid DOM mismatch (Hydration Error).
   if (!isMounted) {
-    return <div className="min-h-screen bg-background" />;
+    return (
+      <div className="min-h-screen bg-background">
+        {/* Placeholder UI that matches server render */}
+      </div>
+    );
   }
 
-  // If initialization fails for some reason, we avoid breaking the tree
-  if (!services) {
-    return <div className="min-h-screen bg-background" />;
+  // If initialization fails or is in progress, show a consistent loading state
+  if (!services || !services.firebaseApp) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center space-y-4">
+          <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <p className="text-muted-foreground animate-pulse font-medium">Initializing PrintFlow Services...</p>
+        </div>
+      </div>
+    );
   }
 
   return (

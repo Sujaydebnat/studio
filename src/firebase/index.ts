@@ -31,7 +31,7 @@ export function initializeFirebase() {
   } else {
     app = getApp();
     auth = getAuth(app);
-    // Safety check to get or initialize firestore instance
+    // Safety check to get or initialize firestore instance with correct settings
     try {
       firestore = getFirestore(app);
     } catch (e) {
