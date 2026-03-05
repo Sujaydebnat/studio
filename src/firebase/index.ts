@@ -1,67 +1,50 @@
 'use client';
 
+import { firebaseConfig } from '@/firebase/config';
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
-import { 
-  initializeFirestore, 
-  Firestore, 
-  getFirestore, 
-  CACHE_SIZE_UNLIMITED 
-} from 'firebase/firestore';
-import { getAuth, Auth } from 'firebase/auth';
-import { firebaseConfig } from './config';
-import { useMemo } from 'react';
+import { getAuth } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore'
 
-// Singletons to persist across re-renders/HMR
-let firebaseApp: FirebaseApp;
-let firestore: Firestore;
-let auth: Auth;
-
-/**
- * Robust initialization of Firebase services.
- * Ensures Firestore uses long-polling to bypass proxy/WebSocket restrictions in cloud IDEs
- * and enables unlimited local caching.
- */
-export function initializeFirebase(): {
-  firebaseApp: FirebaseApp;
-  firestore: Firestore;
-  auth: Auth;
-} {
-  if (getApps().length === 0) {
-    firebaseApp = initializeApp(firebaseConfig);
-    // Force Long Polling and disable auto-detect to strictly bypass blocked WebSockets
-    firestore = initializeFirestore(firebaseApp, {
-      experimentalForceLongPolling: true,
-      experimentalAutoDetectLongPolling: false,
-      localCache: {
-        kind: 'persistent',
-      }
-    });
-    auth = getAuth(firebaseApp);
-  } else {
-    firebaseApp = getApp();
+// IMPORTANT: DO NOT MODIFY THIS FUNCTION
+export function initializeFirebase() {
+  if (!getApps().length) {
+    // Important! initializeApp() is called without any arguments because Firebase App Hosting
+    // integrates with the initializeApp() function to provide the environment variables needed to
+    // populate the FirebaseOptions in production. It is critical that we attempt to call initializeApp()
+    // without arguments.
+    let firebaseApp;
     try {
-      firestore = getFirestore(firebaseApp);
+      // Attempt to initialize via Firebase App Hosting environment variables
+      firebaseApp = initializeApp();
     } catch (e) {
-      firestore = initializeFirestore(firebaseApp, {
-        experimentalForceLongPolling: true,
-        experimentalAutoDetectLongPolling: false,
-      });
+      // Only warn in production because it's normal to use the firebaseConfig to initialize
+      // during development
+      if (process.env.NODE_ENV === "production") {
+        console.warn('Automatic initialization failed. Falling back to firebase config object.', e);
+      }
+      firebaseApp = initializeApp(firebaseConfig);
     }
-    auth = getAuth(firebaseApp);
+
+    return getSdks(firebaseApp);
   }
 
-  return { firebaseApp, firestore, auth };
+  // If already initialized, return the SDKs with the already initialized App
+  return getSdks(getApp());
 }
 
-/**
- * A utility hook to stabilize Firebase references and queries.
- * Prevents infinite re-render loops when creating refs/queries inline.
- */
-export function useMemoFirebase<T>(factory: () => T, deps: any[]): T {
-  return useMemo(factory, deps);
+export function getSdks(firebaseApp: FirebaseApp) {
+  return {
+    firebaseApp,
+    auth: getAuth(firebaseApp),
+    firestore: getFirestore(firebaseApp)
+  };
 }
 
 export * from './provider';
-export * from './auth/use-user';
+export * from './client-provider';
 export * from './firestore/use-collection';
 export * from './firestore/use-doc';
+export * from './non-blocking-updates';
+export * from './non-blocking-login';
+export * from './errors';
+export * from './error-emitter';
