@@ -3,7 +3,7 @@
 import { firebaseConfig } from '@/firebase/config';
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth, Auth } from 'firebase/auth';
-import { getFirestore, Firestore, initializeFirestore } from 'firebase/firestore';
+import { getFirestore, Firestore, initializeFirestore, CACHE_SIZE_UNLIMITED } from 'firebase/firestore';
 
 let app: FirebaseApp;
 let firestore: Firestore;
@@ -18,17 +18,28 @@ export function initializeFirebase() {
     return { firebaseApp: null as any, firestore: null as any, auth: null as any };
   }
 
+  // Ensure we only initialize once
   if (!getApps().length) {
     app = initializeApp(firebaseConfig);
     // Force Long Polling to bypass potential WebSocket blocks in cloud IDEs/Proxies
+    // and use unlimited cache for offline resilience.
     firestore = initializeFirestore(app, {
       experimentalForceLongPolling: true,
+      cacheSizeBytes: CACHE_SIZE_UNLIMITED,
     });
     auth = getAuth(app);
   } else {
     app = getApp();
-    firestore = getFirestore(app);
     auth = getAuth(app);
+    // Safety check to get or initialize firestore instance
+    try {
+      firestore = getFirestore(app);
+    } catch (e) {
+      firestore = initializeFirestore(app, {
+        experimentalForceLongPolling: true,
+        cacheSizeBytes: CACHE_SIZE_UNLIMITED,
+      });
+    }
   }
 
   return { firebaseApp: app, firestore, auth };

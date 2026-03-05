@@ -3,8 +3,8 @@ service cloud.firestore {
   match /databases/{database}/documents {
     /**
      * TESTING MODE RULES
-     * Allows all reads and writes. Use only for rapid prototyping and testing.
-     * Ensure you switch back to specific rules before production.
+     * Allows all reads and writes for rapid prototyping.
+     * Ensure you implement proper role-based access before production.
      */
     match /{document=**} {
       allow read, write: if true;

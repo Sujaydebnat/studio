@@ -25,10 +25,15 @@ export function FirebaseClientProvider({ children }: FirebaseClientProviderProps
     return initializeFirebase();
   }, [isMounted]);
 
-  // During SSR and initial hydration, we render nothing (or a consistent shell)
-  // to avoid DOM mismatch with the server's output.
-  if (!isMounted || !services) {
-    return null;
+  // During SSR and initial hydration, we render a shell that matches the server
+  // to avoid DOM mismatch (Hydration Error).
+  if (!isMounted) {
+    return <div className="min-h-screen bg-background" />;
+  }
+
+  // If initialization fails for some reason, we avoid breaking the tree
+  if (!services) {
+    return <div className="min-h-screen bg-background" />;
   }
 
   return (
