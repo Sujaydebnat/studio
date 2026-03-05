@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Sparkles, Loader2, ArrowLeft, Save, HelpCircle } from 'lucide-react';
 import { aiDesignBriefTool, type AIDesignBriefToolOutput } from '@/ai/flows/ai-design-brief-tool-flow';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { useFirestore } from '@/firebase';
+import { useFirestore, useUser } from '@/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -21,6 +21,7 @@ import { Badge } from '@/components/ui/badge';
 export default function NewOrderPage() {
   const router = useRouter();
   const db = useFirestore();
+  const { user } = useUser();
   const { toast } = useToast();
   const [loadingAI, setLoadingAI] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -64,7 +65,10 @@ export default function NewOrderPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!db) return;
+    if (!db || !user) {
+      toast({ variant: "destructive", title: "Authentication required", description: "You must be logged in to create orders." });
+      return;
+    };
     if (!formData.customerName || !formData.phone || !formData.workType) {
       toast({
         variant: "destructive",
@@ -75,8 +79,15 @@ export default function NewOrderPage() {
     }
 
     setSaving(true);
+    // Generating human-readable order number (simple version)
+    const orderNumber = `ORD-${Date.now().toString().slice(-6)}`;
+
     const orderData = {
       ...formData,
+      orderNumber,
+      // Mapping fields to backend schema names
+      customerPhoneNumber: formData.phone,
+      adminId: user.uid,
       status: 'Pending',
       designBrief: designBrief || null,
       previews: [],
@@ -91,7 +102,7 @@ export default function NewOrderPage() {
       .then(() => {
         toast({
           title: "Order Created",
-          description: "The new work order has been added to the queue.",
+          description: `Order #${orderNumber} has been added successfully.`,
         });
         router.push('/admin/orders');
       })
@@ -280,7 +291,7 @@ export default function NewOrderPage() {
           </CardContent>
           <CardFooter className="bg-accent/10 py-3 flex justify-end gap-2">
             <Button variant="ghost" size="sm" onClick={() => setDesignBrief(null)}>Clear Brief</Button>
-            <Button size="sm" className="bg-accent text-accent-foreground hover:bg-accent/90" onClick={() => toast({ title: "Brief Saved to Order" })}>Keep Brief</Button>
+            <Button size="sm" className="bg-accent text-accent-foreground hover:bg-accent/90" onClick={() => toast({ title: "Brief Kept" })}>Keep Brief</Button>
           </CardFooter>
         </Card>
       )}
