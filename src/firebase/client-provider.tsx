@@ -30,7 +30,7 @@ export function FirebaseClientProvider({ children }: FirebaseClientProviderProps
   if (!isMounted) {
     return (
       <div className="min-h-screen bg-background">
-        {/* Placeholder UI that matches server render */}
+        {/* Empty shell to match server */}
       </div>
     );
   }
