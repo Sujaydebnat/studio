@@ -1,3 +1,4 @@
+
 "use client"
 
 import Link from 'next/link';
@@ -64,14 +65,14 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
       {/* Main Content */}
       <main className="flex-1 overflow-auto bg-background/50">
         <header className="h-16 border-b bg-card flex items-center justify-between px-8 sticky top-0 z-10">
-          <h1 className="font-bold text-lg font-headline text-accent-foreground">Staff Workbench</h1>
+          <h1 className="font-bold text-lg font-headline text-accent-foreground">Staff Portal</h1>
           <div className="flex items-center gap-4">
             <div className="flex flex-col items-end">
-              <span className="text-sm font-semibold">John Designer</span>
-              <span className="text-xs text-muted-foreground">Graphic Designer</span>
+              <span className="text-sm font-semibold">Staff User</span>
+              <span className="text-xs text-muted-foreground">Production Team</span>
             </div>
             <div className="w-10 h-10 rounded-full bg-accent/20 flex items-center justify-center font-bold text-accent-foreground">
-              JD
+              ST
             </div>
           </div>
         </header>
