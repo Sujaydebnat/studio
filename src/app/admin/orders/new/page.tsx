@@ -15,7 +15,7 @@ import { useFirestore } from '@/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
+import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 import { Badge } from '@/components/ui/badge';
 
 export default function NewOrderPage() {
@@ -97,10 +97,10 @@ export default function NewOrderPage() {
       })
       .catch(async (error) => {
         const permissionError = new FirestorePermissionError({
-          path: 'orders',
+          path: ordersRef.path,
           operation: 'create',
           requestResourceData: orderData,
-        });
+        } satisfies SecurityRuleContext);
         errorEmitter.emit('permission-error', permissionError);
         setSaving(false);
       });
