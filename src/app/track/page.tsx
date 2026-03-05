@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState } from 'react';
@@ -7,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Search, Package, Clock, CheckCircle2, FileText, Image as ImageIcon, Printer, AlertCircle, Loader2 } from 'lucide-react';
+import { Search, Package, Clock, CheckCircle2, FileText, Image as ImageIcon, Printer, AlertCircle, Loader2, WifiOff } from 'lucide-react';
 import Image from 'next/image';
 import { useFirestore } from '@/firebase';
 import { doc, getDoc } from 'firebase/firestore';
@@ -19,14 +18,14 @@ export default function TrackOrderPage() {
   const [phone, setPhone] = useState('');
   const [order, setOrder] = useState<any | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleTrack = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!db || !orderId) return;
 
     setLoading(true);
-    setError(false);
+    setError(null);
     setOrder(null);
 
     try {
@@ -39,14 +38,18 @@ export default function TrackOrderPage() {
         if (data.phone && data.phone.endsWith(phone.slice(-4))) {
           setOrder({ id: docSnap.id, ...data });
         } else {
-          setError(true);
+          setError("Order found, but phone number verification failed.");
         }
       } else {
-        setError(true);
+        setError("Order ID not found. Please double-check your ID.");
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      setError(true);
+      if (e.message?.includes('offline')) {
+        setError("Connection issue: Could not reach the database. Please check your internet.");
+      } else {
+        setError("An error occurred while tracking your order. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -111,8 +114,8 @@ export default function TrackOrderPage() {
 
         {error && (
           <div className="bg-destructive/10 text-destructive p-4 rounded-lg flex items-center gap-3 border border-destructive/20 animate-in fade-in slide-in-from-top-4">
-            <AlertCircle className="w-5 h-5" />
-            <p>Order not found or phone mismatch. Please check your credentials.</p>
+            {error.includes('Connection') ? <WifiOff className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+            <p>{error}</p>
           </div>
         )}
 
