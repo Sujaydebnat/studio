@@ -29,26 +29,28 @@ export default function TrackOrderPage() {
     setOrder(null);
 
     try {
-      const docRef = doc(db, 'orders', orderId);
+      // Clean order ID string
+      const cleanedId = orderId.trim();
+      const docRef = doc(db, 'orders', cleanedId);
       const docSnap = await getDoc(docRef);
 
       if (docSnap.exists()) {
         const data = docSnap.data();
-        // Simple verification: last 4 digits of phone
-        if (data.phone && data.phone.endsWith(phone.slice(-4))) {
+        // Verification: last 4 digits of phone
+        if (data.phone && data.phone.replace(/\D/g, '').endsWith(phone.slice(-4))) {
           setOrder({ id: docSnap.id, ...data });
         } else {
-          setError("Order found, but phone number verification failed.");
+          setError("Verification failed. Please ensure the last 4 digits of the phone number are correct.");
         }
       } else {
-        setError("Order ID not found. Please double-check your ID.");
+        setError("Order ID not found. Please double-check the ID provided to you.");
       }
     } catch (e: any) {
-      console.error(e);
-      if (e.message?.includes('offline')) {
-        setError("Connection issue: Could not reach the database. Please check your internet.");
+      console.error("Tracking Error:", e);
+      if (e.message?.includes('offline') || e.code === 'unavailable') {
+        setError("Network error: Could not reach the PrintFlow database. Please refresh or check your connection.");
       } else {
-        setError("An error occurred while tracking your order. Please try again.");
+        setError("An unexpected error occurred. Please try again later.");
       }
     } finally {
       setLoading(false);
@@ -68,9 +70,9 @@ export default function TrackOrderPage() {
   return (
     <div className="min-h-screen bg-background p-4 md:p-8 flex flex-col items-center">
       <div className="max-w-2xl w-full space-y-8">
-        <div className="text-center space-y-2">
+        <div className="text-center space-y-2 pt-10">
           <h1 className="text-3xl font-bold text-primary font-headline">Track Your Order</h1>
-          <p className="text-muted-foreground">Enter your Order ID and last 4 digits of phone number.</p>
+          <p className="text-muted-foreground">Stay updated on your design and printing progress.</p>
         </div>
 
         <Card className="shadow-lg border-2">
@@ -78,6 +80,7 @@ export default function TrackOrderPage() {
             <CardTitle className="flex items-center gap-2">
               <Search className="w-5 h-5 text-accent" /> Order Verification
             </CardTitle>
+            <CardDescription>Enter details from your receipt to see live status.</CardDescription>
           </CardHeader>
           <form onSubmit={handleTrack}>
             <CardContent className="grid md:grid-cols-2 gap-4">
@@ -85,10 +88,11 @@ export default function TrackOrderPage() {
                 <Label htmlFor="orderId">Order ID</Label>
                 <Input 
                   id="orderId" 
-                  placeholder="Paste ID here" 
+                  placeholder="e.g. abc-123-xyz" 
                   required 
                   value={orderId}
                   onChange={(e) => setOrderId(e.target.value)}
+                  className="font-mono text-sm"
                 />
               </div>
               <div className="space-y-2">
@@ -105,8 +109,8 @@ export default function TrackOrderPage() {
             </CardContent>
             <CardFooter>
               <Button type="submit" className="w-full bg-primary" disabled={loading}>
-                {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                {loading ? 'Searching...' : 'Check Status'}
+                {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Search className="w-4 h-4 mr-2" />}
+                {loading ? 'Verifying...' : 'Check Status'}
               </Button>
             </CardFooter>
           </form>
@@ -114,8 +118,8 @@ export default function TrackOrderPage() {
 
         {error && (
           <div className="bg-destructive/10 text-destructive p-4 rounded-lg flex items-center gap-3 border border-destructive/20 animate-in fade-in slide-in-from-top-4">
-            {error.includes('Connection') ? <WifiOff className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
-            <p>{error}</p>
+            {error.includes('Network') ? <WifiOff className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+            <p className="text-sm font-medium">{error}</p>
           </div>
         )}
 
@@ -146,14 +150,18 @@ export default function TrackOrderPage() {
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground uppercase">Priority</p>
-                  <p className="font-semibold">{order.priority}</p>
+                  <Badge variant={order.priority === 'High' || order.priority === 'Urgent' ? 'destructive' : 'secondary'} className="mt-1">
+                    {order.priority}
+                  </Badge>
                 </div>
               </div>
 
               {order.designBrief && (
                 <div className="bg-muted/30 p-4 rounded-lg border">
-                  <h3 className="font-bold text-sm mb-2 uppercase text-muted-foreground">AI Generated Brief Summary</h3>
-                  <p className="text-sm">{order.designBrief.overview}</p>
+                  <h3 className="font-bold text-sm mb-2 uppercase text-muted-foreground flex items-center gap-2">
+                    <FileText className="w-3 h-3" /> Design Brief Summary
+                  </h3>
+                  <p className="text-sm leading-relaxed">{order.designBrief.overview}</p>
                 </div>
               )}
 
@@ -174,14 +182,22 @@ export default function TrackOrderPage() {
                       </div>
                     ))
                   ) : (
-                    <div className="bg-muted p-8 rounded-xl flex flex-col items-center justify-center text-center space-y-2 border-2 border-dashed">
-                      <Clock className="w-10 h-10 text-muted-foreground animate-pulse" />
-                      <p className="text-muted-foreground font-medium">Designers are working on your previews. Check back soon!</p>
+                    <div className="bg-muted p-12 rounded-xl flex flex-col items-center justify-center text-center space-y-3 border-2 border-dashed">
+                      <div className="bg-white p-4 rounded-full shadow-sm">
+                        <Clock className="w-8 h-8 text-primary animate-pulse" />
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-foreground font-bold">Design in Progress</p>
+                        <p className="text-muted-foreground text-sm max-w-xs mx-auto">Our designers are currently crafting your work. Check back soon for previews!</p>
+                      </div>
                     </div>
                   )}
                 </div>
               </div>
             </CardContent>
+            <CardFooter className="bg-muted/30 border-t py-4 justify-center">
+              <p className="text-xs text-muted-foreground italic">Powered by PrintFlow Manage AI System</p>
+            </CardFooter>
           </Card>
         )}
       </div>

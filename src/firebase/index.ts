@@ -1,32 +1,37 @@
 'use client';
 
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
-import { initializeFirestore, Firestore, getFirestore } from 'firebase/firestore';
+import { initializeFirestore, Firestore, getFirestore, terminate } from 'firebase/firestore';
 import { getAuth, Auth } from 'firebase/auth';
 import { firebaseConfig } from './config';
 import { useMemo } from 'react';
 
+let firebaseApp: FirebaseApp;
+let firestore: Firestore;
+let auth: Auth;
+
+/**
+ * Robust initialization of Firebase services.
+ * Ensures Firestore uses long-polling to bypass proxy/WebSocket restrictions in cloud IDEs.
+ */
 export function initializeFirebase(): {
   firebaseApp: FirebaseApp;
   firestore: Firestore;
   auth: Auth;
 } {
-  const firebaseApp =
-    getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-  
-  // Use initializeFirestore with experimentalForceLongPolling to prevent "offline" errors
-  // We wrap it in a try-catch to avoid "Firestore has already been initialized" errors
-  let firestore: Firestore;
-  try {
+  if (getApps().length === 0) {
+    firebaseApp = initializeApp(firebaseConfig);
+    // Initialize Firestore with forceful long polling immediately after app init
     firestore = initializeFirestore(firebaseApp, {
       experimentalForceLongPolling: true,
+      experimentalAutoDetectLongPolling: false,
     });
-  } catch (e) {
-    // If already initialized, just get the existing instance
+    auth = getAuth(firebaseApp);
+  } else {
+    firebaseApp = getApp();
     firestore = getFirestore(firebaseApp);
+    auth = getAuth(firebaseApp);
   }
-  
-  const auth = getAuth(firebaseApp);
 
   return { firebaseApp, firestore, auth };
 }
