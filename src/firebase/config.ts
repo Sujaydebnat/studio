@@ -3,16 +3,14 @@
 /**
  * Firebase Configuration
  * 
- * IMPORTANT: These are placeholder values. To connect to your real database:
- * 1. Go to Firebase Console (https://console.firebase.google.com/)
- * 2. Project Settings > General > Your Apps
- * 3. Copy the firebaseConfig object and replace the values below.
+ * Replace the values below with your actual Firebase project configuration
+ * from the Firebase Console (Project Settings > General > Your Apps).
  */
 export const firebaseConfig = {
-  apiKey: "placeholder-api-key",
-  authDomain: "placeholder-project.firebaseapp.com",
-  projectId: "placeholder-project",
-  storageBucket: "placeholder-project.firebasestorage.app",
-  messagingSenderId: "placeholder-sender-id",
-  appId: "placeholder-app-id"
+  apiKey: "YOUR_API_KEY_HERE",
+  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT_ID.firebasestorage.app",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
 };
