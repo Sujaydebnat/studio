@@ -28,7 +28,7 @@ export const FirebaseClientProvider = ({ children }: { children: ReactNode }) =>
     <FirebaseProvider
       firebaseApp={firebaseInstance.firebaseApp}
       firestore={firebaseInstance.firestore}
-      auth={instance.auth}
+      auth={firebaseInstance.auth}
     >
       <FirebaseErrorListener />
       {children}
