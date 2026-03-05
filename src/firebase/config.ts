@@ -3,14 +3,13 @@
 /**
  * Firebase Configuration
  * 
- * Replace the values below with your actual Firebase project configuration
- * from the Firebase Console (Project Settings > General > Your Apps).
+ * Using valid project configuration provided by the user.
  */
 export const firebaseConfig = {
-  apiKey: "JN3tfP40OCMYfT7Pv5n7Y6Ez2eoUEAS0IbdZGSREFiM",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.firebasestorage.app",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyBCKHRkRJ8fU7iqNN3i2j3cx2O_Y5JZyGc",
+  authDomain: "studio-639827874-59d3d.firebaseapp.com",
+  projectId: "studio-639827874-59d3d",
+  storageBucket: "studio-639827874-59d3d.firebasestorage.app",
+  messagingSenderId: "210983930934",
+  appId: "1:210983930934:web:0baa741e1500d3270f9c97"
 };
