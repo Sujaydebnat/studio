@@ -7,7 +7,7 @@
  * from the Firebase Console (Project Settings > General > Your Apps).
  */
 export const firebaseConfig = {
-  apiKey: "BCQ3ILUREofscKGaHSI6czompEIDIZhEAUfzcg-IV3DG4Ucc3ExHil8c_EmbXxZ374SV-pEvDpRj2j6_ossOcaU",
+  apiKey: "JN3tfP40OCMYfT7Pv5n7Y6Ez2eoUEAS0IbdZGSREFiM",
   authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
   projectId: "YOUR_PROJECT_ID",
   storageBucket: "YOUR_PROJECT_ID.firebasestorage.app",
