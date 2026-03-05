@@ -1,7 +1,7 @@
 'use client';
 
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
-import { initializeFirestore, Firestore } from 'firebase/firestore';
+import { initializeFirestore, Firestore, getFirestore } from 'firebase/firestore';
 import { getAuth, Auth } from 'firebase/auth';
 import { firebaseConfig } from './config';
 import { useMemo } from 'react';
@@ -15,10 +15,16 @@ export function initializeFirebase(): {
     getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
   
   // Use initializeFirestore with experimentalForceLongPolling to prevent "offline" errors
-  // in certain network environments like cloud IDEs or corporate proxies.
-  const firestore = initializeFirestore(firebaseApp, {
-    experimentalForceLongPolling: true,
-  });
+  // We wrap it in a try-catch to avoid "Firestore has already been initialized" errors
+  let firestore: Firestore;
+  try {
+    firestore = initializeFirestore(firebaseApp, {
+      experimentalForceLongPolling: true,
+    });
+  } catch (e) {
+    // If already initialized, just get the existing instance
+    firestore = getFirestore(firebaseApp);
+  }
   
   const auth = getAuth(firebaseApp);
 
