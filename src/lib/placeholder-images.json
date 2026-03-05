@@ -1,3 +1,22 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "hero-bg",
+      "description": "Abstract blue professional background",
+      "imageUrl": "https://picsum.photos/seed/42/1200/800",
+      "imageHint": "abstract blue"
+    },
+    {
+      "id": "design-preview",
+      "description": "Graphic design software on a screen",
+      "imageUrl": "https://picsum.photos/seed/design/600/400",
+      "imageHint": "graphic design"
+    },
+    {
+      "id": "print-shop",
+      "description": "Large format printer in action",
+      "imageUrl": "https://picsum.photos/seed/print/600/400",
+      "imageHint": "printing shop"
+    }
+  ]
 }
