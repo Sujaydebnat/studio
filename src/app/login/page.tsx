@@ -7,12 +7,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Printer, Loader2, LogIn, UserPlus } from 'lucide-react';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
+import { Printer, Loader2, LogIn, UserPlus, Chrome } from 'lucide-react';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { useAuth, useFirestore } from '@/firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Separator } from '@/components/ui/separator';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -21,13 +22,59 @@ export default function LoginPage() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
 
-  // Separate states for Login and Sign Up to avoid confusion
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   
   const [signupEmail, setSignupEmail] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
   const [signupName, setSignupName] = useState('');
+
+  const handleGoogleLogin = async () => {
+    if (!auth || !db) return;
+    setLoading(true);
+    const provider = new GoogleAuthProvider();
+    
+    try {
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+      
+      // Check if user profile exists
+      const userDocRef = doc(db, 'users', user.uid);
+      const userDoc = await getDoc(userDocRef);
+      
+      if (!userDoc.exists()) {
+        // Create default profile for new Google users
+        await setDoc(userDocRef, {
+          name: user.displayName || 'New User',
+          email: user.email,
+          role: 'admin', // Defaulting to admin for testing, change to 'staff' in production
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      }
+      
+      const userData = (await getDoc(userDocRef)).data();
+      if (userData?.role === 'admin') {
+        router.push('/admin/dashboard');
+      } else {
+        router.push('/staff/dashboard');
+      }
+      
+      toast({
+        title: "Welcome back!",
+        description: `Logged in as ${user.displayName || user.email}`,
+      });
+    } catch (error: any) {
+      console.error(error);
+      toast({
+        variant: "destructive",
+        title: "Google Login Failed",
+        description: error.message || "Could not complete Google authentication.",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,7 +100,6 @@ export default function LoginPage() {
           router.push('/staff/dashboard');
         }
       } else {
-        // Default to admin if no profile exists yet
         router.push('/admin/dashboard');
       }
     } catch (error: any) {
@@ -91,12 +137,12 @@ export default function LoginPage() {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, signupEmail, signupPassword);
       
-      // Create admin profile by default for the first user
       await setDoc(doc(db, 'users', userCredential.user.uid), {
         name: signupName || 'Admin User',
         email: signupEmail,
         role: 'admin',
-        createdAt: new Date().toISOString()
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
       });
       
       toast({
@@ -109,7 +155,7 @@ export default function LoginPage() {
       toast({
         variant: "destructive",
         title: "Sign Up Failed",
-        description: error.message || "Could not create account. Ensure Email/Password auth is enabled in Firebase.",
+        description: error.message || "Could not create account.",
       });
     } finally {
       setLoading(false);
@@ -136,9 +182,25 @@ export default function LoginPage() {
             </TabsList>
           </CardHeader>
 
-          <TabsContent value="login">
-            <form onSubmit={handleLogin}>
-              <CardContent className="space-y-4">
+          <CardContent className="space-y-4">
+            <Button 
+              variant="outline" 
+              className="w-full gap-2 border-primary/20 hover:bg-primary/5" 
+              onClick={handleGoogleLogin}
+              disabled={loading}
+            >
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Chrome className="w-4 h-4 text-blue-600" />}
+              Continue with Google
+            </Button>
+
+            <div className="relative flex items-center gap-4 py-2">
+              <Separator className="flex-1" />
+              <span className="text-[10px] uppercase text-muted-foreground font-bold">Or with Email</span>
+              <Separator className="flex-1" />
+            </div>
+
+            <TabsContent value="login" className="mt-0">
+              <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="login-email">Email address</Label>
                   <Input 
@@ -160,19 +222,15 @@ export default function LoginPage() {
                     onChange={(e) => setLoginPassword(e.target.value)}
                   />
                 </div>
-              </CardContent>
-              <CardFooter>
                 <Button type="submit" className="w-full bg-primary hover:bg-primary/90" disabled={loading}>
                   {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogIn className="mr-2 h-4 w-4" />}
                   Sign In
                 </Button>
-              </CardFooter>
-            </form>
-          </TabsContent>
+              </form>
+            </TabsContent>
 
-          <TabsContent value="signup">
-            <form onSubmit={handleSignUp}>
-              <CardContent className="space-y-4">
+            <TabsContent value="signup" className="mt-0">
+              <form onSubmit={handleSignUp} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="signup-name">Full Name</Label>
                   <Input 
@@ -205,20 +263,18 @@ export default function LoginPage() {
                     onChange={(e) => setSignupPassword(e.target.value)}
                   />
                 </div>
-              </CardContent>
-              <CardFooter>
                 <Button type="submit" className="w-full bg-accent text-accent-foreground hover:bg-accent/90" disabled={loading}>
                   {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
                   Create Admin Account
                 </Button>
-              </CardFooter>
-            </form>
-          </TabsContent>
+              </form>
+            </TabsContent>
+          </CardContent>
         </Tabs>
       </Card>
       
       <p className="mt-8 text-sm text-muted-foreground text-center max-w-xs">
-        Make sure to enable <b>Email/Password</b> Authentication in your Firebase Console.
+        Make sure to enable <b>Google</b> Authentication in your Firebase Console.
       </p>
     </div>
   );
