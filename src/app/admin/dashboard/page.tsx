@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useMemo } from 'react';
@@ -11,14 +10,14 @@ import {
   TrendingUp,
   Loader2
 } from 'lucide-react';
-import { useCollection, useFirestore } from '@/firebase';
-import { collection, query, orderBy, limit } from 'firebase/firestore';
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { collection, query, orderBy } from 'firebase/firestore';
 import { Badge } from '@/components/ui/badge';
 
 export default function AdminDashboard() {
   const db = useFirestore();
 
-  const ordersQuery = useMemo(() => {
+  const ordersQuery = useMemoFirebase(() => {
     if (!db) return null;
     return query(collection(db, 'orders'), orderBy('createdAt', 'desc'));
   }, [db]);
@@ -26,18 +25,16 @@ export default function AdminDashboard() {
   const { data: orders, loading } = useCollection(ordersQuery);
 
   const stats = useMemo(() => {
-    if (!orders) return [
-      { name: 'Total Orders', value: '0', icon: ClipboardList, color: 'text-primary' },
-      { name: 'In Design', value: '0', icon: Clock, color: 'text-orange-500' },
-      { name: 'Printing', value: '0', icon: Printer, color: 'text-accent' },
-      { name: 'Completed', value: '0', icon: CheckCircle2, color: 'text-green-500' },
-    ];
+    const total = orders?.length || 0;
+    const designing = orders?.filter(o => o.status === 'Designing').length || 0;
+    const printing = orders?.filter(o => o.status === 'Printing').length || 0;
+    const completed = orders?.filter(o => o.status === 'Completed').length || 0;
 
     return [
-      { name: 'Total Orders', value: orders.length.toString(), icon: ClipboardList, color: 'text-primary' },
-      { name: 'In Design', value: orders.filter(o => o.status === 'Designing').length.toString(), icon: Clock, color: 'text-orange-500' },
-      { name: 'Printing', value: orders.filter(o => o.status === 'Printing').length.toString(), icon: Printer, color: 'text-accent' },
-      { name: 'Completed', value: orders.filter(o => o.status === 'Completed').length.toString(), icon: CheckCircle2, color: 'text-green-500' },
+      { name: 'Total Orders', value: total.toString(), icon: ClipboardList, color: 'text-primary' },
+      { name: 'In Design', value: designing.toString(), icon: Clock, color: 'text-orange-500' },
+      { name: 'Printing', value: printing.toString(), icon: Printer, color: 'text-accent' },
+      { name: 'Completed', value: completed.toString(), icon: CheckCircle2, color: 'text-green-500' },
     ];
   }, [orders]);
 
