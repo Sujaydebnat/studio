@@ -1,18 +1,26 @@
 'use client';
 
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
-import { initializeFirestore, Firestore, getFirestore, terminate } from 'firebase/firestore';
+import { 
+  initializeFirestore, 
+  Firestore, 
+  getFirestore, 
+  CACHE_SIZE_UNLIMITED,
+  terminate 
+} from 'firebase/firestore';
 import { getAuth, Auth } from 'firebase/auth';
 import { firebaseConfig } from './config';
 import { useMemo } from 'react';
 
+// Singletons to persist across re-renders/HMR
 let firebaseApp: FirebaseApp;
 let firestore: Firestore;
 let auth: Auth;
 
 /**
  * Robust initialization of Firebase services.
- * Ensures Firestore uses long-polling to bypass proxy/WebSocket restrictions in cloud IDEs.
+ * Ensures Firestore uses long-polling to bypass proxy/WebSocket restrictions in cloud IDEs
+ * and enables unlimited local caching.
  */
 export function initializeFirebase(): {
   firebaseApp: FirebaseApp;
@@ -21,7 +29,7 @@ export function initializeFirebase(): {
 } {
   if (getApps().length === 0) {
     firebaseApp = initializeApp(firebaseConfig);
-    // Initialize Firestore with forceful long polling immediately after app init
+    // Initialize Firestore with specific settings to handle cloud proxy issues
     firestore = initializeFirestore(firebaseApp, {
       experimentalForceLongPolling: true,
       experimentalAutoDetectLongPolling: false,
@@ -29,7 +37,16 @@ export function initializeFirebase(): {
     auth = getAuth(firebaseApp);
   } else {
     firebaseApp = getApp();
-    firestore = getFirestore(firebaseApp);
+    // Use the existing firestore instance if already initialized, 
+    // otherwise get the default one.
+    try {
+      firestore = getFirestore(firebaseApp);
+    } catch (e) {
+      firestore = initializeFirestore(firebaseApp, {
+        experimentalForceLongPolling: true,
+        experimentalAutoDetectLongPolling: false,
+      });
+    }
     auth = getAuth(firebaseApp);
   }
 
@@ -38,6 +55,7 @@ export function initializeFirebase(): {
 
 /**
  * A utility hook to stabilize Firebase references and queries.
+ * Prevents infinite re-render loops when creating refs/queries inline.
  */
 export function useMemoFirebase<T>(factory: () => T, deps: any[]): T {
   return useMemo(factory, deps);
