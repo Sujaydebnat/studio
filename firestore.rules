@@ -1,3 +1,4 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -11,10 +12,17 @@ service cloud.firestore {
     }
 
     /**
+     * USER PROFILE RULES
+     * Allow users to read their own profile for role verification during login.
+     */
+    match /users/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+    }
+
+    /**
      * PUBLIC TRACKING RULE
      * Allows anyone (including anonymous/unauthenticated users) to get a specific order document.
      * This is required for the Customer Tracking page to work.
-     * Verification (Phone number match) happens on the client side in the Track page.
      */
     match /orders/{orderId} {
       allow get: if true;
