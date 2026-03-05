@@ -1,6 +1,8 @@
+
 "use client"
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -13,7 +15,7 @@ import {
   TableHeader, 
   TableRow 
 } from '@/components/ui/table';
-import { Search, Filter, MoreVertical, Eye, Trash2, Download, Loader2 } from 'lucide-react';
+import { Search, Filter, MoreVertical, Eye, Trash2, Download, Loader2, PlusCircle } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, deleteDoc, doc, query, orderBy } from 'firebase/firestore';
@@ -58,7 +60,6 @@ export default function OrdersPage() {
     
     const orderRef = doc(db, 'orders', id);
     
-    // Mutation call without await
     deleteDoc(orderRef)
       .then(() => {
         toast({ title: "Order Deleted", description: "The order has been removed from the database." });
@@ -80,11 +81,13 @@ export default function OrdersPage() {
           <p className="text-muted-foreground">View, filter, and manage all your print orders.</p>
         </div>
         <div className="flex gap-2">
+          <Link href="/admin/orders/new">
+            <Button className="bg-accent text-accent-foreground hover:bg-accent/90 gap-2 font-bold shadow-sm">
+              <PlusCircle className="w-4 h-4" /> New Order
+            </Button>
+          </Link>
           <Button variant="outline" className="gap-2">
             <Download className="w-4 h-4" /> Export
-          </Button>
-          <Button className="bg-primary gap-2">
-            <Filter className="w-4 h-4" /> Filter
           </Button>
         </div>
       </div>
@@ -101,6 +104,9 @@ export default function OrdersPage() {
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
+            <Button variant="outline" className="gap-2">
+              <Filter className="w-4 h-4" /> Filter
+            </Button>
           </div>
         </CardHeader>
         <CardContent className="p-0">

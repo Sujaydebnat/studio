@@ -1,14 +1,18 @@
+
 "use client"
 
 import { useMemo } from 'react';
+import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { 
   ClipboardList, 
   Clock, 
   Printer, 
   CheckCircle2, 
   TrendingUp,
-  Loader2
+  Loader2,
+  PlusCircle
 } from 'lucide-react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy } from 'firebase/firestore';
@@ -44,9 +48,17 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h2 className="text-3xl font-bold font-headline text-primary">Dashboard Overview</h2>
-        <p className="text-muted-foreground">Welcome back! Here's what's happening today in your shop.</p>
+      <div className="flex justify-between items-start">
+        <div>
+          <h2 className="text-3xl font-bold font-headline text-primary">Dashboard Overview</h2>
+          <p className="text-muted-foreground">Welcome back! Here's what's happening today in your shop.</p>
+        </div>
+        <Link href="/admin/orders/new">
+          <Button className="bg-accent text-accent-foreground hover:bg-accent/90 gap-2 font-bold shadow-lg">
+            <PlusCircle className="w-5 h-5" />
+            Create New Order
+          </Button>
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -101,7 +113,14 @@ export default function AdminDashboard() {
                 ))}
               </div>
             ) : (
-              <p className="text-center text-muted-foreground py-8">No orders yet. Create one to get started!</p>
+              <div className="text-center py-12 space-y-4">
+                <p className="text-muted-foreground">No orders yet. Start your workflow today!</p>
+                <Link href="/admin/orders/new">
+                  <Button variant="outline" size="sm" className="gap-2">
+                    <PlusCircle className="w-4 h-4" /> Create First Order
+                  </Button>
+                </Link>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -119,6 +138,11 @@ export default function AdminDashboard() {
               <h4 className="font-bold text-sm text-accent mb-1">Live Tracking</h4>
               <p className="text-xs text-muted-foreground">Share the Order ID with customers so they can track progress online.</p>
             </div>
+            <Link href="/admin/orders/new" className="block">
+              <Button className="w-full bg-primary gap-2">
+                <PlusCircle className="w-4 h-4" /> Add New Order
+              </Button>
+            </Link>
           </CardContent>
         </Card>
       </div>

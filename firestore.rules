@@ -5,7 +5,6 @@ service cloud.firestore {
     /**
      * PROTOTYPING RULES
      * Allows all authenticated users to read/write all documents.
-     * This ensures the Admin Dashboard, Staff portal, and order management work perfectly.
      */
     match /{document=**} {
       allow read, write: if request.auth != null;
@@ -21,11 +20,9 @@ service cloud.firestore {
     
     /**
      * USER PROFILE RULES
-     * Essential for role-based redirection during login.
      */
     match /users/{userId} {
-      allow read: if request.auth != null && request.auth.uid == userId;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if request.auth != null && request.auth.uid == userId;
     }
   }
 }
