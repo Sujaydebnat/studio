@@ -1,3 +1,7 @@
+
+"use client"
+
+import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { 
   ClipboardList, 
@@ -5,22 +9,47 @@ import {
   Printer, 
   CheckCircle2, 
   TrendingUp,
-  Users
+  Loader2
 } from 'lucide-react';
+import { useCollection, useFirestore } from '@/firebase';
+import { collection, query, orderBy, limit } from 'firebase/firestore';
+import { Badge } from '@/components/ui/badge';
 
 export default function AdminDashboard() {
-  const stats = [
-    { name: 'Total Orders', value: '1,284', icon: ClipboardList, color: 'text-primary' },
-    { name: 'In Design', value: '12', icon: Clock, color: 'text-orange-500' },
-    { name: 'Printing', value: '8', icon: Printer, color: 'text-accent' },
-    { name: 'Completed', value: '1,264', icon: CheckCircle2, color: 'text-green-500' },
-  ];
+  const db = useFirestore();
+
+  const ordersQuery = useMemo(() => {
+    if (!db) return null;
+    return query(collection(db, 'orders'), orderBy('createdAt', 'desc'));
+  }, [db]);
+
+  const { data: orders, loading } = useCollection(ordersQuery);
+
+  const stats = useMemo(() => {
+    if (!orders) return [
+      { name: 'Total Orders', value: '0', icon: ClipboardList, color: 'text-primary' },
+      { name: 'In Design', value: '0', icon: Clock, color: 'text-orange-500' },
+      { name: 'Printing', value: '0', icon: Printer, color: 'text-accent' },
+      { name: 'Completed', value: '0', icon: CheckCircle2, color: 'text-green-500' },
+    ];
+
+    return [
+      { name: 'Total Orders', value: orders.length.toString(), icon: ClipboardList, color: 'text-primary' },
+      { name: 'In Design', value: orders.filter(o => o.status === 'Designing').length.toString(), icon: Clock, color: 'text-orange-500' },
+      { name: 'Printing', value: orders.filter(o => o.status === 'Printing').length.toString(), icon: Printer, color: 'text-accent' },
+      { name: 'Completed', value: orders.filter(o => o.status === 'Completed').length.toString(), icon: CheckCircle2, color: 'text-green-500' },
+    ];
+  }, [orders]);
+
+  const recentOrders = useMemo(() => {
+    return orders?.slice(0, 5) || [];
+  }, [orders]);
 
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-3xl font-bold font-headline">Dashboard Overview</h2>
-        <p className="text-muted-foreground">Welcome back! Here's what's happening today.</p>
+        <h2 className="text-3xl font-bold font-headline text-primary">Dashboard Overview</h2>
+        <p className="text-muted-foreground">Welcome back! Here's what's happening today in your shop.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -31,11 +60,17 @@ export default function AdminDashboard() {
               <stat.icon className={`h-5 w-5 ${stat.color}`} />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold">{stat.value}</div>
-              <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-                <TrendingUp className="w-3 h-3 text-green-500" />
-                <span className="text-green-500 font-semibold">+4.5%</span> from last week
-              </p>
+              {loading ? (
+                <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+              ) : (
+                <>
+                  <div className="text-3xl font-bold">{stat.value}</div>
+                  <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                    <TrendingUp className="w-3 h-3 text-green-500" />
+                    Live from database
+                  </p>
+                </>
+              )}
             </CardContent>
           </Card>
         ))}
@@ -47,61 +82,49 @@ export default function AdminDashboard() {
             <CardTitle>Recent Activity</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-6">
-              {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="flex items-center justify-between border-b pb-4 last:border-0 last:pb-0">
-                  <div className="flex gap-4">
-                    <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
-                      <ClipboardList className="w-5 h-5 text-muted-foreground" />
+            {loading ? (
+              <div className="flex justify-center p-8">
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+              </div>
+            ) : recentOrders.length > 0 ? (
+              <div className="space-y-6">
+                {recentOrders.map((order) => (
+                  <div key={order.id} className="flex items-center justify-between border-b pb-4 last:border-0 last:pb-0">
+                    <div className="flex gap-4">
+                      <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                        <ClipboardList className="w-5 h-5 text-muted-foreground" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-sm">{order.workType} for {order.customerName}</p>
+                        <p className="text-xs text-muted-foreground">ID: {order.id.slice(0, 8)}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-semibold text-sm">New Order Created #{12340 + i}</p>
-                      <p className="text-xs text-muted-foreground">Banner Print for Local Mall • 2h ago</p>
-                    </div>
+                    <Badge variant="outline" className="text-xs">{order.status}</Badge>
                   </div>
-                  <Badge variant="outline" className="text-xs">Assigned</Badge>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-center text-muted-foreground py-8">No orders yet. Create one to get started!</p>
+            )}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Staff Load</CardTitle>
+            <CardTitle>Quick Links</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {[
-                { name: 'John Designer', tasks: 5, color: 'bg-primary' },
-                { name: 'Sarah Artist', tasks: 3, color: 'bg-accent' },
-                { name: 'Mike Printer', tasks: 8, color: 'bg-orange-500' },
-              ].map((staff) => (
-                <div key={staff.name} className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="font-medium">{staff.name}</span>
-                    <span className="text-muted-foreground">{staff.tasks} active</span>
-                  </div>
-                  <div className="w-full bg-muted rounded-full h-2">
-                    <div 
-                      className={`${staff.color} h-2 rounded-full`} 
-                      style={{ width: `${(staff.tasks / 10) * 100}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
+          <CardContent className="space-y-4">
+            <div className="p-4 bg-primary/5 rounded-lg border border-primary/20">
+              <h4 className="font-bold text-sm text-primary mb-1">New Feature: AI Briefs</h4>
+              <p className="text-xs text-muted-foreground">Generate professional design briefs instantly when creating orders.</p>
+            </div>
+            <div className="p-4 bg-accent/5 rounded-lg border border-accent/20">
+              <h4 className="font-bold text-sm text-accent mb-1">Live Tracking</h4>
+              <p className="text-xs text-muted-foreground">Share the Order ID with customers so they can track progress online.</p>
             </div>
           </CardContent>
         </Card>
       </div>
     </div>
-  );
-}
-
-function Badge({ children, variant, className }: any) {
-  return (
-    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide ${className} ${variant === 'outline' ? 'border' : ''}`}>
-      {children}
-    </span>
   );
 }
