@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Search, Package, Clock, CheckCircle2, FileText, Image as ImageIcon, Printer, AlertCircle, Loader2, WifiOff, Calendar as CalendarIcon, Banknote, Hash } from 'lucide-react';
+import { Search, Package, Clock, CheckCircle2, FileText, Image as ImageIcon, Printer, AlertCircle, Loader2, WifiOff, Calendar as CalendarIcon, Banknote, Hash, Ruler } from 'lucide-react';
 import Image from 'next/image';
 import { useFirestore } from '@/firebase';
 import { doc, getDoc, query, collection, where, getDocs, or } from 'firebase/firestore';
@@ -15,7 +15,7 @@ import { format } from 'date-fns';
 
 export default function TrackOrderPage() {
   const db = useFirestore();
-  const [trackIdentifier, setTrackIdentifier] = useState(''); // Can be Order ID or Bill Number
+  const [trackIdentifier, setTrackIdentifier] = useState(''); 
   const [phone, setPhone] = useState('');
   const [order, setOrder] = useState<any | null>(null);
   const [loading, setLoading] = useState(false);
@@ -33,23 +33,18 @@ export default function TrackOrderPage() {
       const cleanedIdentifier = trackIdentifier.trim();
       let foundOrder: any = null;
 
-      // 1. Try fetching by Document ID (System Order ID)
       try {
         const docRef = doc(db, 'orders', cleanedIdentifier);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
           foundOrder = { id: docSnap.id, ...docSnap.data() };
         }
-      } catch (err) {
-        // Silently fail if not a valid Firestore ID format or not found
-      }
+      } catch (err) {}
 
-      // 2. If not found, try searching by Bill Number field
       if (!foundOrder) {
         const ordersRef = collection(db, 'orders');
         const q = query(ordersRef, where('billNumber', '==', cleanedIdentifier));
         const querySnap = await getDocs(q);
-        
         if (!querySnap.empty) {
           const docData = querySnap.docs[0];
           foundOrder = { id: docData.id, ...docData.data() };
@@ -57,25 +52,19 @@ export default function TrackOrderPage() {
       }
 
       if (foundOrder) {
-        // Verification logic: match last 4 digits of phone
         const storedPhone = foundOrder.phone?.replace(/\D/g, '') || '';
         const inputPhone = phone.replace(/\D/g, '');
-        
         if (storedPhone.endsWith(inputPhone)) {
           setOrder(foundOrder);
         } else {
           setError("Verification failed. Please ensure the last 4 digits of the phone number are correct.");
         }
       } else {
-        setError("Order not found. Please double-check the Bill Number or Order ID provided to you.");
+        setError("Order not found. Please double-check your Bill Number.");
       }
     } catch (e: any) {
       console.error("Tracking Error:", e);
-      if (e.code === 'unavailable' || e.message?.includes('offline')) {
-        setError("PrintFlow system is currently offline. Please check your internet.");
-      } else {
-        setError("An unexpected error occurred. Please try again later.");
-      }
+      setError("An unexpected error occurred. Please try again later.");
     } finally {
       setLoading(false);
     }
@@ -104,7 +93,7 @@ export default function TrackOrderPage() {
             <CardTitle className="flex items-center gap-2">
               <Search className="w-5 h-5 text-accent" /> Order Verification
             </CardTitle>
-            <CardDescription>Enter your Bill Number or Order ID to see live status.</CardDescription>
+            <CardDescription>Enter your Bill Number and Phone to see live status.</CardDescription>
           </CardHeader>
           <form onSubmit={handleTrack}>
             <CardContent className="grid md:grid-cols-2 gap-4">
@@ -142,20 +131,22 @@ export default function TrackOrderPage() {
 
         {error && (
           <div className="bg-destructive/10 text-destructive p-4 rounded-lg flex items-center gap-3 border border-destructive/20 animate-in fade-in slide-in-from-top-4">
-            {error.includes('offline') ? <WifiOff className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+            <AlertCircle className="w-5 h-5" />
             <p className="text-sm font-medium">{error}</p>
           </div>
         )}
 
         {order && (
-          <Card className="animate-in fade-in zoom-in-95 duration-500 overflow-hidden border-2 border-accent/20">
+          <Card className="animate-in fade-in zoom-in-95 duration-500 overflow-hidden border-2 border-accent/20 shadow-xl">
             <div className="bg-accent/10 p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div>
                 <p className="text-xs font-semibold text-accent uppercase tracking-wider flex items-center gap-2">
                   <Hash className="w-3 h-3" /> Bill No: {order.billNumber || 'N/A'}
                 </p>
-                <h2 className="text-2xl font-bold font-headline">{(order.workTypes || [order.workType]).join(", ")}</h2>
-                {order.subWorkType && <Badge variant="outline" className="mt-1">{order.subWorkType}</Badge>}
+                <h2 className="text-2xl font-bold font-headline">{order.customerName}</h2>
+                <div className="flex flex-wrap gap-1 mt-2">
+                  {(order.workTypes || []).map((t: string) => <Badge key={t} variant="secondary" className="text-[10px]">{t}</Badge>)}
+                </div>
               </div>
               <Badge className="text-lg px-4 py-1 bg-primary flex items-center gap-2">
                 {getStatusIcon(order.status)}
@@ -164,11 +155,7 @@ export default function TrackOrderPage() {
             </div>
             
             <CardContent className="p-6 space-y-8">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="space-y-1">
-                  <p className="text-[10px] text-muted-foreground uppercase font-bold">Customer</p>
-                  <p className="font-semibold text-sm">{order.customerName}</p>
-                </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 <div className="space-y-1">
                   <p className="text-[10px] text-muted-foreground uppercase font-bold">Delivery Date</p>
                   <p className="font-semibold text-sm flex items-center gap-1">
@@ -191,47 +178,42 @@ export default function TrackOrderPage() {
                 </div>
               </div>
 
-              {order.designBrief && (
-                <div className="bg-muted/30 p-4 rounded-lg border">
-                  <h3 className="font-bold text-sm mb-2 uppercase text-muted-foreground flex items-center gap-2">
-                    <FileText className="w-3 h-3" /> Design Brief Summary
-                  </h3>
-                  <p className="text-sm leading-relaxed">{order.designBrief.overview}</p>
-                </div>
-              )}
-
               <div className="space-y-4">
-                <h3 className="font-bold text-lg border-b pb-2 flex items-center gap-2">
-                  <ImageIcon className="w-5 h-5 text-accent" /> Design Previews
+                <h3 className="font-bold text-lg border-b pb-2 flex items-center gap-2 text-primary">
+                  <Package className="w-5 h-5" /> Order Item Details
                 </h3>
-                <div className="grid gap-4">
-                  {order.previews && order.previews.length > 0 ? (
-                    order.previews.map((url: string, idx: number) => (
-                      <div key={idx} className="relative aspect-video rounded-xl overflow-hidden border-4 border-white shadow-md">
-                        <Image 
-                          src={url} 
-                          alt="Design Preview" 
-                          fill 
-                          className="object-cover" 
-                        />
-                      </div>
-                    ))
-                  ) : (
-                    <div className="bg-muted p-12 rounded-xl flex flex-col items-center justify-center text-center space-y-3 border-2 border-dashed">
-                      <div className="bg-white p-4 rounded-full shadow-sm">
-                        <Clock className="w-8 h-8 text-primary animate-pulse" />
-                      </div>
+                <div className="grid gap-3">
+                  {order.orderItems?.map((item: any, idx: number) => (
+                    <div key={idx} className="flex justify-between items-center p-3 bg-muted/50 rounded-lg border">
                       <div className="space-y-1">
-                        <p className="text-foreground font-bold">Design in Progress</p>
-                        <p className="text-muted-foreground text-sm max-w-xs mx-auto">Our designers are currently crafting your work. Check back soon for previews!</p>
+                        <p className="text-sm font-bold">{item.type}</p>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Ruler className="w-3 h-3" /> {item.size}
+                        </div>
                       </div>
+                      <Badge variant="outline" className="bg-white font-bold">{item.qty} Pcs</Badge>
                     </div>
-                  )}
+                  ))}
                 </div>
               </div>
+
+              {order.previews && order.previews.length > 0 && (
+                <div className="space-y-4">
+                  <h3 className="font-bold text-lg border-b pb-2 flex items-center gap-2">
+                    <ImageIcon className="w-5 h-5 text-accent" /> Design Previews
+                  </h3>
+                  <div className="grid gap-4">
+                    {order.previews.map((url: string, idx: number) => (
+                      <div key={idx} className="relative aspect-video rounded-xl overflow-hidden border shadow-md">
+                        <Image src={url} alt="Design Preview" fill className="object-cover" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </CardContent>
             <CardFooter className="bg-muted/30 border-t py-4 justify-center">
-              <p className="text-xs text-muted-foreground italic">Powered by PrintFlow Manage AI System</p>
+              <p className="text-xs text-muted-foreground italic">Powered by PrintFlow Manage System</p>
             </CardFooter>
           </Card>
         )}

@@ -24,6 +24,12 @@ const WORK_TYPES = [
   "LOGO", "PLATE", "REDIEM", "VINAIL", "DTF", "UV"
 ];
 
+interface OrderItem {
+  type: string;
+  size: string;
+  qty: string;
+}
+
 export default function AdminOrderDetail() {
   const { id } = useParams();
   const router = useRouter();
@@ -36,6 +42,8 @@ export default function AdminOrderDetail() {
   const [newMessage, setNewMessage] = useState('');
   const [sending, setSending] = useState(false);
   const [updating, setUpdating] = useState(false);
+  
+  const [newItem, setNewItem] = useState<OrderItem>({ type: '', size: '', qty: '1' });
 
   const orderRef = useMemoFirebase(() => 
     id && db ? doc(db, 'orders', id as string) : null
@@ -114,13 +122,36 @@ export default function AdminOrderDetail() {
 
   const toggleWorkType = (type: string) => {
     if (!order) return;
-    const currentTypes = order.workTypes || [order.workType];
+    const currentTypes = order.workTypes || [];
     const isSelected = currentTypes.includes(type);
     const newWorkTypes = isSelected 
       ? currentTypes.filter((t: string) => t !== type)
       : [...currentTypes, type];
     
     handleUpdateField('workTypes', newWorkTypes);
+  };
+
+  const addItemToList = async () => {
+    if (!newItem.type || !newItem.size || !newItem.qty || !orderRef) return;
+    setUpdating(true);
+    try {
+      const currentItems = order?.orderItems || [];
+      await updateDoc(orderRef, { orderItems: [...currentItems, newItem], updatedAt: serverTimestamp() });
+      setNewItem({ type: '', size: '', qty: '1' });
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const removeItemFromList = async (idx: number) => {
+    if (!orderRef || !order?.orderItems) return;
+    setUpdating(true);
+    try {
+      const newItems = order.orderItems.filter((_: any, i: number) => i !== idx);
+      await updateDoc(orderRef, { orderItems: newItems, updatedAt: serverTimestamp() });
+    } finally {
+      setUpdating(false);
+    }
   };
 
   const handleAddImage = async (field: 'previews' | 'referenceImages', url: string) => {
@@ -190,7 +221,7 @@ export default function AdminOrderDetail() {
                   <div key={type} className="flex items-center space-x-2">
                     <Checkbox 
                       id={`edit-type-${type}`} 
-                      checked={(order.workTypes || [order.workType]).includes(type)}
+                      checked={(order.workTypes || []).includes(type)}
                       onCheckedChange={() => toggleWorkType(type)}
                       disabled={updating}
                     />
@@ -198,18 +229,42 @@ export default function AdminOrderDetail() {
                   </div>
                 ))}
               </div>
-              {(order.workTypes || [order.workType]).includes('DIGITAL PAPER') && (
-                <div className="space-y-1">
-                  <Label className="text-[10px] font-bold">Digital Paper Sub-Type</Label>
-                  <Select defaultValue={order.subWorkType} onValueChange={(v) => handleUpdateField('subWorkType', v)} disabled={updating}>
-                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle className="flex items-center gap-2 text-primary"><Ruler className="w-5 h-5" /> Detailed Items</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <div className="bg-muted/30 p-3 rounded-lg border-2 border-dashed space-y-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <Select value={newItem.type} onValueChange={(v) => setNewItem({...newItem, type: v})}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Type" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="VISITING CARD">VISITING CARD</SelectItem>
-                      <SelectItem value="TABLE MENU CARD">TABLE MENU CARD</SelectItem>
-                      <SelectItem value="HAND MENU CARD">HAND MENU CARD</SelectItem>
-                      <SelectItem value="PVC CARD">PVC CARD</SelectItem>
+                      {(order.workTypes || []).map((t: string) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
                     </SelectContent>
                   </Select>
+                  <Input placeholder="Size" value={newItem.size} onChange={(e) => setNewItem({...newItem, size: e.target.value})} className="h-8 text-xs" />
+                </div>
+                <div className="flex gap-2">
+                  <Input type="number" value={newItem.qty} onChange={(e) => setNewItem({...newItem, qty: e.target.value})} className="h-8 text-xs flex-1" />
+                  <Button onClick={addItemToList} size="sm" className="h-8"><Plus className="w-3 h-3" /></Button>
+                </div>
+              </div>
+
+              {order.orderItems?.length > 0 && (
+                <div className="space-y-2">
+                  {order.orderItems.map((item: any, i: number) => (
+                    <div key={i} className="flex items-center justify-between p-2 rounded bg-muted/50 border text-xs">
+                      <div className="flex-1">
+                        <span className="font-bold text-primary mr-2">{item.type}</span>
+                        <span className="font-mono">{item.size}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="bg-primary/10 px-2 py-0.5 rounded font-bold">{item.qty} pcs</span>
+                        <Button variant="ghost" size="icon" onClick={() => removeItemFromList(i)} className="h-6 w-6 text-destructive"><Trash2 className="w-3 h-3" /></Button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </CardContent>
@@ -246,52 +301,6 @@ export default function AdminOrderDetail() {
                     className="h-8 text-sm"
                  />
                </div>
-               <div className="space-y-1">
-                 <Label className="text-[10px] font-bold uppercase opacity-60">Customer Email</Label>
-                 <Input 
-                    type="email"
-                    defaultValue={order.customerEmail} 
-                    onBlur={(e) => handleUpdateField('customerEmail', e.target.value)}
-                    className="h-8 text-sm"
-                 />
-               </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between text-sm">
-                Files & References
-                <div className="flex gap-1">
-                  <input type="file" ref={refFileRef} className="hidden" accept="image/*,.pdf,.doc,.docx,.txt" onChange={(e) => handleFileUpload(e, 'reference')} />
-                  <Button variant="outline" size="icon" onClick={() => refFileRef.current?.click()}>
-                    <Upload className="w-4 h-4" />
-                  </Button>
-                  <CameraCapture onCapture={(img) => handleAddImage('referenceImages', img)} />
-                </div>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="grid grid-cols-2 gap-2">
-              {order.referenceImages?.map((url: string, i: number) => (
-                <div key={i} className="relative aspect-square rounded border overflow-hidden group bg-muted flex flex-col items-center justify-center">
-                  {isImage(url) ? (
-                    <img src={url} className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="flex flex-col items-center gap-1 p-2">
-                      <FileText className="w-8 h-8 text-primary" />
-                      <span className="text-[10px] text-muted-foreground truncate w-full text-center">Document</span>
-                    </div>
-                  )}
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                    <a href={url} download={`ref-${i}`} className="bg-white p-1.5 rounded-full text-primary hover:bg-primary hover:text-white transition-colors">
-                      <Download className="w-4 h-4" />
-                    </a>
-                    <button onClick={() => removeImage('referenceImages', url)} className="bg-destructive p-1.5 rounded-full text-white">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
             </CardContent>
           </Card>
         </div>
@@ -320,7 +329,7 @@ export default function AdminOrderDetail() {
                               className={`flex items-center gap-2 p-2 rounded text-xs transition-colors ${upd.senderRole === 'admin' ? 'bg-black/20 hover:bg-black/30' : 'bg-primary/10 hover:bg-primary/20 text-primary font-bold'}`}
                             >
                               {isImage(upd.fileUrl) ? <ImageIcon className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
-                              Download {isImage(upd.fileUrl) ? 'Image (Doc Mode)' : 'Document'}
+                              Download
                             </a>
                           </div>
                         )}
@@ -347,7 +356,7 @@ export default function AdminOrderDetail() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
-                Design Previews (Customer View)
+                Design Previews
                 <div className="flex gap-1">
                   <input type="file" ref={previewFileRef} className="hidden" accept="image/*,.pdf" onChange={(e) => handleFileUpload(e, 'preview')} />
                   <Button variant="outline" size="icon" onClick={() => previewFileRef.current?.click()}>

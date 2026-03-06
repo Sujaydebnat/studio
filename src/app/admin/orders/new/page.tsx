@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Sparkles, Loader2, ArrowLeft, Save, ImageIcon, Upload, FileText, Ruler, Calendar as CalendarIcon, Hash, Banknote, Mail } from 'lucide-react';
+import { Sparkles, Loader2, ArrowLeft, Save, ImageIcon, Upload, FileText, Ruler, Calendar as CalendarIcon, Hash, Banknote, Mail, Plus, Trash2 } from 'lucide-react';
 import { aiDesignBriefTool, type AIDesignBriefToolOutput } from '@/ai/flows/ai-design-brief-tool-flow';
 import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, where } from 'firebase/firestore';
@@ -23,6 +23,12 @@ const WORK_TYPES = [
   "GIFT", "FLEX", "DIGITAL PAPER", "PHOTOPAPER", "GUM PAPER", 
   "LOGO", "PLATE", "REDIEM", "VINAIL", "DTF", "UV"
 ];
+
+interface OrderItem {
+  type: string;
+  size: string;
+  qty: string;
+}
 
 export default function NewOrderPage() {
   const router = useRouter();
@@ -40,19 +46,17 @@ export default function NewOrderPage() {
     customerEmail: '',
     phone: '',
     workTypes: [] as string[],
-    subWorkType: '',
     keywords: '',
     priority: 'Normal',
     assignedStaffId: '',
-    width: '',
-    height: '',
-    unit: 'Inches',
-    quantity: '1',
     totalBill: '',
     deliveryDate: '',
     additionalDetails: '',
     referenceImages: [] as string[]
   });
+
+  const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
+  const [currentItem, setCurrentItem] = useState<OrderItem>({ type: '', size: '', qty: '1' });
 
   const staffQuery = useMemoFirebase(() => {
     if (!db) return null;
@@ -70,6 +74,21 @@ export default function NewOrderPage() {
       
       return { ...prev, workTypes: newWorkTypes };
     });
+    // Set current item type if it's the only one
+    if (currentItem.type === '') setCurrentItem({ ...currentItem, type });
+  };
+
+  const addOrderItem = () => {
+    if (!currentItem.type || !currentItem.size || !currentItem.qty) {
+      toast({ variant: "destructive", title: "Missing Info", description: "Select type, enter size and quantity for the item." });
+      return;
+    }
+    setOrderItems([...orderItems, currentItem]);
+    setCurrentItem({ type: '', size: '', qty: '1' });
+  };
+
+  const removeOrderItem = (idx: number) => {
+    setOrderItems(orderItems.filter((_, i) => i !== idx));
   };
 
   const handleAddRefFile = (url: string) => {
@@ -115,7 +134,7 @@ export default function NewOrderPage() {
     setLoadingAI(true);
     try {
       const brief = await aiDesignBriefTool({
-        projectType: formData.workTypes.join(", ") + (formData.subWorkType ? ` (${formData.subWorkType})` : ''),
+        projectType: formData.workTypes.join(", "),
         keywords: formData.keywords,
       });
       setDesignBrief(brief);
@@ -135,9 +154,15 @@ export default function NewOrderPage() {
       return;
     }
 
+    if (orderItems.length === 0) {
+      toast({ variant: "destructive", title: "No Items", description: "Please add at least one item size and quantity." });
+      return;
+    }
+
     setSaving(true);
     const orderData = {
       ...formData,
+      orderItems,
       adminId: user.uid,
       status: 'Pending',
       designBrief: designBrief || null,
@@ -164,18 +189,10 @@ export default function NewOrderPage() {
       });
   };
 
-  const handlePhotoPaperSizeSelect = (val: string) => {
-    if (val === '12x18') {
-      setFormData({ ...formData, width: '12', height: '18', unit: 'Inches' });
-    } else if (val === '12x8') {
-      setFormData({ ...formData, width: '12', height: '8', unit: 'Inches' });
-    }
-  };
-
   const isImage = (url: string) => url.startsWith('data:image/') || url.match(/\.(jpeg|jpg|gif|png)$/) != null;
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 pb-20">
+    <div className="max-w-6xl mx-auto space-y-6 pb-20">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => router.back()}>
@@ -193,7 +210,7 @@ export default function NewOrderPage() {
         <div className="md:col-span-7 space-y-6">
           <Card className="shadow-sm border-2">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Hash className="w-5 h-5 text-primary" /> Bill & Customer Info</CardTitle>
+              <CardTitle className="flex items-center gap-2 text-lg"><Hash className="w-5 h-5 text-primary" /> Bill & Customer Info</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid grid-cols-2 gap-4">
@@ -247,7 +264,7 @@ export default function NewOrderPage() {
               </div>
 
               <div className="space-y-3">
-                <Label className="text-primary font-bold">Select Work Types (Can select multiple)</Label>
+                <Label className="text-primary font-bold">Select All Work Types in this Bill</Label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 bg-muted/30 p-4 rounded-lg border">
                   {WORK_TYPES.map((type) => (
                     <div key={type} className="flex items-center space-x-2">
@@ -258,42 +275,13 @@ export default function NewOrderPage() {
                       />
                       <label 
                         htmlFor={`type-${type}`}
-                        className="text-xs font-medium leading-none cursor-pointer peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                        className="text-xs font-medium leading-none cursor-pointer"
                       >
                         {type}
                       </label>
                     </div>
                   ))}
                 </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                {formData.workTypes.includes('DIGITAL PAPER') && (
-                  <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
-                    <Label>Digital Paper Sub-Type</Label>
-                    <Select onValueChange={(val) => setFormData({...formData, subWorkType: val})}>
-                      <SelectTrigger><SelectValue placeholder="Select Sub Type" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="VISITING CARD">VISITING CARD</SelectItem>
-                        <SelectItem value="TABLE MENU CARD">TABLE MENU CARD</SelectItem>
-                        <SelectItem value="HAND MENU CARD">HAND MENU CARD</SelectItem>
-                        <SelectItem value="PVC CARD">PVC CARD</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-                {formData.workTypes.includes('PHOTOPAPER') && (
-                  <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
-                    <Label>Photopaper Size</Label>
-                    <Select onValueChange={handlePhotoPaperSizeSelect}>
-                      <SelectTrigger><SelectValue placeholder="Select Photo Size" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="12x18">12 × 18 Inches</SelectItem>
-                        <SelectItem value="12x8">12 × 8 Inches</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -322,44 +310,76 @@ export default function NewOrderPage() {
           </Card>
 
           <Card className="shadow-sm border-2">
-            <CardHeader><CardTitle className="flex items-center gap-2"><Ruler className="w-5 h-5 text-primary" /> Production Specs</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="flex items-center gap-2 text-lg text-primary"><Ruler className="w-5 h-5" /> Detailed Order Items (Multiple Sizes)</CardTitle></CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Print Size (W × H)</Label>
-                  <div className="flex items-center gap-2">
-                    <Input placeholder="W" value={formData.width} onChange={(e) => setFormData({...formData, width: e.target.value})} />
-                    <span className="text-muted-foreground font-bold">×</span>
-                    <Input placeholder="H" value={formData.height} onChange={(e) => setFormData({...formData, height: e.target.value})} />
-                    <Select value={formData.unit} onValueChange={(val) => setFormData({...formData, unit: val})}>
-                      <SelectTrigger className="w-[100px]"><SelectValue /></SelectTrigger>
+              <div className="bg-muted/20 p-4 rounded-lg border-2 border-dashed space-y-4">
+                <div className="grid grid-cols-12 gap-2">
+                  <div className="col-span-4 space-y-1">
+                    <Label className="text-[10px] font-bold">Type</Label>
+                    <Select value={currentItem.type} onValueChange={(v) => setCurrentItem({...currentItem, type: v})}>
+                      <SelectTrigger className="h-9"><SelectValue placeholder="Type" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Inches">Inches</SelectItem>
-                        <SelectItem value="mm">mm</SelectItem>
-                        <SelectItem value="cm">cm</SelectItem>
-                        <SelectItem value="ft">ft</SelectItem>
+                        {formData.workTypes.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Quantity (Pis)</Label>
-                  <Input type="number" value={formData.quantity} onChange={(e) => setFormData({...formData, quantity: e.target.value})} />
+                  <div className="col-span-4 space-y-1">
+                    <Label className="text-[10px] font-bold">Size (e.g. 10x20 in)</Label>
+                    <Input placeholder="Size" value={currentItem.size} onChange={(e) => setCurrentItem({...currentItem, size: e.target.value})} className="h-9" />
+                  </div>
+                  <div className="col-span-2 space-y-1">
+                    <Label className="text-[10px] font-bold">Qty</Label>
+                    <Input type="number" value={currentItem.qty} onChange={(e) => setCurrentItem({...currentItem, qty: e.target.value})} className="h-9" />
+                  </div>
+                  <div className="col-span-2 flex items-end">
+                    <Button type="button" onClick={addOrderItem} className="w-full h-9 bg-accent hover:bg-accent/90">
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
               </div>
-              <div className="grid grid-cols-1 gap-4">
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2"><CalendarIcon className="w-4 h-4 text-primary" /> Delivery Date</Label>
-                  <Input 
-                    type="date" 
-                    value={formData.deliveryDate} 
-                    onChange={(e) => setFormData({...formData, deliveryDate: e.target.value})} 
-                  />
+
+              {orderItems.length > 0 && (
+                <div className="border rounded-lg overflow-hidden">
+                   <table className="w-full text-sm">
+                     <thead className="bg-muted">
+                       <tr>
+                         <th className="p-2 text-left">Type</th>
+                         <th className="p-2 text-left">Size</th>
+                         <th className="p-2 text-center">Qty</th>
+                         <th className="p-2 text-right">Action</th>
+                       </tr>
+                     </thead>
+                     <tbody>
+                       {orderItems.map((item, i) => (
+                         <tr key={i} className="border-t hover:bg-muted/50">
+                           <td className="p-2 font-bold text-primary">{item.type}</td>
+                           <td className="p-2 font-mono">{item.size}</td>
+                           <td className="p-2 text-center">{item.qty}</td>
+                           <td className="p-2 text-right">
+                             <Button variant="ghost" size="icon" onClick={() => removeOrderItem(i)} className="text-destructive h-7 w-7">
+                               <Trash2 className="w-4 h-4" />
+                             </Button>
+                           </td>
+                         </tr>
+                       ))}
+                     </tbody>
+                   </table>
                 </div>
-              </div>
+              )}
+
               <div className="space-y-2">
-                <Label>Additional Details / Instructions</Label>
-                <Textarea value={formData.additionalDetails} onChange={(e) => setFormData({...formData, additionalDetails: e.target.value})} />
+                <Label className="flex items-center gap-2"><CalendarIcon className="w-4 h-4 text-primary" /> Delivery Date</Label>
+                <Input 
+                  type="date" 
+                  value={formData.deliveryDate} 
+                  onChange={(e) => setFormData({...formData, deliveryDate: e.target.value})} 
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Special Instructions / Details</Label>
+                <Textarea value={formData.additionalDetails} onChange={(e) => setFormData({...formData, additionalDetails: e.target.value})} placeholder="Any extra notes for the designers or staff..." />
               </div>
             </CardContent>
           </Card>
@@ -367,16 +387,18 @@ export default function NewOrderPage() {
 
         <div className="md:col-span-5 space-y-6">
           <Card className="shadow-sm border-2 border-accent/20">
-            <CardHeader><CardTitle className="text-accent flex items-center gap-2"><Sparkles className="w-5 h-5" /> AI Design Brief</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-accent flex items-center gap-2 text-lg"><Sparkles className="w-5 h-5" /> AI Design Brief Generator</CardTitle></CardHeader>
             <CardContent className="space-y-4">
-              <Label>Design Keywords</Label>
-              <Textarea placeholder="Modern, colorful, clean, etc." value={formData.keywords} onChange={(e) => setFormData({...formData, keywords: e.target.value})} />
+              <Label>Design Keywords (Theme, Colors, Mood)</Label>
+              <Textarea placeholder="e.g. Modern, Minimalist, Corporate Blue, Red and White, Bold Typography" value={formData.keywords} onChange={(e) => setFormData({...formData, keywords: e.target.value})} />
               <Button onClick={handleGenerateBrief} className="w-full bg-accent" disabled={loadingAI}>
-                {loadingAI ? <Loader2 className="animate-spin" /> : 'Generate AI Brief'}
+                {loadingAI ? <Loader2 className="animate-spin mr-2 w-4 h-4" /> : <Sparkles className="mr-2 w-4 h-4" />}
+                {loadingAI ? 'Generating...' : 'Get AI Recommendations'}
               </Button>
               {designBrief && (
                 <div className="mt-4 p-4 bg-accent/5 rounded-lg text-xs space-y-2 border border-accent/20 animate-in zoom-in-95">
-                  <p className="font-bold text-accent">AI SUGGESTION READY</p>
+                  <p className="font-bold text-accent uppercase tracking-wider">AI SUGGESTION READY</p>
+                  <p><strong>Overview:</strong> {designBrief.overview}</p>
                   <p><strong>Style:</strong> {designBrief.visualStyle}</p>
                 </div>
               )}
@@ -386,7 +408,7 @@ export default function NewOrderPage() {
           <Card className="shadow-sm border-2">
             <CardHeader>
               <CardTitle className="flex items-center justify-between text-sm">
-                <div className="flex items-center gap-2"><ImageIcon className="w-4 h-4" /> Files & Photos</div>
+                <div className="flex items-center gap-2"><ImageIcon className="w-4 h-4 text-primary" /> Reference Files & Photos</div>
                 <div className="flex gap-1">
                   <input type="file" ref={fileInputRef} className="hidden" accept="image/*,.pdf,.doc,.docx" onChange={handleFileChange} />
                   <Button variant="outline" size="icon" onClick={() => fileInputRef.current?.click()}>
@@ -398,8 +420,9 @@ export default function NewOrderPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               {formData.referenceImages.length === 0 ? (
-                <div className="text-center py-8 bg-muted/20 rounded border-2 border-dashed">
-                  <p className="text-xs text-muted-foreground">No reference files added.</p>
+                <div className="text-center py-10 bg-muted/20 rounded border-2 border-dashed">
+                  <ImageIcon className="w-10 h-10 text-muted-foreground mx-auto mb-2 opacity-20" />
+                  <p className="text-xs text-muted-foreground">Attach reference images, mockups or design instructions.</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-3 gap-2">
@@ -417,7 +440,7 @@ export default function NewOrderPage() {
                         onClick={() => removeRefFile(i)} 
                         className="absolute top-1 right-1 bg-destructive p-1 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity"
                       >
-                        <FileText className="w-3 h-3" />
+                        <Trash2 className="w-3 h-3" />
                       </button>
                     </div>
                   ))}

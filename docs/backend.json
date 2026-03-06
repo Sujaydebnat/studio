@@ -32,16 +32,18 @@
           "items": { "type": "string" },
           "description": "Multiple work types for a single order."
         },
-        "subWorkType": {
-          "type": "string",
-          "enum": ["VISITING CARD", "TABLE MENU CARD", "HAND MENU CARD", "PVC CARD"],
-          "description": "Specific sub-category for DIGITAL PAPER"
+        "orderItems": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": { "type": "string" },
+              "size": { "type": "string" },
+              "qty": { "type": "string" }
+            }
+          }
         },
         "status": { "type": "string" },
-        "width": { "type": "string" },
-        "height": { "type": "string" },
-        "unit": { "type": "string", "enum": ["Inches", "mm", "cm", "ft"] },
-        "quantity": { "type": "string" },
         "totalBill": { "type": "string" },
         "deliveryDate": { "type": "string", "format": "date" },
         "additionalDetails": { "type": "string" },

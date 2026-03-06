@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2, ArrowLeft, Send, MessageSquare, Camera, Sparkles, Ruler, ImageIcon, Upload, Download, FileText, Calendar as CalendarIcon } from 'lucide-react';
+import { Loader2, ArrowLeft, Send, MessageSquare, Camera, Sparkles, Ruler, ImageIcon, Upload, Download, FileText, Calendar as CalendarIcon, Package } from 'lucide-react';
 import { useDoc, useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import { doc, collection, addDoc, serverTimestamp, query, orderBy } from 'firebase/firestore';
 import { Label } from '@/components/ui/label';
@@ -82,8 +82,6 @@ export default function StaffOrderDetail() {
   if (loadingOrder) return <div className="p-20 flex justify-center"><Loader2 className="animate-spin text-accent" /></div>;
   if (!order) return <div className="p-20 text-center">Not found</div>;
 
-  const currentWorkTypes = order.workTypes || [order.workType];
-
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-20">
       <div className="flex items-center gap-4">
@@ -99,36 +97,31 @@ export default function StaffOrderDetail() {
           <Card className="border-accent/20">
             <CardHeader className="bg-accent/5">
               <CardTitle className="text-sm uppercase flex items-center gap-2">
-                <Ruler className="w-4 h-4 text-accent" /> Production Specs
+                <Package className="w-4 h-4 text-accent" /> Production Items
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 pt-4">
-              <div className="space-y-1">
-                <Label className="text-[10px] uppercase font-bold">Work Types</Label>
-                <div className="flex flex-wrap gap-1">
-                  {currentWorkTypes.map((t: string) => (
-                    <Badge key={t} className="bg-primary text-white text-[10px] uppercase">
-                      {t}
-                    </Badge>
+              {order.orderItems?.length > 0 ? (
+                <div className="space-y-4">
+                  {order.orderItems.map((item: any, i: number) => (
+                    <div key={i} className="p-3 bg-muted rounded-lg border-l-4 border-primary shadow-sm space-y-2">
+                      <div className="flex justify-between items-start">
+                        <Badge className="bg-primary text-[10px] uppercase font-bold">{item.type}</Badge>
+                        <Badge variant="outline" className="text-xs bg-white">{item.qty} Pcs</Badge>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Ruler className="w-4 h-4 text-primary" />
+                        <span className="text-sm font-extrabold font-mono">{item.size}</span>
+                      </div>
+                    </div>
                   ))}
                 </div>
-                {order.subWorkType && (
-                  <p className="text-xs font-bold text-accent mt-1">Sub-Type: {order.subWorkType}</p>
-                )}
-              </div>
+              ) : (
+                <p className="text-xs text-muted-foreground italic">No detailed items found.</p>
+              )}
+              
               <Separator />
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-[10px] uppercase font-bold">Size (W × H)</Label>
-                  <p className="font-extrabold text-primary">
-                    {order.width && order.height 
-                      ? `${order.width} × ${order.height} ${order.unit || ''}` 
-                      : order.size || 'Custom'}
-                  </p>
-                </div>
-                <div><Label className="text-[10px] uppercase font-bold">Qty (Pis)</Label><p className="font-extrabold text-primary">{order.quantity || '1'}</p></div>
-              </div>
-              <Separator />
+              
               <div className="space-y-1">
                 <Label className="text-[10px] uppercase font-bold flex items-center gap-1">
                   <CalendarIcon className="w-3 h-3" /> Delivery Due
@@ -139,7 +132,7 @@ export default function StaffOrderDetail() {
               </div>
               <Separator />
               <div className="space-y-1">
-                <Label className="text-[10px] uppercase font-bold">Instructions</Label>
+                <Label className="text-[10px] uppercase font-bold">Additional Instructions</Label>
                 <p className="text-xs font-medium bg-muted p-2 rounded">{order.additionalDetails || 'No special instructions.'}</p>
               </div>
             </CardContent>
@@ -161,7 +154,7 @@ export default function StaffOrderDetail() {
                     )}
                     <a 
                       href={url} 
-                      download={`ref-${i}`} 
+                      download 
                       className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
                     >
                       <Download className="w-5 h-5 text-white" />
@@ -174,11 +167,10 @@ export default function StaffOrderDetail() {
 
           {order.designBrief && (
             <Card className="bg-primary/5 border-primary/20">
-              <CardHeader><CardTitle className="text-xs uppercase flex items-center gap-2"><Sparkles className="w-4 h-4 text-primary" /> AI Brief Summary</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-xs uppercase flex items-center gap-2"><Sparkles className="w-4 h-4 text-primary" /> AI Design Insights</CardTitle></CardHeader>
               <CardContent className="text-xs space-y-3">
-                <div><Label className="text-[10px] font-bold opacity-70">OVERVIEW</Label><p>{order.designBrief.overview}</p></div>
-                <div><Label className="text-[10px] font-bold opacity-70">TARGET AUDIENCE</Label><p>{order.designBrief.targetAudience}</p></div>
                 <div><Label className="text-[10px] font-bold opacity-70">VISUAL STYLE</Label><p className="text-primary font-bold">{order.designBrief.visualStyle}</p></div>
+                <div><Label className="text-[10px] font-bold opacity-70">KEY MESSAGE</Label><p>{order.designBrief.keyMessages?.[0]}</p></div>
               </CardContent>
             </Card>
           )}
@@ -203,11 +195,10 @@ export default function StaffOrderDetail() {
                           ) : null}
                           <a 
                             href={upd.fileUrl} 
-                            download={`staff-file-${upd.id.slice(0,4)}`} 
+                            download 
                             className={`flex items-center gap-2 p-2 rounded text-xs transition-colors ${upd.senderRole === 'staff' ? 'bg-black/10 hover:bg-black/20 text-accent-foreground' : 'bg-accent/10 hover:bg-accent/20 text-accent font-bold'}`}
                           >
-                            {isImage(upd.fileUrl) ? <ImageIcon className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
-                            Download {isImage(upd.fileUrl) ? 'Image (Doc Mode)' : 'Document'}
+                            <Download className="w-4 h-4" /> Download Attachment
                           </a>
                         </div>
                       )}
