@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, ArrowLeft, Send, MessageSquare, Image as ImageIcon, Users, Plus, Trash2, Camera } from 'lucide-react';
+import { Loader2, ArrowLeft, Send, MessageSquare, Image as ImageIcon, Users, Plus, Trash2, Camera, Upload } from 'lucide-react';
 import { useDoc, useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import { doc, collection, addDoc, serverTimestamp, query, orderBy, updateDoc, arrayUnion, where, arrayRemove } from 'firebase/firestore';
 import { format } from 'date-fns';
@@ -24,6 +24,8 @@ export default function AdminOrderDetail() {
   const db = useFirestore();
   const { user } = useUser();
   const { toast } = useToast();
+  const chatFileRef = useRef<HTMLInputElement>(null);
+  const previewFileRef = useRef<HTMLInputElement>(null);
   const [newMessage, setNewMessage] = useState('');
   const [sending, setSending] = useState(false);
   const [updating, setUpdating] = useState(false);
@@ -67,6 +69,28 @@ export default function AdminOrderDetail() {
       console.error(e);
     } finally {
       setSending(false);
+    }
+  };
+
+  const handleChatFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        handleSendMessage('', reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handlePreviewFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        handleAddImage('previews', reader.result as string);
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -168,6 +192,10 @@ export default function AdminOrderDetail() {
               </ScrollArea>
             </CardContent>
             <CardFooter className="border-t p-4 gap-2">
+              <input type="file" ref={chatFileRef} className="hidden" accept="image/*" onChange={handleChatFile} />
+              <Button variant="outline" size="icon" onClick={() => chatFileRef.current?.click()}>
+                <Upload className="w-4 h-4" />
+              </Button>
               <CameraCapture onCapture={(img) => handleSendMessage('', img)} trigger={<Button variant="outline" size="icon"><Camera className="w-4 h-4" /></Button>} />
               <Textarea placeholder="Message..." value={newMessage} onChange={(e) => setNewMessage(e.target.value)} className="min-h-[60px]" />
               <Button onClick={() => handleSendMessage(newMessage)} disabled={sending}><Send className="w-4 h-4" /></Button>
@@ -178,7 +206,13 @@ export default function AdminOrderDetail() {
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
                 Design Previews
-                <CameraCapture onCapture={(img) => handleAddImage('previews', img)} />
+                <div className="flex gap-1">
+                  <input type="file" ref={previewFileRef} className="hidden" accept="image/*" onChange={handlePreviewFile} />
+                  <Button variant="outline" size="icon" onClick={() => previewFileRef.current?.click()}>
+                    <Upload className="w-4 h-4" />
+                  </Button>
+                  <CameraCapture onCapture={(img) => handleAddImage('previews', img)} />
+                </div>
               </CardTitle>
             </CardHeader>
             <CardContent className="grid grid-cols-4 gap-4">

@@ -1,14 +1,14 @@
 
 "use client"
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { UserPlus, Shield, Loader2, Trash2, Key, Pencil, X, Phone, User as UserIcon, Camera, AlertTriangle } from 'lucide-react';
+import { UserPlus, Shield, Loader2, Trash2, Key, Pencil, X, Phone, User as UserIcon, Camera, AlertTriangle, Upload } from 'lucide-react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, doc, setDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -31,6 +31,7 @@ import {
 export default function StaffManagement() {
   const db = useFirestore();
   const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -54,6 +55,17 @@ export default function StaffManagement() {
   }, [db]);
 
   const { data: users, isLoading: loadingUsers } = useCollection(usersQuery);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData(prev => ({ ...prev, photoUrl: reader.result as string }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const handleCreateOrUpdateStaff = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -178,11 +190,27 @@ export default function StaffManagement() {
                     <AvatarImage src={formData.photoUrl} alt="Preview" />
                     <AvatarFallback className="text-2xl">{formData.name?.charAt(0) || '?'}</AvatarFallback>
                   </Avatar>
-                  <div className="absolute -bottom-2 -right-2">
+                  <div className="absolute -bottom-2 -right-2 flex gap-1">
+                    <input 
+                      type="file" 
+                      ref={fileInputRef} 
+                      className="hidden" 
+                      accept="image/*" 
+                      onChange={handleFileChange} 
+                    />
+                    <Button 
+                      type="button"
+                      size="icon" 
+                      variant="secondary"
+                      className="rounded-full shadow-lg h-10 w-10"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <Upload className="w-4 h-4" />
+                    </Button>
                     <CameraCapture 
                       onCapture={(img) => setFormData({...formData, photoUrl: img})} 
                       trigger={
-                        <Button size="icon" className="rounded-full shadow-lg h-10 w-10">
+                        <Button type="button" size="icon" className="rounded-full shadow-lg h-10 w-10">
                           <Camera className="w-5 h-5" />
                         </Button>
                       }
@@ -216,8 +244,8 @@ export default function StaffManagement() {
                 <Input required type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} placeholder="staff@printflow.com" disabled={editMode} />
               </div>
               <div className="space-y-1">
-                <Label>Photo URL (Captured automatically from Camera)</Label>
-                <Input value={formData.photoUrl} onChange={(e) => setFormData({...formData, photoUrl: e.target.value})} placeholder="Base64 Data..." />
+                <Label>Photo URL / Base64</Label>
+                <Input value={formData.photoUrl} onChange={(e) => setFormData({...formData, photoUrl: e.target.value})} placeholder="Captured or selected image data..." />
               </div>
               <div className="space-y-1">
                 <Label>Portal Password</Label>

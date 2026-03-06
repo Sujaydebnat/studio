@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Sparkles, Loader2, ArrowLeft, Save, HelpCircle, Users, ImageIcon, Plus, Trash2, Camera } from 'lucide-react';
+import { Sparkles, Loader2, ArrowLeft, Save, HelpCircle, Users, ImageIcon, Plus, Trash2, Camera, Upload } from 'lucide-react';
 import { aiDesignBriefTool, type AIDesignBriefToolOutput } from '@/ai/flows/ai-design-brief-tool-flow';
 import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, where } from 'firebase/firestore';
@@ -25,10 +25,10 @@ export default function NewOrderPage() {
   const db = useFirestore();
   const { user, isUserLoading } = useUser();
   const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [loadingAI, setLoadingAI] = useState(false);
   const [saving, setSaving] = useState(false);
   const [designBrief, setDesignBrief] = useState<AIDesignBriefToolOutput | null>(null);
-  const [refImageUrl, setRefImageUrl] = useState('');
   
   const [formData, setFormData] = useState({
     customerName: '',
@@ -56,7 +56,17 @@ export default function NewOrderPage() {
       ...prev,
       referenceImages: [...prev.referenceImages, url]
     }));
-    setRefImageUrl('');
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        handleAddRefImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const removeRefImage = (idx: number) => {
@@ -236,7 +246,13 @@ export default function NewOrderPage() {
             <CardHeader>
               <CardTitle className="flex items-center justify-between text-sm">
                 <div className="flex items-center gap-2"><ImageIcon className="w-4 h-4" /> Reference Photos</div>
-                <CameraCapture onCapture={handleAddRefImage} />
+                <div className="flex gap-1">
+                  <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
+                  <Button variant="outline" size="icon" onClick={() => fileInputRef.current?.click()}>
+                    <Upload className="w-4 h-4" />
+                  </Button>
+                  <CameraCapture onCapture={handleAddRefImage} />
+                </div>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">

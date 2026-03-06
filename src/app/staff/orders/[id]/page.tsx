@@ -1,14 +1,14 @@
 
 "use client"
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2, ArrowLeft, Send, MessageSquare, Camera, Sparkles, Ruler, ImageIcon } from 'lucide-react';
+import { Loader2, ArrowLeft, Send, MessageSquare, Camera, Sparkles, Ruler, ImageIcon, Upload } from 'lucide-react';
 import { useDoc, useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import { doc, collection, addDoc, serverTimestamp, query, orderBy } from 'firebase/firestore';
 import { format } from 'date-fns';
@@ -21,6 +21,7 @@ export default function StaffOrderDetail() {
   const router = useRouter();
   const db = useFirestore();
   const { user } = useUser();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [newMessage, setNewMessage] = useState('');
   const [sending, setSending] = useState(false);
 
@@ -56,6 +57,17 @@ export default function StaffOrderDetail() {
       console.error(e);
     } finally {
       setSending(false);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        handleSendMessage('', reader.result as string);
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -125,6 +137,10 @@ export default function StaffOrderDetail() {
             </ScrollArea>
           </CardContent>
           <CardFooter className="border-t p-4 gap-2">
+            <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
+            <Button variant="outline" size="icon" onClick={() => fileInputRef.current?.click()}>
+              <Upload className="w-4 h-4 text-accent" />
+            </Button>
             <CameraCapture onCapture={(img) => handleSendMessage('', img)} trigger={<Button variant="outline" size="icon"><Camera className="w-4 h-4 text-accent" /></Button>} />
             <Textarea placeholder="Progress update..." value={newMessage} onChange={(e) => setNewMessage(e.target.value)} />
             <Button onClick={() => handleSendMessage(newMessage)} className="bg-accent text-accent-foreground"><Send className="w-4 h-4" /></Button>
