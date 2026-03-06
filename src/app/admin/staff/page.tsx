@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { UserPlus, Shield, Loader2, Trash2, Key, Pencil, X, Phone, User as UserIcon, Camera, AlertTriangle, Upload, PlusCircle } from 'lucide-react';
+import { UserPlus, Shield, Loader2, Trash2, Key, Pencil, X, Phone, User as UserIcon, Camera, AlertTriangle, Upload, PlusCircle, ArrowLeft } from 'lucide-react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, doc, setDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -129,7 +129,6 @@ export default function StaffManagement() {
       password: user.password || '',
       role: user.role || 'staff'
     });
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const resetForm = () => {
@@ -169,198 +168,235 @@ export default function StaffManagement() {
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h2 className="text-3xl font-bold font-headline text-primary">Staff Management</h2>
-          <p className="text-muted-foreground">Manage internal team IDs, passwords, and access roles.</p>
-        </div>
-        {!isFormVisible && (
+      {/* Header section always visible when in list mode */}
+      {!isFormVisible && (
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <h2 className="text-3xl font-bold font-headline text-primary">Staff Management</h2>
+            <p className="text-muted-foreground">Manage internal team IDs, passwords, and access roles.</p>
+          </div>
           <Button onClick={() => setIsFormVisible(true)} className="gap-2 h-11 px-6 font-bold shadow-md">
             <PlusCircle className="w-5 h-5" />
             Add New Staff
           </Button>
-        )}
-      </div>
+        </div>
+      )}
 
-      <div className="grid lg:grid-cols-3 gap-8">
-        {isFormVisible && (
-          <Card className={cn(
-            "lg:col-span-1 h-fit shadow-lg border-2 transition-all animate-in fade-in slide-in-from-left-4 duration-300",
-            editMode ? 'border-primary ring-2 ring-primary/20' : 'border-border'
-          )}>
-            <CardHeader>
-              <div className="flex justify-between items-center">
-                <CardTitle className="text-xl flex items-center gap-2">
-                  {editMode ? <Pencil className="w-5 h-5" /> : <UserPlus className="w-5 h-5" />}
-                  {editMode ? 'Edit Profile' : 'New Authorization'}
-                </CardTitle>
-                <Button variant="ghost" size="icon" onClick={resetForm} className="h-8 w-8">
-                  <X className="w-4 h-4" />
-                </Button>
-              </div>
-              <CardDescription>{editMode ? 'Update existing credentials.' : 'Assign credentials and identity.'}</CardDescription>
+      {/* Exclusive View Management */}
+      <div className="max-w-7xl mx-auto">
+        {isFormVisible ? (
+          /* FORM VIEW: List is hidden here */
+          <div className="max-w-2xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-300">
+            <Card className={cn(
+              "shadow-lg border-2",
+              editMode ? 'border-primary ring-2 ring-primary/20' : 'border-border'
+            )}>
+              <CardHeader className="border-b bg-muted/5">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-3">
+                    <Button variant="ghost" size="icon" onClick={resetForm} className="h-8 w-8">
+                      <ArrowLeft className="w-5 h-5" />
+                    </Button>
+                    <div>
+                      <CardTitle className="text-xl flex items-center gap-2">
+                        {editMode ? <Pencil className="w-5 h-5" /> : <UserPlus className="w-5 h-5" />}
+                        {editMode ? 'Edit Staff Profile' : 'New Staff Authorization'}
+                      </CardTitle>
+                      <CardDescription>{editMode ? 'Update credentials for existing staff.' : 'Set up identity and access level.'}</CardDescription>
+                    </div>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-8">
+                <form onSubmit={handleCreateOrUpdateStaff} className="space-y-6">
+                  <div className="flex justify-center mb-8">
+                    <div className="relative">
+                      <Avatar className="w-32 h-32 border-4 border-primary/20 shadow-xl">
+                        <AvatarImage src={formData.photoUrl} alt="Preview" />
+                        <AvatarFallback className="text-4xl font-bold bg-primary/10 text-primary">
+                          {formData.name?.charAt(0) || <UserIcon className="w-12 h-12" />}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="absolute -bottom-2 -right-2 flex gap-1">
+                        <input 
+                          type="file" 
+                          ref={fileInputRef} 
+                          className="hidden" 
+                          accept="image/*" 
+                          onChange={handleFileChange} 
+                        />
+                        <Button 
+                          type="button"
+                          size="icon" 
+                          variant="secondary"
+                          className="rounded-full shadow-lg h-10 w-10 border border-border"
+                          onClick={() => fileInputRef.current?.click()}
+                        >
+                          <Upload className="w-4 h-4" />
+                        </Button>
+                        <CameraCapture 
+                          onCapture={(img) => setFormData({...formData, photoUrl: img})} 
+                          trigger={
+                            <Button type="button" size="icon" className="rounded-full shadow-lg h-10 w-10 border border-primary">
+                              <Camera className="w-5 h-5" />
+                            </Button>
+                          }
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label>Full Name</Label>
+                      <Input required value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} placeholder="e.g. Rahul Dev" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Username (Login ID)</Label>
+                      <div className="relative">
+                        <Input required value={formData.username} onChange={(e) => setFormData({...formData, username: e.target.value})} className="pl-9" placeholder="rahul123" />
+                        <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label>Work Email</Label>
+                      <Input required type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} placeholder="staff@printflow.com" disabled={editMode} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Phone Number</Label>
+                      <div className="relative">
+                        <Input required value={formData.phone} onChange={(e) => setFormData({...formData, phone: e.target.value})} className="pl-9" placeholder="017XXX..." />
+                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label>Portal Password</Label>
+                      <div className="relative">
+                        <Input required type="text" value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})} className="pr-10" />
+                        <Key className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">Used for direct portal login.</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Access Role</Label>
+                      <Select value={formData.role} onValueChange={(val) => setFormData({...formData, role: val})}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="admin">Admin (Full Control)</SelectItem>
+                          <SelectItem value="staff">Staff (Production Only)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="pt-4 flex gap-3">
+                    <Button type="button" variant="outline" className="flex-1 h-12" onClick={resetForm}>Cancel</Button>
+                    <Button className="flex-[2] gap-2 font-bold h-12 shadow-md" disabled={loading}>
+                      {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Shield className="w-5 h-5" />}
+                      {editMode ? 'Save Profile Changes' : 'Authorize & Create Account'}
+                    </Button>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
+          </div>
+        ) : (
+          /* LIST VIEW: Form is hidden here */
+          <Card className="shadow-md animate-in fade-in duration-300">
+            <CardHeader className="border-b bg-muted/5">
+              <CardTitle className="text-xl">Authorized Staff Members</CardTitle>
             </CardHeader>
-            <CardContent>
-              <form onSubmit={handleCreateOrUpdateStaff} className="space-y-4">
-                <div className="flex justify-center mb-6">
-                  <div className="relative">
-                    <Avatar className="w-24 h-24 border-4 border-primary/20">
-                      <AvatarImage src={formData.photoUrl} alt="Preview" />
-                      <AvatarFallback className="text-2xl">{formData.name?.charAt(0) || '?'}</AvatarFallback>
-                    </Avatar>
-                    <div className="absolute -bottom-2 -right-2 flex gap-1">
-                      <input 
-                        type="file" 
-                        ref={fileInputRef} 
-                        className="hidden" 
-                        accept="image/*" 
-                        onChange={handleFileChange} 
-                      />
-                      <Button 
-                        type="button"
-                        size="icon" 
-                        variant="secondary"
-                        className="rounded-full shadow-lg h-10 w-10"
-                        onClick={() => fileInputRef.current?.click()}
-                      >
-                        <Upload className="w-4 h-4" />
-                      </Button>
-                      <CameraCapture 
-                        onCapture={(img) => setFormData({...formData, photoUrl: img})} 
-                        trigger={
-                          <Button type="button" size="icon" className="rounded-full shadow-lg h-10 w-10">
-                            <Camera className="w-5 h-5" />
-                          </Button>
-                        }
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <Label>Full Name</Label>
-                  <Input required value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} placeholder="e.g. Rahul Dev" />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label>Username</Label>
-                    <div className="relative">
-                      <Input required value={formData.username} onChange={(e) => setFormData({...formData, username: e.target.value})} className="pl-9" placeholder="rahul123" />
-                      <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <Label>Phone No</Label>
-                    <div className="relative">
-                      <Input required value={formData.phone} onChange={(e) => setFormData({...formData, phone: e.target.value})} className="pl-9" placeholder="01XXX..." />
-                      <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    </div>
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <Label>Work Email</Label>
-                  <Input required type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} placeholder="staff@printflow.com" disabled={editMode} />
-                </div>
-                <div className="space-y-1">
-                  <Label>Portal Password</Label>
-                  <div className="relative">
-                    <Input required type="text" value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})} className="pr-10" />
-                    <Key className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <Label>Access Role</Label>
-                  <Select value={formData.role} onValueChange={(val) => setFormData({...formData, role: val})}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="admin">Admin (Full Control)</SelectItem>
-                      <SelectItem value="staff">Staff (Production)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Button className="w-full gap-2 font-bold h-12" disabled={loading}>
-                  {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Shield className="w-5 h-5" />}
-                  {editMode ? 'Update Staff Member' : 'Authorize Staff'}
-                </Button>
-              </form>
+            <CardContent className="p-0">
+              {loadingUsers ? (
+                <div className="flex justify-center p-20"><Loader2 className="w-10 h-10 animate-spin text-primary" /></div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50">
+                      <TableHead className="pl-6">Profile</TableHead>
+                      <TableHead>Contact Info</TableHead>
+                      <TableHead>System ID</TableHead>
+                      <TableHead>Security</TableHead>
+                      <TableHead>Access Level</TableHead>
+                      <TableHead className="text-right pr-6">Management</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {users?.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-20 text-muted-foreground italic">
+                          No authorized staff found. Add your first member to get started.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      users?.map((u) => (
+                        <TableRow key={u.id} className="hover:bg-primary/5 transition-colors">
+                          <TableCell className="pl-6">
+                            <div className="flex items-center gap-3">
+                              <Avatar className="w-10 h-10 border shadow-sm">
+                                <AvatarImage src={u.photoUrl} alt={u.name} />
+                                <AvatarFallback className="font-bold">{u.name.charAt(0)}</AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <p className="font-bold text-sm">{u.name}</p>
+                                <p className="text-[10px] text-muted-foreground">Member since {u.createdAt?.seconds ? new Date(u.createdAt.seconds * 1000).toLocaleDateString() : 'N/A'}</p>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-col text-xs space-y-0.5">
+                              <span className="text-primary font-medium">{u.email}</span>
+                              <span className="text-muted-foreground">{u.phone || 'No Mobile'}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-xs font-mono">
+                            <Badge variant="outline" className="font-mono bg-white">@{u.username}</Badge>
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">
+                            <span className="bg-muted px-2 py-0.5 rounded text-muted-foreground">{u.password}</span>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={u.role === 'admin' ? 'default' : 'secondary'} className="text-[10px] uppercase font-bold tracking-wider">
+                              {u.role}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right pr-6">
+                            <div className="flex justify-end gap-2">
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={() => handleEdit(u)} 
+                                className="h-8 gap-1 hover:border-primary hover:text-primary"
+                                disabled={deletingId === u.id}
+                              >
+                                <Pencil className="w-3 h-3" /> Edit
+                              </Button>
+                              <Button 
+                                variant="destructive" 
+                                size="icon" 
+                                onClick={() => confirmDelete(u.id, u.name)} 
+                                className="h-8 w-8 shadow-sm"
+                                disabled={deletingId === u.id}
+                              >
+                                {deletingId === u.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         )}
-
-        <Card className={cn(
-          "shadow-md transition-all duration-300",
-          isFormVisible ? "lg:col-span-2" : "lg:col-span-3"
-        )}>
-          <CardHeader><CardTitle>Active Authorization List</CardTitle></CardHeader>
-          <CardContent>
-            {loadingUsers ? (
-              <div className="flex justify-center p-8"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/50">
-                    <TableHead>Profile</TableHead>
-                    <TableHead>Contact</TableHead>
-                    <TableHead>Username</TableHead>
-                    <TableHead>Password</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead className="text-right">Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {users?.map((u) => (
-                    <TableRow key={u.id} className={cn("transition-colors", editingUserId === u.id ? 'bg-primary/5' : '')}>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <Avatar className="w-8 h-8">
-                            <AvatarImage src={u.photoUrl} alt={u.name} />
-                            <AvatarFallback>{u.name.charAt(0)}</AvatarFallback>
-                          </Avatar>
-                          <span className="font-bold text-sm">{u.name}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col text-xs">
-                          <span className="text-muted-foreground">{u.email}</span>
-                          <span className="font-medium">{u.phone || 'No Phone'}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-xs font-mono">@{u.username}</TableCell>
-                      <TableCell className="font-mono text-xs text-muted-foreground">{u.password}</TableCell>
-                      <TableCell>
-                        <Badge variant={u.role === 'admin' ? 'default' : 'secondary'} className="text-[10px] uppercase">
-                          {u.role}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            onClick={() => handleEdit(u)} 
-                            className="h-8 w-8 hover:text-primary"
-                            disabled={deletingId === u.id}
-                          >
-                            <Pencil className="w-4 h-4" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            onClick={() => confirmDelete(u.id, u.name)} 
-                            className="h-8 w-8 hover:text-destructive"
-                            disabled={deletingId === u.id}
-                          >
-                            {deletingId === u.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
       </div>
 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
@@ -368,20 +404,21 @@ export default function StaffManagement() {
           <AlertDialogHeader>
             <div className="flex items-center gap-3 text-destructive mb-2">
               <AlertTriangle className="w-6 h-6" />
-              <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+              <AlertDialogTitle>Permanent Authorization Removal</AlertDialogTitle>
             </div>
             <AlertDialogDescription>
-              This will permanently remove <strong>{staffToDelete?.name}</strong> from the system.
+              Are you sure you want to delete <strong>{staffToDelete?.name}</strong>? 
+              This will immediately revoke their access to the PrintFlow portal. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={!!deletingId}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={!!deletingId}>Keep Staff</AlertDialogCancel>
             <AlertDialogAction 
               onClick={handleDelete} 
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-bold"
               disabled={!!deletingId}
             >
-              Confirm Delete
+              Confirm Removal
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
