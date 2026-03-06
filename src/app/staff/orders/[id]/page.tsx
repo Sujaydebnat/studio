@@ -76,7 +76,7 @@ export default function StaffOrderDetail() {
     }
   };
 
-  const isImage = (url: string) => url.startsWith('data:image/') || url.match(/\.(jpeg|jpg|gif|png)$/) != null;
+  const isImage = (url: string) => url?.startsWith('data:image/') || url?.match(/\.(jpeg|jpg|gif|png)$/) != null;
 
   if (loadingOrder) return <div className="p-20 flex justify-center"><Loader2 className="animate-spin text-accent" /></div>;
   if (!order) return <div className="p-20 text-center">Not found</div>;
@@ -98,7 +98,7 @@ export default function StaffOrderDetail() {
                 <div><Label className="text-[10px] uppercase font-bold">Qty</Label><p className="font-extrabold text-primary">{order.quantity || '1'}</p></div>
               </div>
               <Separator />
-              <p className="text-xs">{order.additionalDetails}</p>
+              <p className="text-xs font-medium bg-muted p-2 rounded">{order.additionalDetails || 'No special instructions.'}</p>
             </CardContent>
           </Card>
 
@@ -107,15 +107,22 @@ export default function StaffOrderDetail() {
               <CardHeader><CardTitle className="text-xs uppercase flex items-center gap-2"><ImageIcon className="w-3 h-3" /> References</CardTitle></CardHeader>
               <CardContent className="grid grid-cols-2 gap-2">
                 {order.referenceImages.map((url: string, i: number) => (
-                  <div key={i} className="aspect-square rounded border bg-muted flex items-center justify-center overflow-hidden">
+                  <div key={i} className="relative aspect-square rounded border bg-muted flex flex-col items-center justify-center overflow-hidden group">
                     {isImage(url) ? (
                       <img src={url} className="w-full h-full object-cover" />
                     ) : (
                       <div className="flex flex-col items-center gap-1">
                         <FileText className="w-8 h-8 text-primary" />
-                        <a href={url} download={`ref-${i}`} className="text-[8px] text-primary underline">Download</a>
+                        <span className="text-[10px] text-muted-foreground">File</span>
                       </div>
                     )}
+                    <a 
+                      href={url} 
+                      download={`ref-${i}`} 
+                      className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                    >
+                      <Download className="w-5 h-5 text-white" />
+                    </a>
                   </div>
                 ))}
               </CardContent>
@@ -123,11 +130,11 @@ export default function StaffOrderDetail() {
           )}
 
           {order.designBrief && (
-            <Card className="bg-primary/5">
-              <CardHeader><CardTitle className="text-xs uppercase flex items-center gap-2"><Sparkles className="w-4 h-4" /> AI Brief</CardTitle></CardHeader>
-              <CardContent className="text-xs space-y-2">
-                <p><strong>Overview:</strong> {order.designBrief.overview}</p>
-                <p><strong>Style:</strong> {order.designBrief.visualStyle}</p>
+            <Card className="bg-primary/5 border-primary/20">
+              <CardHeader><CardTitle className="text-xs uppercase flex items-center gap-2"><Sparkles className="w-4 h-4 text-primary" /> AI Brief Summary</CardTitle></CardHeader>
+              <CardContent className="text-xs space-y-3">
+                <div><Label className="text-[10px] font-bold opacity-70">OVERVIEW</Label><p>{order.designBrief.overview}</p></div>
+                <div><Label className="text-[10px] font-bold opacity-70">VISUAL STYLE</Label><p className="text-primary font-bold">{order.designBrief.visualStyle}</p></div>
               </CardContent>
             </Card>
           )}
@@ -135,25 +142,29 @@ export default function StaffOrderDetail() {
 
         <Card className="lg:col-span-8 flex flex-col h-[700px]">
           <CardHeader className="border-b bg-accent/5">
-            <CardTitle className="flex items-center gap-2 text-lg"><MessageSquare className="w-5 h-5 text-accent" /> Chat</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-lg"><MessageSquare className="w-5 h-5 text-accent" /> Production Chat</CardTitle>
           </CardHeader>
           <CardContent className="flex-1 overflow-hidden p-0">
             <ScrollArea className="h-full p-6">
               <div className="space-y-4">
                 {updates?.map((upd) => (
                   <div key={upd.id} className={`flex flex-col ${upd.senderRole === 'staff' ? 'items-end' : 'items-start'}`}>
-                    <div className={`max-w-[85%] p-3 rounded-xl ${upd.senderRole === 'staff' ? 'bg-accent text-accent-foreground' : 'bg-white border'}`}>
-                      <p className="text-[10px] font-bold opacity-70">{upd.senderName}</p>
+                    <div className={`max-w-[85%] p-3 rounded-xl shadow-sm ${upd.senderRole === 'staff' ? 'bg-accent text-accent-foreground' : 'bg-white border-2'}`}>
+                      <p className="text-[10px] font-bold opacity-70 mb-1">{upd.senderName}</p>
                       {upd.message && <p className="text-sm">{upd.message}</p>}
                       {upd.fileUrl && (
-                        <div className="mt-2">
+                        <div className="mt-2 space-y-2">
                           {isImage(upd.fileUrl) ? (
                             <img src={upd.fileUrl} className="rounded-md max-w-full shadow-sm" alt="Update" />
-                          ) : (
-                            <a href={upd.fileUrl} download="doc" className="flex items-center gap-2 bg-black/10 p-2 rounded text-xs hover:bg-black/20 transition-colors">
-                              <Download className="w-4 h-4" /> Document Attached
-                            </a>
-                          )}
+                          ) : null}
+                          <a 
+                            href={upd.fileUrl} 
+                            download={`staff-file-${upd.id.slice(0,4)}`} 
+                            className={`flex items-center gap-2 p-2 rounded text-xs transition-colors ${upd.senderRole === 'staff' ? 'bg-black/10 hover:bg-black/20 text-accent-foreground' : 'bg-accent/10 hover:bg-accent/20 text-accent font-bold'}`}
+                          >
+                            {isImage(upd.fileUrl) ? <ImageIcon className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
+                            Download {isImage(upd.fileUrl) ? 'Image (Doc Mode)' : 'Document'}
+                          </a>
                         </div>
                       )}
                     </div>
@@ -163,13 +174,13 @@ export default function StaffOrderDetail() {
             </ScrollArea>
           </CardContent>
           <CardFooter className="border-t p-4 gap-2">
-            <input type="file" ref={fileInputRef} className="hidden" accept="image/*,.pdf,.doc,.docx" onChange={handleFileChange} />
+            <input type="file" ref={fileInputRef} className="hidden" accept="image/*,.pdf,.doc,.docx,.txt" onChange={handleFileChange} />
             <Button variant="outline" size="icon" onClick={() => fileInputRef.current?.click()}>
               <Upload className="w-4 h-4 text-accent" />
             </Button>
             <CameraCapture onCapture={(img) => handleSendMessage('', img)} trigger={<Button variant="outline" size="icon"><Camera className="w-4 h-4 text-accent" /></Button>} />
-            <Textarea placeholder="Progress update..." value={newMessage} onChange={(e) => setNewMessage(e.target.value)} />
-            <Button onClick={() => handleSendMessage(newMessage)} disabled={sending || !newMessage.trim()} className="bg-accent text-accent-foreground"><Send className="w-4 h-4" /></Button>
+            <Textarea placeholder="Progress update..." value={newMessage} onChange={(e) => setNewMessage(e.target.value)} className="min-h-[60px]" />
+            <Button onClick={() => handleSendMessage(newMessage)} disabled={sending || (!newMessage.trim() && !sending)} className="bg-accent text-accent-foreground"><Send className="w-4 h-4" /></Button>
           </CardFooter>
         </Card>
       </div>

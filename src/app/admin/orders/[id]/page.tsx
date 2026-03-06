@@ -23,6 +23,7 @@ export default function AdminOrderDetail() {
   const { toast } = useToast();
   const chatFileRef = useRef<HTMLInputElement>(null);
   const previewFileRef = useRef<HTMLInputElement>(null);
+  const refFileRef = useRef<HTMLInputElement>(null);
   const [newMessage, setNewMessage] = useState('');
   const [sending, setSending] = useState(false);
   const [updating, setUpdating] = useState(false);
@@ -117,7 +118,7 @@ export default function AdminOrderDetail() {
     await updateDoc(orderRef, { [field]: arrayRemove(url) });
   };
 
-  const isImage = (url: string) => url.startsWith('data:image/') || url.match(/\.(jpeg|jpg|gif|png)$/) != null;
+  const isImage = (url: string) => url?.startsWith('data:image/') || url?.match(/\.(jpeg|jpg|gif|png)$/) != null;
 
   if (loadingOrder) return <div className="p-20 flex justify-center"><Loader2 className="animate-spin" /></div>;
   if (!order) return <div className="p-20 text-center">Not found</div>;
@@ -157,8 +158,8 @@ export default function AdminOrderDetail() {
               <CardTitle className="flex items-center justify-between text-sm">
                 Files & References
                 <div className="flex gap-1">
-                  <input type="file" className="hidden" id="ref-file" onChange={(e) => handleFileUpload(e, 'reference')} />
-                  <Button variant="outline" size="icon" onClick={() => document.getElementById('ref-file')?.click()}>
+                  <input type="file" ref={refFileRef} className="hidden" accept="image/*,.pdf,.doc,.docx,.txt" onChange={(e) => handleFileUpload(e, 'reference')} />
+                  <Button variant="outline" size="icon" onClick={() => refFileRef.current?.click()}>
                     <Upload className="w-4 h-4" />
                   </Button>
                   <CameraCapture onCapture={(img) => handleAddImage('referenceImages', img)} />
@@ -167,16 +168,23 @@ export default function AdminOrderDetail() {
             </CardHeader>
             <CardContent className="grid grid-cols-2 gap-2">
               {order.referenceImages?.map((url: string, i: number) => (
-                <div key={i} className="relative aspect-square rounded border overflow-hidden group bg-muted flex items-center justify-center">
+                <div key={i} className="relative aspect-square rounded border overflow-hidden group bg-muted flex flex-col items-center justify-center">
                   {isImage(url) ? (
                     <img src={url} className="w-full h-full object-cover" />
                   ) : (
                     <div className="flex flex-col items-center gap-1 p-2">
                       <FileText className="w-8 h-8 text-primary" />
-                      <a href={url} download={`file-${i}`} className="text-[10px] text-primary underline truncate max-w-full">Download</a>
+                      <span className="text-[10px] text-muted-foreground truncate w-full text-center">Document</span>
                     </div>
                   )}
-                  <button onClick={() => removeImage('referenceImages', url)} className="absolute top-1 right-1 bg-destructive p-1 rounded-full text-white opacity-0 group-hover:opacity-100"><Trash2 className="w-3 h-3" /></button>
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                    <a href={url} download={`ref-${i}`} className="bg-white p-1.5 rounded-full text-primary hover:bg-primary hover:text-white transition-colors">
+                      <Download className="w-4 h-4" />
+                    </a>
+                    <button onClick={() => removeImage('referenceImages', url)} className="bg-destructive p-1.5 rounded-full text-white">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               ))}
             </CardContent>
@@ -184,9 +192,9 @@ export default function AdminOrderDetail() {
         </div>
 
         <div className="lg:col-span-8 space-y-6">
-          <Card className="h-[500px] flex flex-col">
+          <Card className="h-[600px] flex flex-col">
             <CardHeader className="border-b bg-muted/5 flex items-center justify-between">
-              <CardTitle className="text-lg flex items-center gap-2"><MessageSquare className="w-5 h-5 text-primary" /> Staff Chat</CardTitle>
+              <CardTitle className="text-lg flex items-center gap-2"><MessageSquare className="w-5 h-5 text-primary" /> Production Chat</CardTitle>
             </CardHeader>
             <CardContent className="flex-1 overflow-hidden p-0">
               <ScrollArea className="h-full p-6">
@@ -194,17 +202,21 @@ export default function AdminOrderDetail() {
                   {updates?.map((upd) => (
                     <div key={upd.id} className={`flex ${upd.senderRole === 'admin' ? 'justify-end' : 'justify-start'}`}>
                       <div className={`max-w-[80%] p-3 rounded-xl ${upd.senderRole === 'admin' ? 'bg-primary text-white' : 'bg-muted'}`}>
-                        <p className="text-[10px] font-bold opacity-70">{upd.senderName}</p>
+                        <p className="text-[10px] font-bold opacity-70 mb-1">{upd.senderName}</p>
                         {upd.message && <p className="text-sm">{upd.message}</p>}
                         {upd.fileUrl && (
-                          <div className="mt-2">
+                          <div className="mt-2 space-y-2">
                             {isImage(upd.fileUrl) ? (
                               <img src={upd.fileUrl} className="rounded-md max-w-full shadow-sm" alt="Update" />
-                            ) : (
-                              <a href={upd.fileUrl} download="attachment" className="flex items-center gap-2 bg-black/10 p-2 rounded text-xs hover:bg-black/20 transition-colors">
-                                <Download className="w-4 h-4" /> Download Document
-                              </a>
-                            )}
+                            ) : null}
+                            <a 
+                              href={upd.fileUrl} 
+                              download={`attachment-${upd.id.slice(0,4)}`} 
+                              className={`flex items-center gap-2 p-2 rounded text-xs transition-colors ${upd.senderRole === 'admin' ? 'bg-black/20 hover:bg-black/30' : 'bg-primary/10 hover:bg-primary/20 text-primary font-bold'}`}
+                            >
+                              {isImage(upd.fileUrl) ? <ImageIcon className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
+                              Download {isImage(upd.fileUrl) ? 'Image (Doc Mode)' : 'Document'}
+                            </a>
                           </div>
                         )}
                         <p className="text-[8px] mt-1 text-right opacity-50">
@@ -223,14 +235,14 @@ export default function AdminOrderDetail() {
               </Button>
               <CameraCapture onCapture={(img) => handleSendMessage('', img)} trigger={<Button variant="outline" size="icon"><Camera className="w-4 h-4" /></Button>} />
               <Textarea placeholder="Message..." value={newMessage} onChange={(e) => setNewMessage(e.target.value)} className="min-h-[60px]" />
-              <Button onClick={() => handleSendMessage(newMessage)} disabled={sending || !newMessage.trim()}><Send className="w-4 h-4" /></Button>
+              <Button onClick={() => handleSendMessage(newMessage)} disabled={sending || (!newMessage.trim() && !sending)}><Send className="w-4 h-4" /></Button>
             </CardFooter>
           </Card>
 
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
-                Design Previews
+                Design Previews (Customer View)
                 <div className="flex gap-1">
                   <input type="file" ref={previewFileRef} className="hidden" accept="image/*,.pdf" onChange={(e) => handleFileUpload(e, 'preview')} />
                   <Button variant="outline" size="icon" onClick={() => previewFileRef.current?.click()}>
@@ -248,10 +260,17 @@ export default function AdminOrderDetail() {
                   ) : (
                     <div className="flex flex-col items-center gap-1">
                       <FileText className="w-10 h-10 text-primary" />
-                      <a href={url} download={`preview-${i}`} className="text-xs text-primary underline">Download</a>
+                      <span className="text-xs font-bold">PDF Design</span>
                     </div>
                   )}
-                  <button onClick={() => removeImage('previews', url)} className="absolute top-2 right-2 bg-destructive p-1 rounded-full text-white opacity-0 group-hover:opacity-100"><Trash2 className="w-4 h-4" /></button>
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                    <a href={url} download={`preview-${i}`} className="bg-white p-1.5 rounded-full text-primary hover:bg-primary hover:text-white transition-colors">
+                      <Download className="w-4 h-4" />
+                    </a>
+                    <button onClick={() => removeImage('previews', url)} className="bg-destructive p-1.5 rounded-full text-white">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               ))}
             </CardContent>
