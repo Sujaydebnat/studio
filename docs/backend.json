@@ -23,7 +23,9 @@
       "type": "object",
       "properties": {
         "id": { "type": "string" },
+        "billNumber": { "type": "string", "description": "Manual bill number for tracking." },
         "customerName": { "type": "string" },
+        "customerEmail": { "type": "string", "format": "email" },
         "phone": { "type": "string" },
         "workType": { 
           "type": "string",
@@ -39,6 +41,8 @@
         "height": { "type": "string" },
         "unit": { "type": "string", "enum": ["Inches", "mm", "cm", "ft"] },
         "quantity": { "type": "string" },
+        "totalBill": { "type": "string" },
+        "deliveryDate": { "type": "string", "format": "date" },
         "additionalDetails": { "type": "string" },
         "referenceImages": { "type": "array", "items": { "type": "string" } },
         "adminId": { "type": "string" },

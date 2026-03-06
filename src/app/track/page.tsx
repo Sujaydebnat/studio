@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState } from 'react';
@@ -6,15 +7,15 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Search, Package, Clock, CheckCircle2, FileText, Image as ImageIcon, Printer, AlertCircle, Loader2, WifiOff } from 'lucide-react';
+import { Search, Package, Clock, CheckCircle2, FileText, Image as ImageIcon, Printer, AlertCircle, Loader2, WifiOff, Calendar as CalendarIcon, Banknote, Hash } from 'lucide-react';
 import Image from 'next/image';
 import { useFirestore } from '@/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, query, collection, where, getDocs, or } from 'firebase/firestore';
 import { format } from 'date-fns';
 
 export default function TrackOrderPage() {
   const db = useFirestore();
-  const [orderId, setOrderId] = useState('');
+  const [trackIdentifier, setTrackIdentifier] = useState(''); // Can be Order ID or Bill Number
   const [phone, setPhone] = useState('');
   const [order, setOrder] = useState<any | null>(null);
   const [loading, setLoading] = useState(false);
@@ -22,42 +23,56 @@ export default function TrackOrderPage() {
 
   const handleTrack = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!db || !orderId) return;
+    if (!db || !trackIdentifier) return;
 
     setLoading(true);
     setError(null);
     setOrder(null);
 
     try {
-      const cleanedId = orderId.trim();
-      const docRef = doc(db, 'orders', cleanedId);
-      
-      // Attempt to get doc with specific error handling for connectivity
-      const docSnap = await getDoc(docRef).catch(err => {
-        if (err.code === 'unavailable' || err.message?.includes('offline')) {
-          throw new Error("offline");
-        }
-        throw err;
-      });
+      const cleanedIdentifier = trackIdentifier.trim();
+      let foundOrder: any = null;
 
-      if (docSnap.exists()) {
-        const data = docSnap.data();
+      // 1. Try fetching by Document ID (System Order ID)
+      try {
+        const docRef = doc(db, 'orders', cleanedIdentifier);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          foundOrder = { id: docSnap.id, ...docSnap.data() };
+        }
+      } catch (err) {
+        // Silently fail if not a valid Firestore ID format or not found
+      }
+
+      // 2. If not found, try searching by Bill Number field
+      if (!foundOrder) {
+        const ordersRef = collection(db, 'orders');
+        const q = query(ordersRef, where('billNumber', '==', cleanedIdentifier));
+        const querySnap = await getDocs(q);
+        
+        if (!querySnap.empty) {
+          const docData = querySnap.docs[0];
+          foundOrder = { id: docData.id, ...docData.data() };
+        }
+      }
+
+      if (foundOrder) {
         // Verification logic: match last 4 digits of phone
-        const storedPhone = data.phone?.replace(/\D/g, '') || '';
+        const storedPhone = foundOrder.phone?.replace(/\D/g, '') || '';
         const inputPhone = phone.replace(/\D/g, '');
         
         if (storedPhone.endsWith(inputPhone)) {
-          setOrder({ id: docSnap.id, ...data });
+          setOrder(foundOrder);
         } else {
           setError("Verification failed. Please ensure the last 4 digits of the phone number are correct.");
         }
       } else {
-        setError("Order ID not found. Please double-check the ID provided to you.");
+        setError("Order not found. Please double-check the Bill Number or Order ID provided to you.");
       }
     } catch (e: any) {
       console.error("Tracking Error:", e);
-      if (e.message === "offline") {
-        setError("PrintFlow system is currently offline or connection is restricted. Please check your internet and try again.");
+      if (e.code === 'unavailable' || e.message?.includes('offline')) {
+        setError("PrintFlow system is currently offline. Please check your internet.");
       } else {
         setError("An unexpected error occurred. Please try again later.");
       }
@@ -89,18 +104,18 @@ export default function TrackOrderPage() {
             <CardTitle className="flex items-center gap-2">
               <Search className="w-5 h-5 text-accent" /> Order Verification
             </CardTitle>
-            <CardDescription>Enter details from your receipt to see live status.</CardDescription>
+            <CardDescription>Enter your Bill Number or Order ID to see live status.</CardDescription>
           </CardHeader>
           <form onSubmit={handleTrack}>
             <CardContent className="grid md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="orderId">Order ID</Label>
+                <Label htmlFor="trackId">Bill No. or Order ID</Label>
                 <Input 
-                  id="orderId" 
-                  placeholder="e.g. abc-123-xyz" 
+                  id="trackId" 
+                  placeholder="e.g. 2024-001" 
                   required 
-                  value={orderId}
-                  onChange={(e) => setOrderId(e.target.value)}
+                  value={trackIdentifier}
+                  onChange={(e) => setTrackIdentifier(e.target.value)}
                   className="font-mono text-sm"
                 />
               </div>
@@ -136,7 +151,9 @@ export default function TrackOrderPage() {
           <Card className="animate-in fade-in zoom-in-95 duration-500 overflow-hidden border-2 border-accent/20">
             <div className="bg-accent/10 p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div>
-                <p className="text-sm font-semibold text-accent uppercase tracking-wider">Order #{order.id.slice(0, 8)}</p>
+                <p className="text-xs font-semibold text-accent uppercase tracking-wider flex items-center gap-2">
+                  <Hash className="w-3 h-3" /> Bill No: {order.billNumber || 'N/A'}
+                </p>
                 <h2 className="text-2xl font-bold font-headline">{order.workType}</h2>
               </div>
               <Badge className="text-lg px-4 py-1 bg-primary flex items-center gap-2">
@@ -146,20 +163,28 @@ export default function TrackOrderPage() {
             </div>
             
             <CardContent className="p-6 space-y-8">
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground uppercase">Customer</p>
-                  <p className="font-semibold">{order.customerName}</p>
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold">Customer</p>
+                  <p className="font-semibold text-sm">{order.customerName}</p>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground uppercase">Last Update</p>
-                  <p className="font-semibold">
-                    {order.updatedAt?.seconds ? format(new Date(order.updatedAt.seconds * 1000), 'MMM d, h:mm a') : 'Recently'}
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold">Delivery Date</p>
+                  <p className="font-semibold text-sm flex items-center gap-1">
+                    <CalendarIcon className="w-3 h-3 text-primary" />
+                    {order.deliveryDate ? format(new Date(order.deliveryDate), 'MMM d, yyyy') : 'TBD'}
                   </p>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground uppercase">Priority</p>
-                  <Badge variant={order.priority === 'High' || order.priority === 'Urgent' ? 'destructive' : 'secondary'} className="mt-1">
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold">Bill Amount</p>
+                  <p className="font-bold text-sm text-primary flex items-center gap-1">
+                    <Banknote className="w-3 h-3" />
+                    {order.totalBill ? `BDT ${order.totalBill}` : '0.00'}
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold">Priority</p>
+                  <Badge variant={order.priority === 'High' || order.priority === 'Urgent' ? 'destructive' : 'secondary'} className="text-[10px] px-2 py-0">
                     {order.priority}
                   </Badge>
                 </div>

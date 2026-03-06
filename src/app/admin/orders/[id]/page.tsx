@@ -7,14 +7,16 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/componen
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, ArrowLeft, Send, MessageSquare, Image as ImageIcon, Users, Plus, Trash2, Camera, Upload, FileText, Download, Ruler } from 'lucide-react';
+import { Loader2, ArrowLeft, Send, MessageSquare, Image as ImageIcon, Users, Plus, Trash2, Camera, Upload, FileText, Download, Ruler, Calendar as CalendarIcon, Hash, Banknote, Mail } from 'lucide-react';
 import { useDoc, useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import { doc, collection, addDoc, serverTimestamp, query, orderBy, updateDoc, arrayUnion, where, arrayRemove } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { CameraCapture } from '@/components/CameraCapture';
 import { Label } from '@/components/ui/label';
+import { format } from 'date-fns';
 
 export default function AdminOrderDetail() {
   const { id } = useParams();
@@ -128,7 +130,10 @@ export default function AdminOrderDetail() {
     <div className="max-w-7xl mx-auto space-y-6 pb-20">
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={() => router.back()}><ArrowLeft className="w-5 h-5" /></Button>
-        <h2 className="text-3xl font-bold">Order #{order.id.slice(0, 8)}</h2>
+        <div className="flex flex-col">
+          <h2 className="text-3xl font-bold">Bill #{order.billNumber || order.id.slice(0, 8)}</h2>
+          <p className="text-xs text-muted-foreground font-mono">System ID: {order.id}</p>
+        </div>
       </div>
 
       <div className="grid lg:grid-cols-12 gap-6">
@@ -157,12 +162,49 @@ export default function AdminOrderDetail() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label>Work Type</Label>
-                <Badge variant="outline" className="w-full justify-center h-10 text-sm">
-                  {order.workType} {order.subWorkType ? `(${order.subWorkType})` : ''}
-                </Badge>
-              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle className="flex items-center gap-2"><Banknote className="w-5 h-5 text-primary" /> Financials & Delivery</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+               <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-bold uppercase opacity-60">Bill Number</Label>
+                    <Input 
+                      defaultValue={order.billNumber} 
+                      onBlur={(e) => handleUpdateField('billNumber', e.target.value)}
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-bold uppercase opacity-60">Total Bill (BDT)</Label>
+                    <Input 
+                      type="number"
+                      defaultValue={order.totalBill} 
+                      onBlur={(e) => handleUpdateField('totalBill', e.target.value)}
+                      className="h-8 text-sm"
+                    />
+                  </div>
+               </div>
+               <div className="space-y-1">
+                 <Label className="text-[10px] font-bold uppercase opacity-60">Delivery Date</Label>
+                 <Input 
+                    type="date"
+                    defaultValue={order.deliveryDate} 
+                    onChange={(e) => handleUpdateField('deliveryDate', e.target.value)}
+                    className="h-8 text-sm"
+                 />
+               </div>
+               <div className="space-y-1">
+                 <Label className="text-[10px] font-bold uppercase opacity-60">Customer Email</Label>
+                 <Input 
+                    type="email"
+                    defaultValue={order.customerEmail} 
+                    onBlur={(e) => handleUpdateField('customerEmail', e.target.value)}
+                    className="h-8 text-sm"
+                 />
+               </div>
             </CardContent>
           </Card>
 

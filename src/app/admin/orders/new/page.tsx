@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Sparkles, Loader2, ArrowLeft, Save, ImageIcon, Upload, FileText, Ruler } from 'lucide-react';
+import { Sparkles, Loader2, ArrowLeft, Save, ImageIcon, Upload, FileText, Ruler, Calendar as CalendarIcon, Hash, Banknote, Mail } from 'lucide-react';
 import { aiDesignBriefTool, type AIDesignBriefToolOutput } from '@/ai/flows/ai-design-brief-tool-flow';
 import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, where } from 'firebase/firestore';
@@ -29,7 +29,9 @@ export default function NewOrderPage() {
   const [designBrief, setDesignBrief] = useState<AIDesignBriefToolOutput | null>(null);
   
   const [formData, setFormData] = useState({
+    billNumber: '',
     customerName: '',
+    customerEmail: '',
     phone: '',
     workType: '',
     subWorkType: '',
@@ -40,6 +42,8 @@ export default function NewOrderPage() {
     height: '',
     unit: 'Inches',
     quantity: '1',
+    totalBill: '',
+    deliveryDate: '',
     additionalDetails: '',
     referenceImages: [] as string[]
   });
@@ -109,8 +113,8 @@ export default function NewOrderPage() {
     e.preventDefault();
     if (!db || !user) return;
 
-    if (!formData.customerName || !formData.phone || !formData.workType) {
-      toast({ variant: "destructive", title: "Missing Details", description: "Customer name, phone, and work type are required." });
+    if (!formData.customerName || !formData.phone || !formData.workType || !formData.billNumber) {
+      toast({ variant: "destructive", title: "Missing Details", description: "Bill Number, Customer name, phone, and work type are required." });
       return;
     }
 
@@ -172,19 +176,59 @@ export default function NewOrderPage() {
         <div className="md:col-span-7 space-y-6">
           <Card className="shadow-sm border-2">
             <CardHeader>
-              <CardTitle>Customer & Order Info</CardTitle>
+              <CardTitle className="flex items-center gap-2"><Hash className="w-5 h-5 text-primary" /> Bill & Customer Info</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Customer Name</Label>
-                  <Input value={formData.customerName} onChange={(e) => setFormData({...formData, customerName: e.target.value})} />
+                  <Label>Bill Number (Manual)</Label>
+                  <Input 
+                    required 
+                    placeholder="e.g. 2024-001" 
+                    value={formData.billNumber} 
+                    onChange={(e) => setFormData({...formData, billNumber: e.target.value})} 
+                  />
                 </div>
                 <div className="space-y-2">
-                  <Label>Phone Number</Label>
-                  <Input value={formData.phone} onChange={(e) => setFormData({...formData, phone: e.target.value})} />
+                  <Label>Total Bill (Amount)</Label>
+                  <div className="relative">
+                    <Input 
+                      type="number" 
+                      placeholder="0.00" 
+                      className="pl-8"
+                      value={formData.totalBill} 
+                      onChange={(e) => setFormData({...formData, totalBill: e.target.value})} 
+                    />
+                    <Banknote className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  </div>
                 </div>
               </div>
+
+              <div className="space-y-2">
+                <Label>Customer Name</Label>
+                <Input required value={formData.customerName} onChange={(e) => setFormData({...formData, customerName: e.target.value})} />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Phone Number</Label>
+                  <Input required value={formData.phone} onChange={(e) => setFormData({...formData, phone: e.target.value})} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Email (Optional)</Label>
+                  <div className="relative">
+                    <Input 
+                      type="email" 
+                      placeholder="customer@example.com" 
+                      className="pl-8"
+                      value={formData.customerEmail} 
+                      onChange={(e) => setFormData({...formData, customerEmail: e.target.value})} 
+                    />
+                    <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  </div>
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Work Type</Label>
@@ -282,6 +326,16 @@ export default function NewOrderPage() {
                 <div className="space-y-2">
                   <Label>Quantity (Pis)</Label>
                   <Input type="number" value={formData.quantity} onChange={(e) => setFormData({...formData, quantity: e.target.value})} />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-4">
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2"><CalendarIcon className="w-4 h-4 text-primary" /> Delivery Date</Label>
+                  <Input 
+                    type="date" 
+                    value={formData.deliveryDate} 
+                    onChange={(e) => setFormData({...formData, deliveryDate: e.target.value})} 
+                  />
                 </div>
               </div>
               <div className="space-y-2">
