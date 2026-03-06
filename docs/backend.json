@@ -27,9 +27,15 @@
         "phone": { "type": "string" },
         "workType": { "type": "string" },
         "status": { "type": "string" },
+        "size": { "type": "string", "description": "Dimensions of the print project" },
+        "quantity": { "type": "string", "description": "Number of pieces requested" },
+        "additionalDetails": { "type": "string", "description": "Special instructions from the customer" },
+        "referenceImages": { "type": "array", "items": { "type": "string" }, "description": "URLs of reference images" },
         "adminId": { "type": "string" },
         "assignedStaffId": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "priority": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       }
     },
     "OrderUpdate": {

@@ -10,9 +10,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, ArrowLeft, Send, MessageSquare, Image as ImageIcon, Users, Plus, AlertCircle } from 'lucide-react';
+import { Loader2, ArrowLeft, Send, MessageSquare, Image as ImageIcon, Users, Plus, Trash2, Info } from 'lucide-react';
 import { useDoc, useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
-import { doc, collection, addDoc, serverTimestamp, query, orderBy, updateDoc, arrayUnion, where } from 'firebase/firestore';
+import { doc, collection, addDoc, serverTimestamp, query, orderBy, updateDoc, arrayUnion, where, arrayRemove } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
@@ -26,6 +26,7 @@ export default function AdminOrderDetail() {
   const { toast } = useToast();
   const [newMessage, setNewMessage] = useState('');
   const [newPreviewUrl, setNewPreviewUrl] = useState('');
+  const [newRefUrl, setNewRefUrl] = useState('');
   const [sending, setSending] = useState(false);
   const [updating, setUpdating] = useState(false);
 
@@ -78,25 +79,41 @@ export default function AdminOrderDetail() {
         [field]: value,
         updatedAt: serverTimestamp()
       });
-      toast({ title: "Order Updated", description: `${field.charAt(0).toUpperCase() + field.slice(1)} has been changed.` });
+      toast({ title: "Order Updated", description: `${field} has been changed.` });
     } catch (e) {
       console.error(e);
-      toast({ variant: "destructive", title: "Update Failed", description: "Check your permissions." });
+      toast({ variant: "destructive", title: "Update Failed", description: "Check permissions." });
     } finally {
       setUpdating(false);
     }
   };
 
-  const handleAddPreview = async () => {
-    if (!newPreviewUrl.trim() || !orderRef) return;
+  const handleAddImage = async (field: 'previews' | 'referenceImages', url: string) => {
+    if (!url.trim() || !orderRef) return;
     setUpdating(true);
     try {
       await updateDoc(orderRef, {
-        previews: arrayUnion(newPreviewUrl),
+        [field]: arrayUnion(url),
         updatedAt: serverTimestamp()
       });
-      setNewPreviewUrl('');
-      toast({ title: "Preview Added", description: "Customer can now see the new design." });
+      if (field === 'previews') setNewPreviewUrl('');
+      else setNewRefUrl('');
+      toast({ title: "Image Added" });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const removeImage = async (field: 'previews' | 'referenceImages', url: string) => {
+    if (!orderRef) return;
+    setUpdating(true);
+    try {
+      await updateDoc(orderRef, {
+        [field]: arrayRemove(url),
+        updatedAt: serverTimestamp()
+      });
     } catch (e) {
       console.error(e);
     } finally {
@@ -108,7 +125,7 @@ export default function AdminOrderDetail() {
   if (!order) return <div className="p-20 text-center">Order not found.</div>;
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 pb-12">
+    <div className="max-w-7xl mx-auto space-y-6 pb-20">
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={() => router.back()}>
           <ArrowLeft className="w-5 h-5" />
@@ -120,23 +137,15 @@ export default function AdminOrderDetail() {
       </div>
 
       <div className="grid lg:grid-cols-12 gap-6">
-        {/* Info & Edit Column */}
+        {/* Production & Details Column */}
         <div className="lg:col-span-4 space-y-6">
           <Card>
-            <CardHeader>
-              <CardTitle>Core Details</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground uppercase">Order Status</Label>
-                <Select 
-                  defaultValue={order.status} 
-                  onValueChange={(val) => handleUpdateField('status', val)}
-                  disabled={updating}
-                >
-                  <SelectTrigger className="border-primary/30">
-                    <SelectValue placeholder="Update Status" />
-                  </SelectTrigger>
+            <CardHeader><CardTitle>Status & Assignment</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-1">
+                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Order Status</Label>
+                <Select defaultValue={order.status} onValueChange={(v) => handleUpdateField('status', v)} disabled={updating}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Pending">Pending</SelectItem>
                     <SelectItem value="Designing">Designing</SelectItem>
@@ -145,145 +154,104 @@ export default function AdminOrderDetail() {
                   </SelectContent>
                 </Select>
               </div>
-
-              <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground uppercase">Priority Level</Label>
-                <Select 
-                  defaultValue={order.priority || 'Normal'} 
-                  onValueChange={(val) => handleUpdateField('priority', val)}
-                  disabled={updating}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Update Priority" />
-                  </SelectTrigger>
+              <div className="space-y-1">
+                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Assigned Staff</Label>
+                <Select defaultValue={order.assignedStaffId} onValueChange={(v) => handleUpdateField('assignedStaffId', v)} disabled={updating}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Normal">Normal</SelectItem>
-                    <SelectItem value="High">High</SelectItem>
-                    <SelectItem value="Urgent">Urgent</SelectItem>
+                    {staffList?.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
-              </div>
-
-              <div>
-                <Label className="text-xs text-muted-foreground uppercase">Customer</Label>
-                <p className="font-bold">{order.customerName}</p>
-                <p className="text-sm text-muted-foreground">{order.phone || order.customerPhoneNumber}</p>
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground uppercase">Service Type</Label>
-                <p className="font-bold">{order.workType}</p>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="border-primary/20">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="w-5 h-5 text-primary" /> Assignment
-              </CardTitle>
-            </CardHeader>
+          <Card>
+            <CardHeader><CardTitle>Production Specs</CardTitle></CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>Assigned Staff Member</Label>
-                <Select 
-                  defaultValue={order.assignedStaffId} 
-                  onValueChange={(val) => handleUpdateField('assignedStaffId', val)}
-                  disabled={updating}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Assign Staff" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {staffList?.map((staff) => (
-                      <SelectItem key={staff.id} value={staff.id}>{staff.name}</SelectItem>
-                    ))}
-                    {(!staffList || staffList.length === 0) && (
-                      <SelectItem value="none" disabled>No Staff Found</SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase font-bold">Size</Label>
+                  <p className="font-bold border p-2 rounded bg-muted/20">{order.size || 'N/A'}</p>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase font-bold">Quantity</Label>
+                  <p className="font-bold border p-2 rounded bg-muted/20">{order.quantity || '1'}</p>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] uppercase font-bold">Additional Details</Label>
+                <p className="text-sm p-3 bg-muted/10 border rounded whitespace-pre-wrap">{order.additionalDetails || 'No instructions provided.'}</p>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="border-accent/20">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <ImageIcon className="w-5 h-5 text-accent" /> Design Previews
-              </CardTitle>
-            </CardHeader>
+          <Card>
+            <CardHeader><CardTitle className="text-sm flex items-center gap-2"><ImageIcon className="w-4 h-4" /> Reference Photos</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div className="flex gap-2">
-                <Input 
-                  placeholder="Image URL" 
-                  value={newPreviewUrl}
-                  onChange={(e) => setNewPreviewUrl(e.target.value)}
-                />
-                <Button size="icon" onClick={handleAddPreview} disabled={updating || !newPreviewUrl.trim()}>
-                  {updating ? <Loader2 className="animate-spin" /> : <Plus className="w-4 h-4" />}
+                <Input placeholder="Photo URL" value={newRefUrl} onChange={(e) => setNewRefUrl(e.target.value)} />
+                <Button size="icon" onClick={() => handleAddImage('referenceImages', newRefUrl)} disabled={updating}>
+                  <Plus className="w-4 h-4" />
                 </Button>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                {order.previews?.map((url: string, idx: number) => (
-                  <div key={idx} className="relative aspect-square rounded-md overflow-hidden border">
-                    <Image src={url} alt="Preview" fill className="object-cover" />
+                {order.referenceImages?.map((url: string, i: number) => (
+                  <div key={i} className="relative aspect-square rounded border overflow-hidden group">
+                    <Image src={url} alt="Ref" fill className="object-cover" />
+                    <button onClick={() => removeImage('referenceImages', url)} className="absolute top-1 right-1 bg-destructive p-1 rounded-full text-white opacity-0 group-hover:opacity-100"><Trash2 className="w-3 h-3" /></button>
                   </div>
                 ))}
               </div>
-              {(!order.previews || order.previews.length === 0) && (
-                <p className="text-xs text-center text-muted-foreground py-4">No previews uploaded yet.</p>
-              )}
             </CardContent>
           </Card>
         </div>
 
-        {/* Communication Column */}
-        <Card className="lg:col-span-8 flex flex-col h-[700px]">
-          <CardHeader className="border-b">
-            <CardTitle className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <MessageSquare className="w-5 h-5 text-primary" /> Staff Communication
-              </div>
-              {updating && <Badge variant="outline" className="animate-pulse">Updating Order...</Badge>}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex-1 overflow-hidden p-0">
-            <ScrollArea className="h-full p-6">
-              <div className="space-y-6">
-                {updates?.map((upd) => (
-                  <div key={upd.id} className={`flex flex-col ${upd.senderRole === 'admin' ? 'items-end' : 'items-start'}`}>
-                    <div className={`max-w-[80%] p-4 rounded-2xl ${
-                      upd.senderRole === 'admin' ? 'bg-primary text-white rounded-tr-none' : 'bg-muted rounded-tl-none'
-                    }`}>
-                      <p className="text-xs font-bold mb-1 opacity-70">{upd.senderName} ({upd.senderRole})</p>
-                      <p className="text-sm">{upd.message}</p>
-                      <p className="text-[10px] mt-2 opacity-50">
-                        {upd.timestamp?.seconds ? format(new Date(upd.timestamp.seconds * 1000), 'h:mm a') : '...'}
-                      </p>
+        {/* Communication & Previews Column */}
+        <div className="lg:col-span-8 space-y-6">
+          <Card className="h-[500px] flex flex-col">
+            <CardHeader className="border-b bg-muted/5 flex flex-row items-center justify-between">
+              <CardTitle className="text-lg flex items-center gap-2"><MessageSquare className="w-5 h-5 text-primary" /> Staff Chat</CardTitle>
+              {updating && <Badge variant="outline" className="animate-pulse">Saving...</Badge>}
+            </CardHeader>
+            <CardContent className="flex-1 overflow-hidden p-0">
+              <ScrollArea className="h-full p-6">
+                <div className="space-y-4">
+                  {updates?.map((upd) => (
+                    <div key={upd.id} className={`flex ${upd.senderRole === 'admin' ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-[80%] p-3 rounded-xl ${upd.senderRole === 'admin' ? 'bg-primary text-white rounded-tr-none' : 'bg-muted rounded-tl-none'}`}>
+                        <p className="text-[10px] font-bold opacity-70 mb-1">{upd.senderName}</p>
+                        <p className="text-sm">{upd.message}</p>
+                      </div>
                     </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            </CardContent>
+            <CardFooter className="border-t p-4 gap-2">
+              <Textarea placeholder="Send message to staff..." value={newMessage} onChange={(e) => setNewMessage(e.target.value)} className="min-h-[60px]" />
+              <Button onClick={handleSendMessage} disabled={sending || !newMessage.trim()}><Send className="w-4 h-4" /></Button>
+            </CardFooter>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle className="flex items-center gap-2"><ImageIcon className="w-5 h-5 text-accent" /> Design Previews (Visible to Customer)</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex gap-2">
+                <Input placeholder="Preview Image URL" value={newPreviewUrl} onChange={(e) => setNewPreviewUrl(e.target.value)} />
+                <Button onClick={() => handleAddImage('previews', newPreviewUrl)} disabled={updating}>Add Preview</Button>
+              </div>
+              <div className="grid grid-cols-4 gap-4">
+                {order.previews?.map((url: string, i: number) => (
+                  <div key={i} className="relative aspect-video rounded-lg border overflow-hidden group shadow-sm">
+                    <Image src={url} alt="Preview" fill className="object-cover" />
+                    <button onClick={() => removeImage('previews', url)} className="absolute top-2 right-2 bg-destructive p-1 rounded-full text-white opacity-0 group-hover:opacity-100"><Trash2 className="w-4 h-4" /></button>
                   </div>
                 ))}
-                {(!updates || updates.length === 0) && (
-                  <div className="text-center py-20 text-muted-foreground italic">
-                    <MessageSquare className="w-10 h-10 mx-auto mb-2 opacity-20" />
-                    <p>No messages yet. Send a note to the production staff.</p>
-                  </div>
-                )}
               </div>
-            </ScrollArea>
-          </CardContent>
-          <CardFooter className="border-t p-4 gap-2">
-            <Textarea 
-              placeholder="Reply to staff..." 
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              className="min-h-[80px]"
-            />
-            <Button onClick={handleSendMessage} disabled={sending || !newMessage.trim()} className="h-full">
-              {sending ? <Loader2 className="animate-spin" /> : <Send className="w-5 h-5" />}
-            </Button>
-          </CardFooter>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );
