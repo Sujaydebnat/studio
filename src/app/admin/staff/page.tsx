@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { UserPlus, Shield, Loader2, Trash2, Key, Pencil, X, Phone, User as UserIcon, Camera } from 'lucide-react';
+import { UserPlus, Shield, Loader2, Trash2, Key, Pencil, X, Phone, User as UserIcon, Camera, AlertTriangle } from 'lucide-react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, doc, setDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -16,11 +16,24 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function StaffManagement() {
   const db = useFirestore();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [staffToDelete, setStaffToDelete] = useState<{id: string, name: string} | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   
@@ -56,7 +69,6 @@ export default function StaffManagement() {
 
     setLoading(true);
     try {
-      // If editing, keep the same ID. If new, create ID from email.
       const targetId = editMode && editingUserId ? editingUserId : formData.email.toLowerCase().replace(/[@.]/g, '_');
       const userRef = doc(db, 'users', targetId);
       
@@ -101,6 +113,8 @@ export default function StaffManagement() {
       password: user.password || '',
       role: user.role || 'staff'
     });
+    // Scroll to top of form
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const resetForm = () => {
@@ -109,22 +123,32 @@ export default function StaffManagement() {
     setFormData({ name: '', username: '', email: '', phone: '', photoUrl: '', password: '', role: 'staff' });
   };
 
-  const handleDelete = (id: string, name: string) => {
-    if (!db || !confirm(`Remove ${name}'s authorization? They will lose access immediately.`)) return;
+  const confirmDelete = (id: string, name: string) => {
+    setStaffToDelete({ id, name });
+    setShowDeleteDialog(true);
+  };
+
+  const handleDelete = async () => {
+    if (!db || !staffToDelete) return;
     
-    const userRef = doc(db, 'users', id);
-    deleteDoc(userRef)
-      .then(() => {
-        toast({ title: "Authorization Removed" });
-        if (editingUserId === id) resetForm();
-      })
-      .catch(async (error) => {
-        const permissionError = new FirestorePermissionError({
-          path: userRef.path,
-          operation: 'delete',
-        });
-        errorEmitter.emit('permission-error', permissionError);
+    setDeletingId(staffToDelete.id);
+    const userRef = doc(db, 'users', staffToDelete.id);
+    
+    try {
+      await deleteDoc(userRef);
+      toast({ title: "Authorization Removed", description: `${staffToDelete.name} has been deleted.` });
+      if (editingUserId === staffToDelete.id) resetForm();
+    } catch (error: any) {
+      const permissionError = new FirestorePermissionError({
+        path: userRef.path,
+        operation: 'delete',
       });
+      errorEmitter.emit('permission-error', permissionError);
+    } finally {
+      setDeletingId(null);
+      setShowDeleteDialog(false);
+      setStaffToDelete(null);
+    }
   };
 
   return (
@@ -135,7 +159,7 @@ export default function StaffManagement() {
       </div>
 
       <div className="grid lg:grid-cols-3 gap-8">
-        <Card className={`lg:col-span-1 h-fit shadow-lg border-2 ${editMode ? 'border-primary' : 'border-border'}`}>
+        <Card className={`lg:col-span-1 h-fit shadow-lg border-2 transition-all ${editMode ? 'border-primary ring-2 ring-primary/20' : 'border-border'}`}>
           <CardHeader>
             <div className="flex justify-between items-center">
               <CardTitle className="text-xl flex items-center gap-2">
@@ -144,7 +168,7 @@ export default function StaffManagement() {
               </CardTitle>
               {editMode && <Button variant="ghost" size="icon" onClick={resetForm}><X className="w-4 h-4" /></Button>}
             </div>
-            <CardDescription>Assign credentials and identity.</CardDescription>
+            <CardDescription>{editMode ? 'Update existing credentials.' : 'Assign credentials and identity.'}</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleCreateOrUpdateStaff} className="space-y-4">
@@ -196,8 +220,8 @@ export default function StaffManagement() {
                   </SelectContent>
                 </Select>
               </div>
-              <Button className="w-full gap-2 font-bold" disabled={loading}>
-                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Shield className="w-4 h-4" />}
+              <Button className="w-full gap-2 font-bold h-12" disabled={loading}>
+                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Shield className="w-5 h-5" />}
                 {editMode ? 'Update Staff Member' : 'Authorize Staff'}
               </Button>
             </form>
@@ -248,11 +272,23 @@ export default function StaffManagement() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          <Button variant="ghost" size="icon" onClick={() => handleEdit(u)} className="h-8 w-8 hover:text-primary">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => handleEdit(u)} 
+                            className="h-8 w-8 hover:text-primary"
+                            disabled={deletingId === u.id}
+                          >
                             <Pencil className="w-4 h-4" />
                           </Button>
-                          <Button variant="ghost" size="icon" onClick={() => handleDelete(u.id, u.name)} className="h-8 w-8 hover:text-destructive">
-                            <Trash2 className="w-4 h-4" />
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => confirmDelete(u.id, u.name)} 
+                            className="h-8 w-8 hover:text-destructive"
+                            disabled={deletingId === u.id}
+                          >
+                            {deletingId === u.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                           </Button>
                         </div>
                       </TableCell>
@@ -267,6 +303,33 @@ export default function StaffManagement() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Modern Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <div className="flex items-center gap-3 text-destructive mb-2">
+              <AlertTriangle className="w-6 h-6" />
+              <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            </div>
+            <AlertDialogDescription>
+              This will permanently remove <strong>{staffToDelete?.name}</strong> from the system. 
+              They will lose access to the portal immediately. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={!!deletingId}>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDelete} 
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={!!deletingId}
+            >
+              {deletingId ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Trash2 className="w-4 h-4 mr-2" />}
+              Remove Authorization
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

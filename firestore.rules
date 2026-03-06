@@ -3,16 +3,27 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Prototyping mode: Allow all authenticated users to read/write all collections.
-    // This ensures Admin and Staff can manage data without permission errors.
-    match /{document=**} {
+    // orders collection list/read korar permission
+    match /orders/{orderId} {
+      // Jekono authenticated user (jerom: staff@gmail.com) jate data dekhte pare
+      allow read, list: if request.auth != null;
+      
+      // Data entry korar permission (Admin/Staff)
+      allow write: if request.auth != null;
+      
+      // Tracking portal-er jonno public individual access
+      allow get: if true;
+    }
+
+    // Users (Staff/Admin) collection-er jonno permissions
+    match /users/{userId} {
+      // Authenticated users-ra profiles dekhte ar modify korte parbe
       allow read, write: if request.auth != null;
     }
 
-    // Public tracking portal access: Allows anyone to view a specific order by ID
-    // but not to list the entire collection.
-    match /orders/{orderId} {
-      allow get: if true;
+    // Default global rules
+    match /{document=**} {
+      allow read, write: if request.auth != null;
     }
   }
 }
