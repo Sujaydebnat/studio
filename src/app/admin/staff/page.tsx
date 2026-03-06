@@ -67,7 +67,7 @@ export default function StaffManagement() {
   
   const [formData, setFormData] = useState({
     name: '',
-    username: '',
+    username: '', // This is the Employee ID
     email: '',
     phone: '',
     photoUrl: '',
@@ -81,6 +81,10 @@ export default function StaffManagement() {
   }, [db]);
 
   const { data: users, isLoading: loadingUsers } = useCollection(usersQuery);
+
+  const generateEmployeeId = () => {
+    return `EMP-${Math.floor(1000 + Math.random() * 9000)}`;
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -99,7 +103,7 @@ export default function StaffManagement() {
 
     setLoading(true);
     try {
-      const targetId = editMode && editingUserId ? editingUserId : formData.email.toLowerCase().replace(/[@.]/g, '_');
+      const targetId = editMode && editingUserId ? editingUserId : formData.username.toLowerCase().trim();
       const userRef = doc(db, 'users', targetId);
       
       const userData = {
@@ -152,6 +156,23 @@ export default function StaffManagement() {
     setViewMode('profile');
   };
 
+  const openAddForm = () => {
+    setEditMode(false);
+    setEditingUserId(null);
+    setSelectedUser(null);
+    setShowPasswordInProfile(false);
+    setFormData({ 
+      name: '', 
+      username: generateEmployeeId(), 
+      email: '', 
+      phone: '', 
+      photoUrl: '', 
+      password: '', 
+      role: 'staff' 
+    });
+    setViewMode('form');
+  };
+
   const resetToListView = () => {
     setEditMode(false);
     setEditingUserId(null);
@@ -197,7 +218,7 @@ export default function StaffManagement() {
             <h2 className="text-3xl font-bold font-headline text-primary">Staff Management</h2>
             <p className="text-muted-foreground">Manage internal team access and roles.</p>
           </div>
-          <Button onClick={() => setViewMode('form')} className="gap-2 h-11 px-6 font-bold shadow-md">
+          <Button onClick={openAddForm} className="gap-2 h-11 px-6 font-bold shadow-md">
             <PlusCircle className="w-5 h-5" />
             Add New Staff
           </Button>
@@ -251,10 +272,10 @@ export default function StaffManagement() {
                       <Input required value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} placeholder="e.g. Rahul Dev" />
                     </div>
                     <div className="space-y-2">
-                      <Label>Employee ID (Login ID)</Label>
+                      <Label>Employee ID (Auto-Generated)</Label>
                       <div className="relative">
-                        <Input required value={formData.username} onChange={(e) => setFormData({...formData, username: e.target.value})} className="pl-9" placeholder="EMP-101" />
-                        <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input readOnly value={formData.username} className="pl-9 bg-muted/50 cursor-not-allowed" placeholder="EMP-1000" />
+                        <Fingerprint className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       </div>
                     </div>
                   </div>
@@ -262,7 +283,7 @@ export default function StaffManagement() {
                   <div className="grid md:grid-cols-2 gap-6">
                     <div className="space-y-2">
                       <Label>Work Email</Label>
-                      <Input required type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} placeholder="staff@printflow.com" disabled={editMode} />
+                      <Input required type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} placeholder="staff@printflow.com" />
                     </div>
                     <div className="space-y-2">
                       <Label>Phone Number</Label>
