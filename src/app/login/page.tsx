@@ -7,10 +7,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Printer, Loader2, LogIn, Chrome, ShieldCheck, UserCog } from 'lucide-react';
-import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { Printer, Loader2, LogIn, Chrome, ShieldAlert, UserCheck } from 'lucide-react';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { useAuth, useFirestore } from '@/firebase';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 
@@ -33,20 +33,26 @@ export default function LoginPage() {
 
   const handleAuthResult = async (user: any) => {
     if (!db) return;
+    // Check users collection by UID
     const userDocRef = doc(db, 'users', user.uid);
-    const userDoc = await getDoc(userDocRef);
+    let userDoc = await getDoc(userDocRef);
+
+    // If not found by UID, check by sanitized email (for pre-authorized staff)
+    if (!userDoc.exists()) {
+      const emailId = user.email.toLowerCase().replace(/[@.]/g, '_');
+      const emailDocRef = doc(db, 'users', emailId);
+      userDoc = await getDoc(emailDocRef);
+    }
 
     if (userDoc.exists()) {
-      handleRoleRedirect(userDoc.data().role);
-      toast({ title: "Welcome back!", description: `Portal: ${userDoc.data().role.toUpperCase()}` });
+      const data = userDoc.data();
+      handleRoleRedirect(data.role);
+      toast({ title: "Welcome back!", description: `Portal: ${data.role.toUpperCase()}` });
     } else {
-      // Check if email is pre-authorized by admin (optional prototype logic)
-      // For now, if someone logins for the first time, we check if they are authorized
-      // In a strict app, we deny access if userDoc doesn't exist.
       toast({ 
         variant: "destructive", 
-        title: "Access Denied", 
-        description: "Your account is not authorized. Please contact your Admin." 
+        title: "Unauthorized", 
+        description: "This account is not authorized. Please contact your Admin." 
       });
       await auth.signOut();
     }
@@ -67,13 +73,45 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!auth) return;
+    if (!auth || !db) return;
     setLoading(true);
+    
+    const cleanEmail = email.trim().toLowerCase();
+
     try {
-      const result = await signInWithEmailAndPassword(auth, email, password);
+      // 1. Try standard login
+      const result = await signInWithEmailAndPassword(auth, cleanEmail, password);
       await handleAuthResult(result.user);
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Login Failed", description: "Invalid credentials." });
+      // 2. If user not found in Auth, check if they are "Pre-Authorized" in Firestore
+      if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+        try {
+          const q = query(collection(db, 'users'), where('email', '==', cleanEmail), where('password', '==', password));
+          const querySnapshot = await getDocs(q);
+          
+          if (!querySnapshot.empty) {
+            const authorizedUser = querySnapshot.docs[0].data();
+            // User is pre-authorized! Create their Auth account automatically
+            const newAuthResult = await createUserWithEmailAndPassword(auth, cleanEmail, password);
+            // Link Firestore doc to the new UID for future logins
+            const userRef = doc(db, 'users', newAuthResult.user.uid);
+            await setDoc(userRef, {
+              ...authorizedUser,
+              uid: newAuthResult.user.uid,
+              lastLogin: new Date().toISOString()
+            }, { merge: true });
+            
+            handleRoleRedirect(authorizedUser.role);
+            toast({ title: "Account Activated", description: `Authorized as ${authorizedUser.role.toUpperCase()}` });
+          } else {
+            toast({ variant: "destructive", title: "Login Failed", description: "Invalid username or password." });
+          }
+        } catch (dbErr) {
+          toast({ variant: "destructive", title: "Verification Error", description: "Could not verify credentials." });
+        }
+      } else {
+        toast({ variant: "destructive", title: "Error", description: error.message });
+      }
     } finally {
       setLoading(false);
     }
@@ -81,47 +119,73 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
-      <div className="mb-8 flex items-center gap-2">
-        <Printer className="w-10 h-10 text-primary" />
-        <span className="text-4xl font-bold text-primary font-headline tracking-tight">PrintFlow</span>
+      <div className="mb-8 flex items-center gap-3">
+        <div className="bg-primary p-2 rounded-xl shadow-lg">
+          <Printer className="w-10 h-10 text-white" />
+        </div>
+        <span className="text-4xl font-extrabold text-primary font-headline tracking-tight">PrintFlow</span>
       </div>
 
       <Card className="w-full max-w-md shadow-2xl border-2">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold">Internal Portal</CardTitle>
-          <CardDescription>Secure login for Admin and Production Staff</CardDescription>
+          <CardTitle className="text-2xl font-bold flex items-center justify-center gap-2">
+            <UserCheck className="w-6 h-6 text-primary" /> Internal Portal
+          </CardTitle>
+          <CardDescription>Secure login for Admin and Authorized Staff</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <Button variant="outline" className="w-full gap-2 py-6 text-lg" onClick={handleGoogleLogin} disabled={loading}>
+          <Button variant="outline" className="w-full gap-2 py-6 text-lg font-semibold hover:bg-muted" onClick={handleGoogleLogin} disabled={loading}>
             {loading ? <Loader2 className="animate-spin" /> : <Chrome className="w-5 h-5 text-blue-600" />}
             Continue with Google
           </Button>
 
           <div className="relative">
             <Separator />
-            <span className="absolute left-1/2 -top-2.5 -translate-x-1/2 bg-background px-2 text-[10px] font-bold text-muted-foreground uppercase">Authorized Access Only</span>
+            <span className="absolute left-1/2 -top-2.5 -translate-x-1/2 bg-background px-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+              Staff Credentials
+            </span>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
-              <Label>Email</Label>
-              <Input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@printflow.com" />
+              <Label htmlFor="email">Email Address</Label>
+              <Input 
+                id="email"
+                type="email" 
+                required 
+                value={email} 
+                onChange={(e) => setEmail(e.target.value)} 
+                placeholder="name@printflow.com" 
+                className="h-11"
+              />
             </div>
             <div className="space-y-2">
-              <Label>Password</Label>
-              <Input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+              <div className="flex justify-between items-center">
+                <Label htmlFor="password">Password</Label>
+              </div>
+              <Input 
+                id="password"
+                type="password" 
+                required 
+                value={password} 
+                onChange={(e) => setPassword(e.target.value)} 
+                className="h-11"
+              />
             </div>
-            <Button type="submit" className="w-full h-12 text-lg font-bold" disabled={loading}>
-              {loading ? <Loader2 className="animate-spin" /> : <LogIn className="mr-2" />}
-              Enter Portal
+            <Button type="submit" className="w-full h-12 text-lg font-bold shadow-md" disabled={loading}>
+              {loading ? <Loader2 className="animate-spin w-5 h-5" /> : <LogIn className="mr-2 w-5 h-5" />}
+              {loading ? 'Verifying...' : 'Enter Portal'}
             </Button>
           </form>
         </CardContent>
       </Card>
       
-      <p className="mt-8 text-xs text-muted-foreground text-center max-w-sm">
-        Staff accounts must be created by an Administrator. Public registration is disabled to maintain shop security.
-      </p>
+      <div className="mt-8 flex items-center gap-2 text-muted-foreground">
+        <ShieldAlert className="w-4 h-4" />
+        <p className="text-xs font-medium text-center">
+          Authorized personnel only. Access is monitored and logged.
+        </p>
+      </div>
     </div>
   );
 }
