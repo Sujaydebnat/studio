@@ -8,19 +8,20 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2, ArrowLeft, Send, MessageSquare, Camera, Sparkles, Ruler, ImageIcon, Upload } from 'lucide-react';
+import { Loader2, ArrowLeft, Send, MessageSquare, Camera, Sparkles, Ruler, ImageIcon, Upload, Download, FileText } from 'lucide-react';
 import { useDoc, useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import { doc, collection, addDoc, serverTimestamp, query, orderBy } from 'firebase/firestore';
-import { format } from 'date-fns';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { CameraCapture } from '@/components/CameraCapture';
+import { useToast } from '@/hooks/use-toast';
 
 export default function StaffOrderDetail() {
   const { id } = useParams();
   const router = useRouter();
   const db = useFirestore();
   const { user } = useUser();
+  const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [newMessage, setNewMessage] = useState('');
   const [sending, setSending] = useState(false);
@@ -38,8 +39,8 @@ export default function StaffOrderDetail() {
 
   const { data: updates } = useCollection(updatesQuery);
 
-  const handleSendMessage = async (message: string, image?: string) => {
-    if (!message.trim() && !image) return;
+  const handleSendMessage = async (message: string, fileData?: string) => {
+    if (!message.trim() && !fileData) return;
     setSending(true);
     try {
       const updatesRef = collection(db!, 'orders', id as string, 'updates');
@@ -49,7 +50,7 @@ export default function StaffOrderDetail() {
         senderName: user?.displayName || 'Staff',
         senderRole: 'staff',
         message: message,
-        fileUrl: image || null,
+        fileUrl: fileData || null,
         timestamp: serverTimestamp(),
       });
       setNewMessage('');
@@ -63,6 +64,10 @@ export default function StaffOrderDetail() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      if (file.size > 1024 * 700) {
+        toast({ variant: "destructive", title: "File too large", description: "Documents must be under 700KB." });
+        return;
+      }
       const reader = new FileReader();
       reader.onloadend = () => {
         handleSendMessage('', reader.result as string);
@@ -70,6 +75,8 @@ export default function StaffOrderDetail() {
       reader.readAsDataURL(file);
     }
   };
+
+  const isImage = (url: string) => url.startsWith('data:image/') || url.match(/\.(jpeg|jpg|gif|png)$/) != null;
 
   if (loadingOrder) return <div className="p-20 flex justify-center"><Loader2 className="animate-spin text-accent" /></div>;
   if (!order) return <div className="p-20 text-center">Not found</div>;
@@ -100,7 +107,16 @@ export default function StaffOrderDetail() {
               <CardHeader><CardTitle className="text-xs uppercase flex items-center gap-2"><ImageIcon className="w-3 h-3" /> References</CardTitle></CardHeader>
               <CardContent className="grid grid-cols-2 gap-2">
                 {order.referenceImages.map((url: string, i: number) => (
-                  <img key={i} src={url} className="aspect-square object-cover rounded border" />
+                  <div key={i} className="aspect-square rounded border bg-muted flex items-center justify-center overflow-hidden">
+                    {isImage(url) ? (
+                      <img src={url} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="flex flex-col items-center gap-1">
+                        <FileText className="w-8 h-8 text-primary" />
+                        <a href={url} download={`ref-${i}`} className="text-[8px] text-primary underline">Download</a>
+                      </div>
+                    )}
+                  </div>
                 ))}
               </CardContent>
             </Card>
@@ -129,7 +145,17 @@ export default function StaffOrderDetail() {
                     <div className={`max-w-[85%] p-3 rounded-xl ${upd.senderRole === 'staff' ? 'bg-accent text-accent-foreground' : 'bg-white border'}`}>
                       <p className="text-[10px] font-bold opacity-70">{upd.senderName}</p>
                       {upd.message && <p className="text-sm">{upd.message}</p>}
-                      {upd.fileUrl && <img src={upd.fileUrl} className="mt-2 rounded-md max-w-full" alt="Update" />}
+                      {upd.fileUrl && (
+                        <div className="mt-2">
+                          {isImage(upd.fileUrl) ? (
+                            <img src={upd.fileUrl} className="rounded-md max-w-full shadow-sm" alt="Update" />
+                          ) : (
+                            <a href={upd.fileUrl} download="doc" className="flex items-center gap-2 bg-black/10 p-2 rounded text-xs hover:bg-black/20 transition-colors">
+                              <Download className="w-4 h-4" /> Document Attached
+                            </a>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -137,13 +163,13 @@ export default function StaffOrderDetail() {
             </ScrollArea>
           </CardContent>
           <CardFooter className="border-t p-4 gap-2">
-            <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
+            <input type="file" ref={fileInputRef} className="hidden" accept="image/*,.pdf,.doc,.docx" onChange={handleFileChange} />
             <Button variant="outline" size="icon" onClick={() => fileInputRef.current?.click()}>
               <Upload className="w-4 h-4 text-accent" />
             </Button>
             <CameraCapture onCapture={(img) => handleSendMessage('', img)} trigger={<Button variant="outline" size="icon"><Camera className="w-4 h-4 text-accent" /></Button>} />
             <Textarea placeholder="Progress update..." value={newMessage} onChange={(e) => setNewMessage(e.target.value)} />
-            <Button onClick={() => handleSendMessage(newMessage)} className="bg-accent text-accent-foreground"><Send className="w-4 h-4" /></Button>
+            <Button onClick={() => handleSendMessage(newMessage)} disabled={sending || !newMessage.trim()} className="bg-accent text-accent-foreground"><Send className="w-4 h-4" /></Button>
           </CardFooter>
         </Card>
       </div>

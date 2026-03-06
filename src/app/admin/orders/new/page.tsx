@@ -9,21 +9,19 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Sparkles, Loader2, ArrowLeft, Save, HelpCircle, Users, ImageIcon, Plus, Trash2, Camera, Upload } from 'lucide-react';
+import { Sparkles, Loader2, ArrowLeft, Save, HelpCircle, Users, ImageIcon, Plus, Trash2, Camera, Upload, FileText } from 'lucide-react';
 import { aiDesignBriefTool, type AIDesignBriefToolOutput } from '@/ai/flows/ai-design-brief-tool-flow';
 import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, where } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
-import { Badge } from '@/components/ui/badge';
 import { CameraCapture } from '@/components/CameraCapture';
-import Image from 'next/image';
 
 export default function NewOrderPage() {
   const router = useRouter();
   const db = useFirestore();
-  const { user, isUserLoading } = useUser();
+  const { user } = useUser();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [loadingAI, setLoadingAI] = useState(false);
@@ -50,7 +48,7 @@ export default function NewOrderPage() {
 
   const { data: staffList } = useCollection(staffQuery);
 
-  const handleAddRefImage = (url: string) => {
+  const handleAddRefFile = (url: string) => {
     if (!url.trim()) return;
     setFormData(prev => ({
       ...prev,
@@ -61,15 +59,19 @@ export default function NewOrderPage() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      if (file.size > 1024 * 700) {
+        toast({ variant: "destructive", title: "File too large", description: "Documents must be under 700KB." });
+        return;
+      }
       const reader = new FileReader();
       reader.onloadend = () => {
-        handleAddRefImage(reader.result as string);
+        handleAddRefFile(reader.result as string);
       };
       reader.readAsDataURL(file);
     }
   };
 
-  const removeRefImage = (idx: number) => {
+  const removeRefFile = (idx: number) => {
     setFormData(prev => ({
       ...prev,
       referenceImages: prev.referenceImages.filter((_, i) => i !== idx)
@@ -140,6 +142,8 @@ export default function NewOrderPage() {
         setSaving(false);
       });
   };
+
+  const isImage = (url: string) => url.startsWith('data:image/') || url.match(/\.(jpeg|jpg|gif|png)$/) != null;
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-20">
@@ -245,22 +249,29 @@ export default function NewOrderPage() {
           <Card className="shadow-sm border-2">
             <CardHeader>
               <CardTitle className="flex items-center justify-between text-sm">
-                <div className="flex items-center gap-2"><ImageIcon className="w-4 h-4" /> Reference Photos</div>
+                <div className="flex items-center gap-2"><ImageIcon className="w-4 h-4" /> Files & Photos</div>
                 <div className="flex gap-1">
-                  <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
+                  <input type="file" ref={fileInputRef} className="hidden" accept="image/*,.pdf,.doc,.docx" onChange={handleFileChange} />
                   <Button variant="outline" size="icon" onClick={() => fileInputRef.current?.click()}>
                     <Upload className="w-4 h-4" />
                   </Button>
-                  <CameraCapture onCapture={handleAddRefImage} />
+                  <CameraCapture onCapture={handleAddRefFile} />
                 </div>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-3 gap-2">
                 {formData.referenceImages.map((url, i) => (
-                  <div key={i} className="relative aspect-square rounded border overflow-hidden group">
-                    <img src={url} alt="Ref" className="w-full h-full object-cover" />
-                    <button onClick={() => removeRefImage(i)} className="absolute top-1 right-1 bg-destructive p-1 rounded-full text-white opacity-0 group-hover:opacity-100"><Trash2 className="w-3 h-3" /></button>
+                  <div key={i} className="relative aspect-square rounded border overflow-hidden group bg-muted flex items-center justify-center">
+                    {isImage(url) ? (
+                      <img src={url} alt="Ref" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="flex flex-col items-center gap-1">
+                        <FileText className="w-6 h-6 text-primary" />
+                        <span className="text-[8px] text-center">Document</span>
+                      </div>
+                    )}
+                    <button onClick={() => removeRefFile(i)} className="absolute top-1 right-1 bg-destructive p-1 rounded-full text-white opacity-0 group-hover:opacity-100"><Trash2 className="w-3 h-3" /></button>
                   </div>
                 ))}
               </div>
