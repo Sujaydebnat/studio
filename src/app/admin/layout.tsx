@@ -39,8 +39,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
         
         <div className="px-4 mb-4">
-          <Link href="/admin/orders/new">
-            <Button className="w-full bg-accent text-accent-foreground hover:bg-accent/90 justify-start gap-2 font-semibold">
+          <Link href="/admin/orders/new" className="block w-full">
+            <Button className="w-full bg-accent text-accent-foreground hover:bg-accent/90 justify-start gap-2 font-semibold shadow-sm">
               <PlusCircle className="w-4 h-4" /> New Order
             </Button>
           </Link>
@@ -70,7 +70,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </ScrollArea>
 
         <div className="p-4 border-t">
-          <Link href="/">
+          <Link href="/" className="block w-full">
             <Button variant="ghost" className="w-full justify-start gap-2 text-destructive hover:text-destructive hover:bg-destructive/10">
               <LogOut className="w-4 h-4" /> Sign Out
             </Button>
@@ -81,7 +81,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* Main Content */}
       <main className="flex-1 overflow-auto relative bg-background/50 backdrop-blur-sm">
         <header className="h-16 border-b bg-card/50 backdrop-blur-md flex items-center justify-between px-8 sticky top-0 z-10">
-          <h1 className="font-bold text-lg font-headline">Admin Portal</h1>
+          <h1 className="font-bold text-lg font-headline text-primary">Admin Portal</h1>
           <div className="flex items-center gap-4">
             <div className="flex flex-col items-end">
               <span className="text-sm font-semibold">Admin User</span>

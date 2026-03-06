@@ -1,6 +1,7 @@
+
 "use client"
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,7 +22,7 @@ import { Badge } from '@/components/ui/badge';
 export default function NewOrderPage() {
   const router = useRouter();
   const db = useFirestore();
-  const { user } = useUser();
+  const { user, isUserLoading } = useUser();
   const { toast } = useToast();
   const [loadingAI, setLoadingAI] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -65,10 +66,16 @@ export default function NewOrderPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!db || !user) {
+    if (!db) {
+      toast({ variant: "destructive", title: "Error", description: "Database not initialized." });
+      return;
+    }
+    
+    if (!user) {
       toast({ variant: "destructive", title: "Authentication required", description: "You must be logged in to create orders." });
       return;
     };
+
     if (!formData.customerName || !formData.phone || !formData.workType) {
       toast({
         variant: "destructive",
@@ -79,13 +86,11 @@ export default function NewOrderPage() {
     }
 
     setSaving(true);
-    // Generating human-readable order number (simple version)
     const orderNumber = `ORD-${Date.now().toString().slice(-6)}`;
 
     const orderData = {
       ...formData,
       orderNumber,
-      // Mapping fields to backend schema names
       customerPhoneNumber: formData.phone,
       adminId: user.uid,
       status: 'Pending',
@@ -97,14 +102,13 @@ export default function NewOrderPage() {
 
     const ordersRef = collection(db, 'orders');
     
-    // Mutation call without await for instant local cache update
     addDoc(ordersRef, orderData)
       .then(() => {
         toast({
           title: "Order Created",
           description: `Order #${orderNumber} has been added successfully.`,
         });
-        router.push('/admin/orders');
+        router.push('/admin/dashboard');
       })
       .catch(async (error) => {
         const permissionError = new FirestorePermissionError({
@@ -117,6 +121,14 @@ export default function NewOrderPage() {
       });
   };
 
+  if (isUserLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
@@ -126,7 +138,7 @@ export default function NewOrderPage() {
           </Button>
           <h2 className="text-3xl font-bold font-headline">New Work Order</h2>
         </div>
-        <Button onClick={handleSubmit} className="bg-primary gap-2" disabled={saving}>
+        <Button onClick={handleSubmit} className="bg-primary gap-2 h-11 px-6 font-bold shadow-md" disabled={saving}>
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
           Save Order
         </Button>
@@ -205,10 +217,10 @@ export default function NewOrderPage() {
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <HelpCircle className="w-4 h-4 text-muted-foreground" />
+                  <HelpCircle className="w-4 h-4 text-muted-foreground cursor-help" />
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p className="max-w-xs text-xs">Enter keywords like "modern", "minimal", "bakery brand" to help the AI craft a better brief.</p>
+                  <p className="max-w-xs text-xs text-center">Enter keywords like "modern", "minimal", "bakery brand" to help the AI craft a better brief.</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
@@ -226,7 +238,7 @@ export default function NewOrderPage() {
             <Button 
               onClick={handleGenerateBrief} 
               type="button"
-              className="w-full bg-accent text-accent-foreground hover:bg-accent/90 gap-2"
+              className="w-full bg-accent text-accent-foreground hover:bg-accent/90 gap-2 font-bold"
               disabled={loadingAI}
             >
               {loadingAI ? (
@@ -291,7 +303,7 @@ export default function NewOrderPage() {
           </CardContent>
           <CardFooter className="bg-accent/10 py-3 flex justify-end gap-2">
             <Button variant="ghost" size="sm" onClick={() => setDesignBrief(null)}>Clear Brief</Button>
-            <Button size="sm" className="bg-accent text-accent-foreground hover:bg-accent/90" onClick={() => toast({ title: "Brief Kept" })}>Keep Brief</Button>
+            <Button size="sm" className="bg-accent text-accent-foreground hover:bg-accent/90" onClick={() => toast({ title: "Brief Saved to Order" })}>Keep Brief</Button>
           </CardFooter>
         </Card>
       )}

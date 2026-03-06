@@ -53,8 +53,8 @@ export default function AdminDashboard() {
           <h2 className="text-3xl font-bold font-headline text-primary">Dashboard Overview</h2>
           <p className="text-muted-foreground">Welcome back! Here's what's happening today in your shop.</p>
         </div>
-        <Link href="/admin/orders/new">
-          <Button className="bg-accent text-accent-foreground hover:bg-accent/90 gap-2 font-bold shadow-lg">
+        <Link href="/admin/orders/new" className="block">
+          <Button className="bg-accent text-accent-foreground hover:bg-accent/90 gap-2 font-bold shadow-lg h-12 px-6">
             <PlusCircle className="w-5 h-5" />
             Create New Order
           </Button>
@@ -127,20 +127,21 @@ export default function AdminDashboard() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Quick Links</CardTitle>
+            <CardTitle>Quick Actions</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="p-4 bg-primary/5 rounded-lg border border-primary/20">
               <h4 className="font-bold text-sm text-primary mb-1">New Feature: AI Briefs</h4>
               <p className="text-xs text-muted-foreground">Generate professional design briefs instantly when creating orders.</p>
             </div>
-            <div className="p-4 bg-accent/5 rounded-lg border border-accent/20">
-              <h4 className="font-bold text-sm text-accent mb-1">Live Tracking</h4>
-              <p className="text-xs text-muted-foreground">Share the Order ID with customers so they can track progress online.</p>
-            </div>
-            <Link href="/admin/orders/new" className="block">
-              <Button className="w-full bg-primary gap-2">
+            <Link href="/admin/orders/new" className="block w-full">
+              <Button className="w-full bg-primary gap-2 shadow-sm font-bold">
                 <PlusCircle className="w-4 h-4" /> Add New Order
+              </Button>
+            </Link>
+            <Link href="/admin/orders" className="block w-full">
+              <Button variant="outline" className="w-full gap-2 font-bold">
+                <ClipboardList className="w-4 h-4" /> View All Orders
               </Button>
             </Link>
           </CardContent>

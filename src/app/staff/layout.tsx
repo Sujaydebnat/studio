@@ -54,7 +54,7 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
         </div>
 
         <div className="p-4 border-t">
-          <Link href="/">
+          <Link href="/" className="block w-full">
             <Button variant="ghost" className="w-full justify-start gap-2 text-destructive hover:text-destructive hover:bg-destructive/10">
               <LogOut className="w-4 h-4" /> Sign Out
             </Button>
