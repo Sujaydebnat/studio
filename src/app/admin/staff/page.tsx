@@ -8,10 +8,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { UserPlus, Shield, Loader2, Trash2, Key } from 'lucide-react';
+import { UserPlus, Shield, Loader2, Trash2, Key, AlertCircle } from 'lucide-react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, doc, setDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 export default function StaffManagement() {
   const db = useFirestore();
@@ -36,46 +38,71 @@ export default function StaffManagement() {
     if (!db) return;
 
     if (formData.password.length < 6) {
-      toast({ variant: "destructive", title: "Weak Password", description: "Password must be at least 6 characters." });
+      toast({ 
+        variant: "destructive", 
+        title: "Weak Password", 
+        description: "Password must be at least 6 characters." 
+      });
       return;
     }
 
     setLoading(true);
     try {
-      // Use email as ID (sanitized) or a unique string
+      // Use email as ID (sanitized)
       const tempId = formData.email.toLowerCase().replace(/[@.]/g, '_');
       const userRef = doc(db, 'users', tempId);
       
-      await setDoc(userRef, {
-        ...formData,
+      const userData = {
         id: tempId,
+        name: formData.name,
         email: formData.email.toLowerCase(),
+        password: formData.password, // Stored for manual verification logic in login
+        role: formData.role,
         createdAt: serverTimestamp(),
-      });
+      };
+
+      await setDoc(userRef, userData);
 
       toast({ 
         title: "Staff Authorized", 
-        description: `${formData.name} can now login with the assigned password.` 
+        description: `${formData.name} can now login with the assigned credentials.` 
       });
       setFormData({ name: '', email: '', password: '', role: 'staff' });
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Error", description: error.message });
+      console.error(error);
+      toast({ variant: "destructive", title: "Error", description: "Could not authorize staff. Check your permissions." });
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!db || !confirm('Delete this user authorization?')) return;
-    await deleteDoc(doc(db, 'users', id));
-    toast({ title: "User Removed" });
+  const handleDelete = (id: string, name: string) => {
+    if (!db) return;
+    if (!confirm(`Are you sure you want to remove ${name}'s authorization? They will no longer be able to login.`)) return;
+    
+    const userRef = doc(db, 'users', id);
+    
+    deleteDoc(userRef)
+      .then(() => {
+        toast({ 
+          title: "Authorization Removed", 
+          description: `${name} has been deleted from the access list.` 
+        });
+      })
+      .catch(async (error) => {
+        const permissionError = new FirestorePermissionError({
+          path: userRef.path,
+          operation: 'delete',
+        });
+        errorEmitter.emit('permission-error', permissionError);
+      });
   };
 
   return (
     <div className="space-y-8">
       <div>
         <h2 className="text-3xl font-bold font-headline text-primary">Staff Management</h2>
-        <p className="text-muted-foreground">Admin Portal: Authorize staff accounts and set initial passwords.</p>
+        <p className="text-muted-foreground">Admin Portal: Authorize staff accounts and manage access.</p>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-8">
@@ -84,7 +111,7 @@ export default function StaffManagement() {
             <CardTitle className="flex items-center gap-2">
               <UserPlus className="w-5 h-5 text-primary" /> Create Staff ID
             </CardTitle>
-            <CardDescription>Assign an email and password for staff login.</CardDescription>
+            <CardDescription>Assign an email and password for internal login.</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleCreateStaff} className="space-y-4">
@@ -108,7 +135,7 @@ export default function StaffManagement() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Staff Password</Label>
+                <Label>Initial Password</Label>
                 <div className="relative">
                   <Input 
                     required 
@@ -120,7 +147,7 @@ export default function StaffManagement() {
                   />
                   <Key className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 </div>
-                <p className="text-[10px] text-muted-foreground italic">Provide this to the staff member for their first login.</p>
+                <p className="text-[10px] text-muted-foreground italic">Provide this to the staff member for their portal entry.</p>
               </div>
               <div className="space-y-2">
                 <Label>Role</Label>
@@ -155,7 +182,7 @@ export default function StaffManagement() {
                   <TableRow className="bg-muted/50">
                     <TableHead>Name</TableHead>
                     <TableHead>Email / Login</TableHead>
-                    <TableHead>Password</TableHead>
+                    <TableHead>Initial Pwd</TableHead>
                     <TableHead>Role</TableHead>
                     <TableHead className="text-right">Action</TableHead>
                   </TableRow>
@@ -174,8 +201,13 @@ export default function StaffManagement() {
                         </span>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button variant="ghost" size="icon" onClick={() => handleDelete(user.id)} className="hover:bg-destructive/10">
-                          <Trash2 className="w-4 h-4 text-destructive" />
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={() => handleDelete(user.id, user.name)} 
+                          className="hover:bg-destructive/10 group"
+                        >
+                          <Trash2 className="w-4 h-4 text-muted-foreground group-hover:text-destructive" />
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -190,6 +222,12 @@ export default function StaffManagement() {
                 </TableBody>
               </Table>
             )}
+            <div className="mt-4 p-4 bg-muted/30 rounded-lg flex items-start gap-3 border">
+              <AlertCircle className="w-4 h-4 text-muted-foreground mt-0.5" />
+              <p className="text-[10px] text-muted-foreground leading-relaxed">
+                Deleting a user from this list will revoke their access immediately. If they have already signed in with Google, their account will remain in Firebase Auth but they will be denied entry to the portals.
+              </p>
+            </div>
           </CardContent>
         </Card>
       </div>
