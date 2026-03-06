@@ -7,15 +7,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Printer, Loader2, LogIn, Chrome, ShieldAlert, UserCheck, KeySquare } from 'lucide-react';
+import { Printer, Loader2, LogIn, UserCheck, KeySquare } from 'lucide-react';
 import { 
   signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
-  signInWithPopup,
-  sendEmailVerification 
+  createUserWithEmailAndPassword
 } from 'firebase/auth';
 import { useAuth, useFirestore } from '@/firebase';
-import { doc, getDoc, collection, query, where, getDocs, setDoc, or } from 'firebase/firestore';
+import { doc, collection, query, where, getDocs, setDoc, or } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 
@@ -25,7 +23,7 @@ export default function LoginPage() {
   const db = useFirestore();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [identifier, setIdentifier] = useState(''); // Can be email, username, or phone
+  const [identifier, setIdentifier] = useState(''); // Email, username, or phone
   const [password, setPassword] = useState('');
 
   const handleRoleRedirect = (role: string) => {
@@ -39,19 +37,8 @@ export default function LoginPage() {
   const handleAuthResult = async (user: any, userData: any) => {
     if (!db) return;
     
-    // Send verification email if not verified
-    if (!user.emailVerified) {
-      try {
-        await sendEmailVerification(user);
-        toast({ 
-          title: "Account Verification", 
-          description: `A verification link has been sent to ${user.email}. Please verify to continue.` 
-        });
-      } catch (e) {
-        console.error("Verification error", e);
-      }
-    }
-
+    // Email verification removed as per user request for direct login.
+    
     // Ensure the UID mapping is stored in Firestore
     const userRef = doc(db, 'users', user.uid);
     await setDoc(userRef, {
@@ -61,7 +48,7 @@ export default function LoginPage() {
     }, { merge: true });
 
     handleRoleRedirect(userData.role);
-    toast({ title: "Login Successful", description: `Portal: ${userData.role.toUpperCase()}` });
+    toast({ title: "Login Successful", description: `Welcome to the ${userData.role.toUpperCase()} portal.` });
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -139,7 +126,7 @@ export default function LoginPage() {
           <CardTitle className="text-2xl font-bold flex items-center justify-center gap-2">
             <UserCheck className="w-6 h-6 text-primary" /> Personnel Portal
           </CardTitle>
-          <CardDescription>Enter Username, Email, or Phone to login</CardDescription>
+          <CardDescription>Username, Email, or Mobile to login</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <form onSubmit={handleLogin} className="space-y-4">
@@ -151,7 +138,7 @@ export default function LoginPage() {
                   required 
                   value={identifier} 
                   onChange={(e) => setIdentifier(e.target.value)} 
-                  placeholder="Username / Email / Mobile No" 
+                  placeholder="Email / Username / Mobile" 
                   className="h-11 pl-10"
                 />
                 <KeySquare className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -177,12 +164,12 @@ export default function LoginPage() {
           <div className="relative">
             <Separator />
             <span className="absolute left-1/2 -top-2.5 -translate-x-1/2 bg-background px-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-              Role-Based Access
+              Direct Access
             </span>
           </div>
           
           <p className="text-[10px] text-center text-muted-foreground italic">
-            Admins have full shop control. Staff accounts are pre-authorized by Administration.
+            Staff accounts are pre-authorized. Login directly with your credentials.
           </p>
         </CardContent>
       </Card>
