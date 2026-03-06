@@ -26,7 +26,7 @@ export default function LoginPage() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
-  const [identifier, setIdentifier] = useState(''); // Email, username, or phone
+  const [identifier, setIdentifier] = useState(''); // Email, Employee ID, or phone
   const [password, setPassword] = useState('');
 
   const handleRoleRedirect = (role: string) => {
@@ -154,19 +154,19 @@ export default function LoginPage() {
           <CardTitle className="text-2xl font-bold flex items-center justify-center gap-2">
             <UserCheck className="w-6 h-6 text-primary" /> Personnel Portal
           </CardTitle>
-          <CardDescription>Enter your ID and Password to access workspace</CardDescription>
+          <CardDescription>Enter details to access workspace</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="identifier">Identifier (Username/Phone/Email)</Label>
+              <Label htmlFor="identifier">Identifier (Employee ID / Phone / Email)</Label>
               <div className="relative">
                 <Input 
                   id="identifier"
                   required 
                   value={identifier} 
                   onChange={(e) => setIdentifier(e.target.value)} 
-                  placeholder="e.g. rahul123" 
+                  placeholder="e.g. EMP-101" 
                   className="h-12 pl-10"
                 />
                 <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />

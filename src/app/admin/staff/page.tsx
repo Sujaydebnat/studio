@@ -251,9 +251,9 @@ export default function StaffManagement() {
                       <Input required value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} placeholder="e.g. Rahul Dev" />
                     </div>
                     <div className="space-y-2">
-                      <Label>Username (Login ID)</Label>
+                      <Label>Employee ID (Login ID)</Label>
                       <div className="relative">
-                        <Input required value={formData.username} onChange={(e) => setFormData({...formData, username: e.target.value})} className="pl-9" placeholder="rahul123" />
+                        <Input required value={formData.username} onChange={(e) => setFormData({...formData, username: e.target.value})} className="pl-9" placeholder="EMP-101" />
                         <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       </div>
                     </div>
@@ -342,7 +342,7 @@ export default function StaffManagement() {
                          <div className="p-4 rounded-xl bg-muted/50 border flex items-center gap-3">
                            <Fingerprint className="w-5 h-5 text-primary" />
                            <div>
-                              <p className="text-[10px] uppercase font-bold text-muted-foreground">Username</p>
+                              <p className="text-[10px] uppercase font-bold text-muted-foreground">Employee ID</p>
                               <p className="font-mono text-sm">@{selectedUser.username}</p>
                            </div>
                          </div>
@@ -418,7 +418,7 @@ export default function StaffManagement() {
                   <TableHeader>
                     <TableRow className="bg-muted/50">
                       <TableHead className="pl-6">Profile</TableHead>
-                      <TableHead>System ID</TableHead>
+                      <TableHead>Employee ID</TableHead>
                       <TableHead>Access Level</TableHead>
                       <TableHead className="text-right pr-6">Management</TableHead>
                     </TableRow>
