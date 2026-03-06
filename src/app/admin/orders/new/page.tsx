@@ -24,6 +24,8 @@ const WORK_TYPES = [
   "LOGO", "PLATE", "REDIEM", "VINAIL", "DTF", "UV"
 ];
 
+const PHOTOPAPER_SIZES = ["12 × 18", "12 × 8"];
+
 interface OrderItem {
   type: string;
   size: string;
@@ -216,8 +218,9 @@ export default function NewOrderPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Bill Number (Manual)</Label>
-                  <Input 
+                  <input 
                     required 
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     placeholder="e.g. 2024-001" 
                     value={formData.billNumber} 
                     onChange={(e) => setFormData({...formData, billNumber: e.target.value})} 
@@ -316,7 +319,7 @@ export default function NewOrderPage() {
                 <div className="grid grid-cols-12 gap-2">
                   <div className="col-span-4 space-y-1">
                     <Label className="text-[10px] font-bold">Type</Label>
-                    <Select value={currentItem.type} onValueChange={(v) => setCurrentItem({...currentItem, type: v})}>
+                    <Select value={currentItem.type} onValueChange={(v) => setCurrentItem({...currentItem, type: v, size: ''})}>
                       <SelectTrigger className="h-9"><SelectValue placeholder="Type" /></SelectTrigger>
                       <SelectContent>
                         {formData.workTypes.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
@@ -324,8 +327,17 @@ export default function NewOrderPage() {
                     </Select>
                   </div>
                   <div className="col-span-4 space-y-1">
-                    <Label className="text-[10px] font-bold">Size (e.g. 10x20 in)</Label>
-                    <Input placeholder="Size" value={currentItem.size} onChange={(e) => setCurrentItem({...currentItem, size: e.target.value})} className="h-9" />
+                    <Label className="text-[10px] font-bold">Size</Label>
+                    {currentItem.type === 'PHOTOPAPER' ? (
+                      <Select value={currentItem.size} onValueChange={(v) => setCurrentItem({...currentItem, size: v})}>
+                        <SelectTrigger className="h-9"><SelectValue placeholder="Select Size" /></SelectTrigger>
+                        <SelectContent>
+                          {PHOTOPAPER_SIZES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input placeholder="Size (e.g. 10x20 in)" value={currentItem.size} onChange={(e) => setCurrentItem({...currentItem, size: e.target.value})} className="h-9" />
+                    )}
                   </div>
                   <div className="col-span-2 space-y-1">
                     <Label className="text-[10px] font-bold">Qty</Label>
