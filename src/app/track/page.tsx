@@ -154,7 +154,8 @@ export default function TrackOrderPage() {
                 <p className="text-xs font-semibold text-accent uppercase tracking-wider flex items-center gap-2">
                   <Hash className="w-3 h-3" /> Bill No: {order.billNumber || 'N/A'}
                 </p>
-                <h2 className="text-2xl font-bold font-headline">{order.workType}</h2>
+                <h2 className="text-2xl font-bold font-headline">{(order.workTypes || [order.workType]).join(", ")}</h2>
+                {order.subWorkType && <Badge variant="outline" className="mt-1">{order.subWorkType}</Badge>}
               </div>
               <Badge className="text-lg px-4 py-1 bg-primary flex items-center gap-2">
                 {getStatusIcon(order.status)}

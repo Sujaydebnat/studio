@@ -51,11 +51,15 @@ export default function OrdersPage() {
 
   const filteredOrders = useMemo(() => {
     if (!orders) return [];
-    return orders.filter(order => 
-      order.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.workType?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    return orders.filter(order => {
+      const types = order.workTypes ? order.workTypes.join(" ") : (order.workType || "");
+      return (
+        order.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        order.billNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        types.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    });
   }, [orders, searchTerm]);
 
   const getStatusColor = (status: string) => {
@@ -120,7 +124,7 @@ export default function OrdersPage() {
             <div className="relative flex-1 w-full">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input 
-                placeholder="Search by ID, Customer, or Type..." 
+                placeholder="Search by Bill #, Customer, or Type..." 
                 className="pl-10" 
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -140,12 +144,12 @@ export default function OrdersPage() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/50">
-                  <TableHead className="w-[100px]">ID</TableHead>
+                  <TableHead className="w-[120px]">Bill #</TableHead>
                   <TableHead>Customer</TableHead>
-                  <TableHead>Work Type</TableHead>
+                  <TableHead>Work Types</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Priority</TableHead>
-                  <TableHead>Date</TableHead>
+                  <TableHead>Delivery</TableHead>
                   <TableHead className="text-right">Action</TableHead>
                 </TableRow>
               </TableHeader>
@@ -153,11 +157,21 @@ export default function OrdersPage() {
                 {filteredOrders.length > 0 ? (
                   filteredOrders.map((order) => (
                     <TableRow key={order.id} className="hover:bg-muted/30 transition-colors">
-                      <TableCell className="font-bold text-xs">#{order.id.slice(0, 5)}</TableCell>
+                      <TableCell className="font-bold text-xs">
+                        {order.billNumber ? `#${order.billNumber}` : `#${order.id.slice(0, 5)}`}
+                      </TableCell>
                       <TableCell>
                         <span className="font-semibold">{order.customerName}</span>
                       </TableCell>
-                      <TableCell>{order.workType}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          {(order.workTypes || [order.workType]).map((type: string) => (
+                            <Badge key={type} variant="secondary" className="text-[10px] px-1.5 py-0">
+                              {type}
+                            </Badge>
+                          ))}
+                        </div>
+                      </TableCell>
                       <TableCell>
                         <Badge variant="outline" className={`${getStatusColor(order.status)} font-bold`}>
                           {order.status}
@@ -169,7 +183,7 @@ export default function OrdersPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-muted-foreground text-xs">
-                        {order.createdAt?.seconds ? format(new Date(order.createdAt.seconds * 1000), 'MMM d, yyyy') : 'N/A'}
+                        {order.deliveryDate ? format(new Date(order.deliveryDate), 'MMM d') : 'N/A'}
                       </TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>
@@ -213,7 +227,7 @@ export default function OrdersPage() {
               <AlertDialogTitle>Delete Order Permanently?</AlertDialogTitle>
             </div>
             <AlertDialogDescription>
-              Are you sure you want to delete order <strong>#{deleteId?.slice(0, 8)}</strong>? 
+              Are you sure you want to delete order <strong>{deleteId?.slice(0, 8)}</strong>? 
               This action cannot be undone and the data will be removed from your database.
             </AlertDialogDescription>
           </AlertDialogHeader>

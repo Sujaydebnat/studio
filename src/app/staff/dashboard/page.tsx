@@ -15,8 +15,6 @@ export default function StaffDashboard() {
   const db = useFirestore();
   const { user } = useUser();
 
-  // Optimized query for Staff assignments
-  // Removed orderBy to avoid missing index errors during prototyping
   const ordersQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
     return query(
@@ -27,13 +25,12 @@ export default function StaffDashboard() {
 
   const { data: rawOrders, loading } = useCollection(ordersQuery);
 
-  // Sorting in memory to avoid index requirements
   const activeOrders = useMemo(() => {
     if (!rawOrders) return [];
     return [...rawOrders].sort((a, b) => {
       const dateA = a.createdAt?.seconds || 0;
       const dateB = b.createdAt?.seconds || 0;
-      return dateB - dateA; // Descending
+      return dateB - dateA;
     });
   }, [rawOrders]);
 
@@ -72,15 +69,24 @@ export default function StaffDashboard() {
                     <Badge variant={order.priority === 'High' || order.priority === 'Urgent' ? 'destructive' : 'default'}>
                       {order.priority}
                     </Badge>
-                    <span className="text-xs font-mono text-muted-foreground">#{order.id.slice(0, 8)}</span>
+                    <span className="text-xs font-mono text-muted-foreground">
+                      {order.billNumber ? `Bill: #${order.billNumber}` : `ID: #${order.id.slice(0, 8)}`}
+                    </span>
                   </div>
                   <Badge variant="outline" className="border-accent text-accent-foreground">{order.status}</Badge>
                 </CardHeader>
                 <CardContent className="pt-4">
                   <div className="flex justify-between items-start">
                     <div className="space-y-1">
-                      <h3 className="text-xl font-bold">{order.workType}</h3>
+                      <h3 className="text-xl font-bold flex flex-wrap gap-2">
+                        {(order.workTypes || [order.workType]).map((t: string) => (
+                          <span key={t} className="bg-primary/10 px-2 py-0.5 rounded text-primary text-sm uppercase">
+                            {t}
+                          </span>
+                        ))}
+                      </h3>
                       <p className="text-sm text-muted-foreground">Customer: {order.customerName}</p>
+                      {order.subWorkType && <Badge variant="outline" className="text-[10px]">{order.subWorkType}</Badge>}
                     </div>
                     <Link href={`/staff/orders/${order.id}`}>
                       <Button variant="secondary" className="gap-2">
@@ -88,11 +94,17 @@ export default function StaffDashboard() {
                       </Button>
                     </Link>
                   </div>
-                  <div className="mt-4 flex gap-4 text-xs text-muted-foreground">
+                  <div className="mt-4 flex flex-wrap gap-4 text-[10px] text-muted-foreground">
                     <div className="flex items-center gap-1">
                       <Clock className="w-3 h-3" />
                       Assigned: {order.createdAt?.seconds ? format(new Date(order.createdAt.seconds * 1000), 'PPP') : 'Recently'}
                     </div>
+                    {order.deliveryDate && (
+                      <div className="flex items-center gap-1 font-bold text-accent-foreground">
+                        <CalendarIcon className="w-3 h-3" />
+                        Due: {format(new Date(order.deliveryDate), 'MMM d, yyyy')}
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>

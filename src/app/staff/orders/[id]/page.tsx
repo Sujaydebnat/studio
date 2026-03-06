@@ -8,13 +8,14 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2, ArrowLeft, Send, MessageSquare, Camera, Sparkles, Ruler, ImageIcon, Upload, Download, FileText } from 'lucide-react';
+import { Loader2, ArrowLeft, Send, MessageSquare, Camera, Sparkles, Ruler, ImageIcon, Upload, Download, FileText, Calendar as CalendarIcon } from 'lucide-react';
 import { useDoc, useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import { doc, collection, addDoc, serverTimestamp, query, orderBy } from 'firebase/firestore';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { CameraCapture } from '@/components/CameraCapture';
 import { useToast } from '@/hooks/use-toast';
+import { format } from 'date-fns';
 
 export default function StaffOrderDetail() {
   const { id } = useParams();
@@ -81,11 +82,16 @@ export default function StaffOrderDetail() {
   if (loadingOrder) return <div className="p-20 flex justify-center"><Loader2 className="animate-spin text-accent" /></div>;
   if (!order) return <div className="p-20 text-center">Not found</div>;
 
+  const currentWorkTypes = order.workTypes || [order.workType];
+
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-20">
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={() => router.back()}><ArrowLeft className="w-5 h-5" /></Button>
-        <h2 className="text-3xl font-bold text-accent-foreground">Production Workbench</h2>
+        <div className="flex flex-col">
+          <h2 className="text-3xl font-bold text-accent-foreground">Production Workbench</h2>
+          <p className="text-xs text-muted-foreground">Bill #{order.billNumber || order.id.slice(0, 8)}</p>
+        </div>
       </div>
 
       <div className="grid lg:grid-cols-12 gap-6">
@@ -93,15 +99,22 @@ export default function StaffOrderDetail() {
           <Card className="border-accent/20">
             <CardHeader className="bg-accent/5">
               <CardTitle className="text-sm uppercase flex items-center gap-2">
-                <Ruler className="w-4 h-4 text-accent" /> Specs
+                <Ruler className="w-4 h-4 text-accent" /> Production Specs
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 pt-4">
               <div className="space-y-1">
-                <Label className="text-[10px] uppercase font-bold">Work Type</Label>
-                <p className="font-extrabold text-primary text-sm">
-                  {order.workType} {order.subWorkType ? `(${order.subWorkType})` : ''}
-                </p>
+                <Label className="text-[10px] uppercase font-bold">Work Types</Label>
+                <div className="flex flex-wrap gap-1">
+                  {currentWorkTypes.map((t: string) => (
+                    <Badge key={t} className="bg-primary text-white text-[10px] uppercase">
+                      {t}
+                    </Badge>
+                  ))}
+                </div>
+                {order.subWorkType && (
+                  <p className="text-xs font-bold text-accent mt-1">Sub-Type: {order.subWorkType}</p>
+                )}
               </div>
               <Separator />
               <div className="grid grid-cols-2 gap-4">
@@ -110,10 +123,19 @@ export default function StaffOrderDetail() {
                   <p className="font-extrabold text-primary">
                     {order.width && order.height 
                       ? `${order.width} × ${order.height} ${order.unit || ''}` 
-                      : order.size || 'N/A'}
+                      : order.size || 'Custom'}
                   </p>
                 </div>
                 <div><Label className="text-[10px] uppercase font-bold">Qty (Pis)</Label><p className="font-extrabold text-primary">{order.quantity || '1'}</p></div>
+              </div>
+              <Separator />
+              <div className="space-y-1">
+                <Label className="text-[10px] uppercase font-bold flex items-center gap-1">
+                  <CalendarIcon className="w-3 h-3" /> Delivery Due
+                </Label>
+                <p className="text-sm font-bold text-destructive">
+                  {order.deliveryDate ? format(new Date(order.deliveryDate), 'PPP') : 'TBD'}
+                </p>
               </div>
               <Separator />
               <div className="space-y-1">

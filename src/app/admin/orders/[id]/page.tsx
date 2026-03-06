@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2, ArrowLeft, Send, MessageSquare, Image as ImageIcon, Users, Plus, Trash2, Camera, Upload, FileText, Download, Ruler, Calendar as CalendarIcon, Hash, Banknote, Mail } from 'lucide-react';
 import { useDoc, useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import { doc, collection, addDoc, serverTimestamp, query, orderBy, updateDoc, arrayUnion, where, arrayRemove } from 'firebase/firestore';
@@ -17,6 +18,11 @@ import { useToast } from '@/hooks/use-toast';
 import { CameraCapture } from '@/components/CameraCapture';
 import { Label } from '@/components/ui/label';
 import { format } from 'date-fns';
+
+const WORK_TYPES = [
+  "GIFT", "FLEX", "DIGITAL PAPER", "PHOTOPAPER", "GUM PAPER", 
+  "LOGO", "PLATE", "REDIEM", "VINAIL", "DTF", "UV"
+];
 
 export default function AdminOrderDetail() {
   const { id } = useParams();
@@ -95,7 +101,7 @@ export default function AdminOrderDetail() {
     }
   };
 
-  const handleUpdateField = async (field: string, value: string) => {
+  const handleUpdateField = async (field: string, value: any) => {
     if (!orderRef) return;
     setUpdating(true);
     try {
@@ -104,6 +110,17 @@ export default function AdminOrderDetail() {
     } finally {
       setUpdating(false);
     }
+  };
+
+  const toggleWorkType = (type: string) => {
+    if (!order) return;
+    const currentTypes = order.workTypes || [order.workType];
+    const isSelected = currentTypes.includes(type);
+    const newWorkTypes = isSelected 
+      ? currentTypes.filter((t: string) => t !== type)
+      : [...currentTypes, type];
+    
+    handleUpdateField('workTypes', newWorkTypes);
   };
 
   const handleAddImage = async (field: 'previews' | 'referenceImages', url: string) => {
@@ -162,6 +179,39 @@ export default function AdminOrderDetail() {
                   </SelectContent>
                 </Select>
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle className="flex items-center gap-2"><ImageIcon className="w-5 h-5 text-primary" /> Work Types</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-2 gap-2 bg-muted/20 p-3 rounded-lg border">
+                {WORK_TYPES.map((type) => (
+                  <div key={type} className="flex items-center space-x-2">
+                    <Checkbox 
+                      id={`edit-type-${type}`} 
+                      checked={(order.workTypes || [order.workType]).includes(type)}
+                      onCheckedChange={() => toggleWorkType(type)}
+                      disabled={updating}
+                    />
+                    <label htmlFor={`edit-type-${type}`} className="text-[10px] font-bold cursor-pointer">{type}</label>
+                  </div>
+                ))}
+              </div>
+              {(order.workTypes || [order.workType]).includes('DIGITAL PAPER') && (
+                <div className="space-y-1">
+                  <Label className="text-[10px] font-bold">Digital Paper Sub-Type</Label>
+                  <Select defaultValue={order.subWorkType} onValueChange={(v) => handleUpdateField('subWorkType', v)} disabled={updating}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="VISITING CARD">VISITING CARD</SelectItem>
+                      <SelectItem value="TABLE MENU CARD">TABLE MENU CARD</SelectItem>
+                      <SelectItem value="HAND MENU CARD">HAND MENU CARD</SelectItem>
+                      <SelectItem value="PVC CARD">PVC CARD</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </CardContent>
           </Card>
 

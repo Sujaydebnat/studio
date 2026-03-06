@@ -104,8 +104,15 @@ export default function AdminDashboard() {
                         <ClipboardList className="w-5 h-5 text-muted-foreground" />
                       </div>
                       <div>
-                        <p className="font-semibold text-sm">{order.workType} for {order.customerName}</p>
-                        <p className="text-xs text-muted-foreground">ID: {order.id.slice(0, 8)}</p>
+                        <p className="font-semibold text-sm">
+                          {order.billNumber ? `Bill #${order.billNumber}` : `Order #${order.id.slice(0, 5)}`} 
+                          <span className="text-muted-foreground ml-2">for {order.customerName}</span>
+                        </p>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {(order.workTypes || [order.workType]).map((t: string) => (
+                            <Badge key={t} variant="outline" className="text-[9px] h-4">{t}</Badge>
+                          ))}
+                        </div>
                       </div>
                     </div>
                     <Badge variant="outline" className="text-xs">{order.status}</Badge>
@@ -131,8 +138,8 @@ export default function AdminDashboard() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="p-4 bg-primary/5 rounded-lg border border-primary/20">
-              <h4 className="font-bold text-sm text-primary mb-1">New Feature: AI Briefs</h4>
-              <p className="text-xs text-muted-foreground">Generate professional design briefs instantly when creating orders.</p>
+              <h4 className="font-bold text-sm text-primary mb-1">New Feature: Multi-Type Orders</h4>
+              <p className="text-xs text-muted-foreground">Select multiple work types for a single bill in the new order form.</p>
             </div>
             <Link href="/admin/orders/new" className="block w-full">
               <Button className="w-full bg-primary gap-2 shadow-sm font-bold">

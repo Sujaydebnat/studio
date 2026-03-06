@@ -27,9 +27,10 @@
         "customerName": { "type": "string" },
         "customerEmail": { "type": "string", "format": "email" },
         "phone": { "type": "string" },
-        "workType": { 
-          "type": "string",
-          "enum": ["GIFT", "FLEX", "DIGITAL PAPER", "PHOTOPAPER", "GUM PAPER", "LOGO", "PLATE", "REDIEM", "VINAIL", "DTF", "UV"]
+        "workTypes": { 
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Multiple work types for a single order."
         },
         "subWorkType": {
           "type": "string",
@@ -45,6 +46,7 @@
         "deliveryDate": { "type": "string", "format": "date" },
         "additionalDetails": { "type": "string" },
         "referenceImages": { "type": "array", "items": { "type": "string" } },
+        "previews": { "type": "array", "items": { "type": "string" } },
         "adminId": { "type": "string" },
         "assignedStaffId": { "type": "string" },
         "priority": { "type": "string" },
