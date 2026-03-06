@@ -143,6 +143,14 @@ export default function NewOrderPage() {
       });
   };
 
+  const handlePhotoPaperSizeSelect = (val: string) => {
+    if (val === '12x18') {
+      setFormData({ ...formData, width: '12', height: '18', unit: 'Inches' });
+    } else if (val === '12x8') {
+      setFormData({ ...formData, width: '12', height: '8', unit: 'Inches' });
+    }
+  };
+
   const isImage = (url: string) => url.startsWith('data:image/') || url.match(/\.(jpeg|jpg|gif|png)$/) != null;
 
   return (
@@ -180,7 +188,7 @@ export default function NewOrderPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Work Type</Label>
-                  <Select onValueChange={(val) => setFormData({...formData, workType: val, subWorkType: ''})}>
+                  <Select onValueChange={(val) => setFormData({...formData, workType: val, subWorkType: '', width: '', height: ''})}>
                     <SelectTrigger><SelectValue placeholder="Select Type" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="GIFT">GIFT</SelectItem>
@@ -243,20 +251,33 @@ export default function NewOrderPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Print Size (W × H)</Label>
-                  <div className="flex items-center gap-2">
-                    <Input placeholder="W" value={formData.width} onChange={(e) => setFormData({...formData, width: e.target.value})} />
-                    <span className="text-muted-foreground font-bold">×</span>
-                    <Input placeholder="H" value={formData.height} onChange={(e) => setFormData({...formData, height: e.target.value})} />
-                    <Select value={formData.unit} onValueChange={(val) => setFormData({...formData, unit: val})}>
-                      <SelectTrigger className="w-[100px]"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Inches">Inches</SelectItem>
-                        <SelectItem value="mm">mm</SelectItem>
-                        <SelectItem value="cm">cm</SelectItem>
-                        <SelectItem value="ft">ft</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  {formData.workType === 'PHOTOPAPER' ? (
+                    <div className="space-y-2">
+                      <Select onValueChange={handlePhotoPaperSizeSelect}>
+                        <SelectTrigger><SelectValue placeholder="Select Photo Size" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="12x18">12 × 18 Inches</SelectItem>
+                          <SelectItem value="12x8">12 × 8 Inches</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-[10px] text-muted-foreground italic">Standard sizes for Photopaper.</p>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <Input placeholder="W" value={formData.width} onChange={(e) => setFormData({...formData, width: e.target.value})} />
+                      <span className="text-muted-foreground font-bold">×</span>
+                      <Input placeholder="H" value={formData.height} onChange={(e) => setFormData({...formData, height: e.target.value})} />
+                      <Select value={formData.unit} onValueChange={(val) => setFormData({...formData, unit: val})}>
+                        <SelectTrigger className="w-[100px]"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Inches">Inches</SelectItem>
+                          <SelectItem value="mm">mm</SelectItem>
+                          <SelectItem value="cm">cm</SelectItem>
+                          <SelectItem value="ft">ft</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label>Quantity (Pis)</Label>

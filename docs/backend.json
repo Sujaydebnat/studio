@@ -37,7 +37,7 @@
         "status": { "type": "string" },
         "width": { "type": "string" },
         "height": { "type": "string" },
-        "unit": { "type": "string" },
+        "unit": { "type": "string", "enum": ["Inches", "mm", "cm", "ft"] },
         "quantity": { "type": "string" },
         "additionalDetails": { "type": "string" },
         "referenceImages": { "type": "array", "items": { "type": "string" } },
@@ -68,10 +68,8 @@
     "providers": ["password", "google"]
   },
   "firestore": {
-    "structure": [
-      { "path": "/users/{userId}", "definition": { "entityName": "user", "description": "User profiles with roles." } },
-      { "path": "/orders/{orderId}", "definition": { "entityName": "order", "description": "Print orders." } },
-      { "path": "/orders/{orderId}/updates/{updateId}", "definition": { "entityName": "orderUpdate", "description": "Messages for an order." } }
-    ]
+    "/users/{userId}": { "schema": "#/backend/entities/User", "description": "User profiles with roles." },
+    "/orders/{orderId}": { "schema": "#/backend/entities/Order", "description": "Print orders." },
+    "/orders/{orderId}/updates/{updateId}": { "schema": "#/backend/entities/OrderUpdate", "description": "Messages for an order." }
   }
 }
