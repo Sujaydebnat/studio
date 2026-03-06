@@ -75,6 +75,7 @@
         "name": { "type": "string" },
         "description": { "type": "string" },
         "category": { "type": "string" },
+        "subCategory": { "type": "string" },
         "imageUrl": { "type": "string" },
         "startingPrice": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }

@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
-import { Search, Printer, Package, Info, ArrowLeft } from 'lucide-react';
+import { Search, Printer, Package, Info, ArrowLeft, Layers } from 'lucide-react';
 import Link from 'next/link';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy } from 'firebase/firestore';
@@ -30,8 +30,10 @@ export default function PublicCatalog() {
   const filteredItems = useMemo(() => {
     if (!items) return [];
     return items.filter(item => {
-      const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                           item.description?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = 
+        item.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        item.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.subCategory?.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesCategory = selectedCategory === 'ALL' || item.category === selectedCategory;
       return matchesSearch && matchesCategory;
     });
@@ -63,7 +65,7 @@ export default function PublicCatalog() {
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input 
-                  placeholder="Search products..." 
+                  placeholder="Search products or sub-categories..." 
                   className="pl-10 h-12"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -107,9 +109,16 @@ export default function PublicCatalog() {
                     ) : (
                       <Package className="w-20 h-20 text-muted-foreground/20" />
                     )}
-                    <Badge className="absolute top-4 left-4 bg-primary/90 backdrop-blur-sm text-[10px] font-bold">
-                      {item.category}
-                    </Badge>
+                    <div className="absolute top-4 left-4 flex flex-col gap-2">
+                      <Badge className="bg-primary/90 backdrop-blur-sm text-[10px] font-bold shadow-sm">
+                        {item.category}
+                      </Badge>
+                      {item.subCategory && (
+                        <Badge variant="secondary" className="bg-white/95 backdrop-blur-sm text-[9px] font-bold shadow-sm text-primary flex items-center gap-1">
+                          <Layers className="w-3 h-3" /> {item.subCategory}
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                   <CardHeader>
                     <CardTitle className="text-xl font-bold">{item.name}</CardTitle>

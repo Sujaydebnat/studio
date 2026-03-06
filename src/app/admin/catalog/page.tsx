@@ -19,7 +19,8 @@ import {
   Search,
   CheckCircle2,
   X,
-  Camera
+  Camera,
+  Layers
 } from 'lucide-react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, addDoc, doc, setDoc, deleteDoc, serverTimestamp, query, orderBy } from 'firebase/firestore';
@@ -43,6 +44,7 @@ export default function CatalogManager() {
     name: '',
     description: '',
     category: 'FLEX',
+    subCategory: '',
     imageUrl: '',
     startingPrice: ''
   });
@@ -58,7 +60,8 @@ export default function CatalogManager() {
     if (!items) return [];
     return items.filter(item => 
       item.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      item.category.toLowerCase().includes(searchTerm.toLowerCase())
+      item.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.subCategory?.toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [items, searchTerm]);
 
@@ -112,6 +115,7 @@ export default function CatalogManager() {
       name: item.name,
       description: item.description || '',
       category: item.category,
+      subCategory: item.subCategory || '',
       imageUrl: item.imageUrl || '',
       startingPrice: item.startingPrice || ''
     });
@@ -125,7 +129,7 @@ export default function CatalogManager() {
   };
 
   const resetForm = () => {
-    setFormData({ name: '', description: '', category: 'FLEX', imageUrl: '', startingPrice: '' });
+    setFormData({ name: '', description: '', category: 'FLEX', subCategory: '', imageUrl: '', startingPrice: '' });
     setEditingId(null);
     setIsFormOpen(false);
   };
@@ -135,7 +139,7 @@ export default function CatalogManager() {
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-3xl font-bold font-headline text-primary">Catalog Manager</h2>
-          <p className="text-muted-foreground">Showcase your products to customers in the public catalog.</p>
+          <p className="text-muted-foreground">Showcase your products with categories and sub-categories.</p>
         </div>
         {!isFormOpen && (
           <Button onClick={() => setIsFormOpen(true)} className="gap-2 h-11 px-6 font-bold shadow-md">
@@ -149,7 +153,7 @@ export default function CatalogManager() {
           <CardHeader className="border-b bg-muted/5 flex flex-row items-center justify-between">
             <div>
               <CardTitle>{editingId ? 'Edit Product' : 'Add New Catalog Item'}</CardTitle>
-              <CardDescription>This information will be visible to all customers on the public page.</CardDescription>
+              <CardDescription>Specify category and sub-category for better organization.</CardDescription>
             </div>
             <Button variant="ghost" size="icon" onClick={resetForm}><X className="w-5 h-5" /></Button>
           </CardHeader>
@@ -176,13 +180,25 @@ export default function CatalogManager() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Starting Price (Optional)</Label>
-                    <Input 
-                      placeholder="e.g. 500" 
-                      value={formData.startingPrice} 
-                      onChange={(e) => setFormData({...formData, startingPrice: e.target.value})} 
-                    />
+                    <Label>Sub-category (Optional)</Label>
+                    <div className="relative">
+                      <Input 
+                        placeholder="e.g. Premium Gloss" 
+                        className="pl-8"
+                        value={formData.subCategory} 
+                        onChange={(e) => setFormData({...formData, subCategory: e.target.value})} 
+                      />
+                      <Layers className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
+                    </div>
                   </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Starting Price (Optional)</Label>
+                  <Input 
+                    placeholder="e.g. 500" 
+                    value={formData.startingPrice} 
+                    onChange={(e) => setFormData({...formData, startingPrice: e.target.value})} 
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Short Description</Label>
@@ -241,7 +257,7 @@ export default function CatalogManager() {
               <div className="relative w-full md:w-72">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input 
-                  placeholder="Search catalog..." 
+                  placeholder="Search name, category, sub-category..." 
                   className="pl-9" 
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -267,7 +283,14 @@ export default function CatalogManager() {
                       ) : (
                         <div className="w-full h-full flex items-center justify-center"><ImageIcon className="w-8 h-8 opacity-20" /></div>
                       )}
-                      <Badge className="absolute top-2 left-2 bg-primary/80 backdrop-blur-sm">{item.category}</Badge>
+                      <div className="absolute top-2 left-2 flex flex-col gap-1">
+                        <Badge className="bg-primary/80 backdrop-blur-sm w-fit">{item.category}</Badge>
+                        {item.subCategory && (
+                          <Badge variant="secondary" className="bg-white/90 backdrop-blur-sm text-[9px] w-fit shadow-sm">
+                            {item.subCategory}
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                     <div className="p-4 space-y-2">
                       <div className="flex justify-between items-start">
