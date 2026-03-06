@@ -34,6 +34,8 @@ const CATEGORIES = [
   "LOGO", "VISITING CARD", "PLATE", "REDIEM", "VINAIL", "DTF", "UV", "OTHERS"
 ];
 
+const DIGITAL_PAPER_SUBS = ["VISITING CARD", "HAND MENU CARD", "TABLE MENU CARD", "GATING CARD"];
+
 export default function CatalogManager() {
   const db = useFirestore();
   const { toast } = useToast();
@@ -175,7 +177,7 @@ export default function CatalogManager() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Category</Label>
-                    <Select value={formData.category} onValueChange={(v) => setFormData({...formData, category: v})}>
+                    <Select value={formData.category} onValueChange={(v) => setFormData({...formData, category: v, subCategory: ''})}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
@@ -185,13 +187,24 @@ export default function CatalogManager() {
                   <div className="space-y-2">
                     <Label>Sub-category (Optional)</Label>
                     <div className="relative">
-                      <Input 
-                        placeholder="e.g. Premium Gloss" 
-                        className="pl-8"
-                        value={formData.subCategory} 
-                        onChange={(e) => setFormData({...formData, subCategory: e.target.value})} 
-                      />
-                      <Layers className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
+                      {formData.category === 'DIGITAL PAPER' ? (
+                        <Select value={formData.subCategory} onValueChange={(v) => setFormData({...formData, subCategory: v})}>
+                          <SelectTrigger className="h-10"><SelectValue placeholder="Select Type" /></SelectTrigger>
+                          <SelectContent>
+                            {DIGITAL_PAPER_SUBS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <>
+                          <Input 
+                            placeholder="e.g. Premium Gloss" 
+                            className="pl-8"
+                            value={formData.subCategory} 
+                            onChange={(e) => setFormData({...formData, subCategory: e.target.value})} 
+                          />
+                          <Layers className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>

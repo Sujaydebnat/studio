@@ -26,6 +26,8 @@ const CATEGORIES = [
 
 const PHOTOPAPER_SIZES = ["12 × 18", "12 × 8"];
 
+const DIGITAL_PAPER_SUBS = ["VISITING CARD", "HAND MENU CARD", "TABLE MENU CARD", "GATING CARD"];
+
 interface OrderItem {
   type: string;
   subCategory: string;
@@ -240,13 +242,23 @@ export default function AdminOrderDetail() {
             <CardContent className="space-y-4">
               <div className="bg-muted/30 p-3 rounded-lg border-2 border-dashed space-y-3">
                 <div className="grid grid-cols-1 gap-2">
-                  <Select value={newItem.type} onValueChange={(v) => setNewItem({...newItem, type: v})}>
+                  <Select value={newItem.type} onValueChange={(v) => setNewItem({...newItem, type: v, subCategory: '', size: ''})}>
                     <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Category" /></SelectTrigger>
                     <SelectContent>
                       {(order.workTypes || []).map((t: string) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
                     </SelectContent>
                   </Select>
-                  <Input placeholder="Sub-category" value={newItem.subCategory} onChange={(e) => setNewItem({...newItem, subCategory: e.target.value})} className="h-8 text-xs" />
+                  
+                  {newItem.type === 'DIGITAL PAPER' ? (
+                    <Select value={newItem.subCategory} onValueChange={(v) => setNewItem({...newItem, subCategory: v})}>
+                      <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select Sub-Cat" /></SelectTrigger>
+                      <SelectContent>
+                        {DIGITAL_PAPER_SUBS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input placeholder="Sub-category" value={newItem.subCategory} onChange={(e) => setNewItem({...newItem, subCategory: e.target.value})} className="h-8 text-xs" />
+                  )}
                   
                   {newItem.type === 'PHOTOPAPER' ? (
                     <Select value={newItem.size} onValueChange={(v) => setNewItem({...newItem, size: v})}>

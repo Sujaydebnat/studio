@@ -27,6 +27,8 @@ const CATEGORIES = [
 
 const PHOTOPAPER_SIZES = ["12 × 18", "12 × 8"];
 
+const DIGITAL_PAPER_SUBS = ["VISITING CARD", "HAND MENU CARD", "TABLE MENU CARD", "GATING CARD"];
+
 interface OrderItem {
   type: string;
   subCategory: string;
@@ -79,7 +81,7 @@ export default function NewOrderPage() {
       return { ...prev, workTypes: newWorkTypes };
     });
     // Set current item type if it's the only one
-    if (currentItem.type === '') setCurrentItem({ ...currentItem, type });
+    if (currentItem.type === '') setCurrentItem({ ...currentItem, type, subCategory: '' });
   };
 
   const addOrderItem = () => {
@@ -321,7 +323,7 @@ export default function NewOrderPage() {
                 <div className="grid grid-cols-12 gap-2">
                   <div className="col-span-4 space-y-1">
                     <Label className="text-[10px] font-bold">Category</Label>
-                    <Select value={currentItem.type} onValueChange={(v) => setCurrentItem({...currentItem, type: v, size: ''})}>
+                    <Select value={currentItem.type} onValueChange={(v) => setCurrentItem({...currentItem, type: v, size: '', subCategory: ''})}>
                       <SelectTrigger className="h-9"><SelectValue placeholder="Category" /></SelectTrigger>
                       <SelectContent>
                         {formData.workTypes.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
@@ -330,7 +332,16 @@ export default function NewOrderPage() {
                   </div>
                   <div className="col-span-4 space-y-1">
                     <Label className="text-[10px] font-bold">Sub-category</Label>
-                    <Input placeholder="e.g. Glossy" value={currentItem.subCategory} onChange={(e) => setCurrentItem({...currentItem, subCategory: e.target.value})} className="h-9" />
+                    {currentItem.type === 'DIGITAL PAPER' ? (
+                      <Select value={currentItem.subCategory} onValueChange={(v) => setCurrentItem({...currentItem, subCategory: v})}>
+                        <SelectTrigger className="h-9"><SelectValue placeholder="Select Type" /></SelectTrigger>
+                        <SelectContent>
+                          {DIGITAL_PAPER_SUBS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input placeholder="e.g. Glossy" value={currentItem.subCategory} onChange={(e) => setCurrentItem({...currentItem, subCategory: e.target.value})} className="h-9" />
+                    )}
                   </div>
                   <div className="col-span-4 space-y-1">
                     <Label className="text-[10px] font-bold">Size</Label>
