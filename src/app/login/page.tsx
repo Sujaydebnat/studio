@@ -8,9 +8,15 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Printer, Loader2, LogIn, Chrome, ShieldAlert, UserCheck } from 'lucide-react';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  GoogleAuthProvider, 
+  signInWithPopup,
+  sendEmailVerification 
+} from 'firebase/auth';
 import { useAuth, useFirestore } from '@/firebase';
-import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, setDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 
@@ -91,8 +97,13 @@ export default function LoginPage() {
           
           if (!querySnapshot.empty) {
             const authorizedUser = querySnapshot.docs[0].data();
+            
             // User is pre-authorized! Create their Auth account automatically
             const newAuthResult = await createUserWithEmailAndPassword(auth, cleanEmail, password);
+            
+            // Send verification email
+            await sendEmailVerification(newAuthResult.user);
+            
             // Link Firestore doc to the new UID for future logins
             const userRef = doc(db, 'users', newAuthResult.user.uid);
             await setDoc(userRef, {
@@ -102,11 +113,15 @@ export default function LoginPage() {
             }, { merge: true });
             
             handleRoleRedirect(authorizedUser.role);
-            toast({ title: "Account Activated", description: `Authorized as ${authorizedUser.role.toUpperCase()}` });
+            toast({ 
+              title: "Account Activated", 
+              description: `Authorized as ${authorizedUser.role.toUpperCase()}. A verification email has been sent to your inbox.` 
+            });
           } else {
             toast({ variant: "destructive", title: "Login Failed", description: "Invalid username or password." });
           }
         } catch (dbErr) {
+          console.error(dbErr);
           toast({ variant: "destructive", title: "Verification Error", description: "Could not verify credentials." });
         }
       } else {
