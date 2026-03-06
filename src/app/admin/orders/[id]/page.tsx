@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Loader2, ArrowLeft, Send, MessageSquare, Image as ImageIcon, Users, Plus, Trash2, Camera, Upload, FileText, Download, Ruler, Calendar as CalendarIcon, Hash, Banknote, Mail, Layers } from 'lucide-react';
+import { Loader2, ArrowLeft, Send, MessageSquare, Image as ImageIcon, Users, Plus, Trash2, Camera, Upload, FileText, Download, Ruler, Calendar as CalendarIcon, Hash, Banknote, Mail, Layers, Pencil } from 'lucide-react';
 import { useDoc, useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import { doc, collection, addDoc, serverTimestamp, query, orderBy, updateDoc, arrayUnion, where, arrayRemove } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -49,6 +49,7 @@ export default function AdminOrderDetail() {
   const [updating, setUpdating] = useState(false);
   
   const [newItem, setNewItem] = useState<OrderItem>({ type: '', subCategory: '', size: '', qty: '1' });
+  const [editingItemIdx, setEditingItemIdx] = useState<number | null>(null);
 
   const orderRef = useMemoFirebase(() => 
     id && db ? doc(db, 'orders', id as string) : null
@@ -140,9 +141,16 @@ export default function AdminOrderDetail() {
     if (!newItem.type || !newItem.size || !newItem.qty || !orderRef) return;
     setUpdating(true);
     try {
-      const currentItems = order?.orderItems || [];
-      await updateDoc(orderRef, { orderItems: [...currentItems, newItem], updatedAt: serverTimestamp() });
+      const currentItems = [...(order?.orderItems || [])];
+      if (editingItemIdx !== null) {
+        currentItems[editingItemIdx] = newItem;
+      } else {
+        currentItems.push(newItem);
+      }
+      await updateDoc(orderRef, { orderItems: currentItems, updatedAt: serverTimestamp() });
       setNewItem({ type: '', subCategory: '', size: '', qty: '1' });
+      setEditingItemIdx(null);
+      toast({ title: editingItemIdx !== null ? "Item Updated" : "Item Added" });
     } finally {
       setUpdating(false);
     }
@@ -154,9 +162,19 @@ export default function AdminOrderDetail() {
     try {
       const newItems = order.orderItems.filter((_: any, i: number) => i !== idx);
       await updateDoc(orderRef, { orderItems: newItems, updatedAt: serverTimestamp() });
+      if (editingItemIdx === idx) {
+        setEditingItemIdx(null);
+        setNewItem({ type: '', subCategory: '', size: '', qty: '1' });
+      }
     } finally {
       setUpdating(false);
     }
+  };
+
+  const handleStartEditItem = (idx: number) => {
+    const item = order.orderItems[idx];
+    setNewItem({ ...item });
+    setEditingItemIdx(idx);
   };
 
   const handleAddImage = async (field: 'previews' | 'referenceImages', url: string) => {
@@ -237,7 +255,7 @@ export default function AdminOrderDetail() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className={editingItemIdx !== null ? "border-primary ring-2 ring-primary/20" : ""}>
             <CardHeader><CardTitle className="flex items-center gap-2 text-primary"><Ruler className="w-5 h-5" /> Detailed Items</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div className="bg-muted/30 p-3 rounded-lg border-2 border-dashed space-y-3">
@@ -273,7 +291,13 @@ export default function AdminOrderDetail() {
                   
                   <div className="flex gap-2">
                     <Input type="number" value={newItem.qty} onChange={(e) => setNewItem({...newItem, qty: e.target.value})} className="h-8 text-xs flex-1" />
-                    <Button onClick={addItemToList} size="sm" className="h-8 bg-accent hover:bg-accent/90"><Plus className="w-3 h-3 mr-1" /> Add</Button>
+                    <Button onClick={addItemToList} size="sm" className="h-8 bg-accent hover:bg-accent/90" disabled={updating}>
+                      {editingItemIdx !== null ? <Pencil className="w-3 h-3 mr-1" /> : <Plus className="w-3 h-3 mr-1" />}
+                      {editingItemIdx !== null ? 'Update' : 'Add'}
+                    </Button>
+                    {editingItemIdx !== null && (
+                      <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => {setEditingItemIdx(null); setNewItem({type:'',subCategory:'',size:'',qty:'1'})}}>Cancel</Button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -281,10 +305,13 @@ export default function AdminOrderDetail() {
               {order.orderItems?.length > 0 && (
                 <div className="space-y-2">
                   {order.orderItems.map((item: any, i: number) => (
-                    <div key={i} className="flex flex-col p-2 rounded bg-muted/50 border text-xs gap-1">
+                    <div key={i} className={`flex flex-col p-2 rounded bg-muted/50 border text-xs gap-1 transition-colors ${editingItemIdx === i ? 'border-primary bg-primary/5' : ''}`}>
                       <div className="flex justify-between items-center">
                         <span className="font-bold text-primary">{item.type}</span>
-                        <Button variant="ghost" size="icon" onClick={() => removeItemFromList(i)} className="h-6 w-6 text-destructive"><Trash2 className="w-3 h-3" /></Button>
+                        <div className="flex gap-1">
+                          <Button variant="ghost" size="icon" onClick={() => handleStartEditItem(i)} className="h-6 w-6 text-primary"><Pencil className="w-3 h-3" /></Button>
+                          <Button variant="ghost" size="icon" onClick={() => removeItemFromList(i)} className="h-6 w-6 text-destructive"><Trash2 className="w-3 h-3" /></Button>
+                        </div>
                       </div>
                       <div className="flex justify-between text-[10px] text-muted-foreground italic">
                         <span>{item.subCategory || 'No Sub-Cat'}</span>

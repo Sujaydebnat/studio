@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Sparkles, Loader2, ArrowLeft, Save, ImageIcon, Upload, FileText, Ruler, Calendar as CalendarIcon, Hash, Banknote, Mail, Plus, Trash2, Layers } from 'lucide-react';
+import { Sparkles, Loader2, ArrowLeft, Save, ImageIcon, Upload, FileText, Ruler, Calendar as CalendarIcon, Hash, Banknote, Mail, Plus, Trash2, Layers, Pencil } from 'lucide-react';
 import { aiDesignBriefTool, type AIDesignBriefToolOutput } from '@/ai/flows/ai-design-brief-tool-flow';
 import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, where } from 'firebase/firestore';
@@ -63,6 +63,7 @@ export default function NewOrderPage() {
 
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [currentItem, setCurrentItem] = useState<OrderItem>({ type: '', subCategory: '', size: '', qty: '1' });
+  const [editingItemIdx, setEditingItemIdx] = useState<number | null>(null);
 
   const staffQuery = useMemoFirebase(() => {
     if (!db) return null;
@@ -89,12 +90,32 @@ export default function NewOrderPage() {
       toast({ variant: "destructive", title: "Missing Info", description: "Select category, enter size and quantity." });
       return;
     }
-    setOrderItems([...orderItems, currentItem]);
+    
+    if (editingItemIdx !== null) {
+      const updated = [...orderItems];
+      updated[editingItemIdx] = currentItem;
+      setOrderItems(updated);
+      setEditingItemIdx(null);
+      toast({ title: "Item Updated" });
+    } else {
+      setOrderItems([...orderItems, currentItem]);
+      toast({ title: "Item Added" });
+    }
+    
     setCurrentItem({ type: '', subCategory: '', size: '', qty: '1' });
   };
 
   const removeOrderItem = (idx: number) => {
     setOrderItems(orderItems.filter((_, i) => i !== idx));
+    if (editingItemIdx === idx) {
+      setEditingItemIdx(null);
+      setCurrentItem({ type: '', subCategory: '', size: '', qty: '1' });
+    }
+  };
+
+  const startEditItem = (idx: number) => {
+    setCurrentItem({ ...orderItems[idx] });
+    setEditingItemIdx(idx);
   };
 
   const handleAddRefFile = (url: string) => {
@@ -316,7 +337,7 @@ export default function NewOrderPage() {
             </CardContent>
           </Card>
 
-          <Card className="shadow-sm border-2">
+          <Card className={`shadow-sm border-2 ${editingItemIdx !== null ? 'border-primary ring-2 ring-primary/10' : ''}`}>
             <CardHeader><CardTitle className="flex items-center gap-2 text-lg text-primary"><Ruler className="w-5 h-5" /> Detailed Order Items (Category & Specs)</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div className="bg-muted/20 p-4 rounded-lg border-2 border-dashed space-y-4">
@@ -362,9 +383,15 @@ export default function NewOrderPage() {
                       <Label className="text-[10px] font-bold">Qty</Label>
                       <Input type="number" value={currentItem.qty} onChange={(e) => setCurrentItem({...currentItem, qty: e.target.value})} className="h-9" />
                    </div>
-                   <Button type="button" onClick={addOrderItem} className="h-9 bg-accent hover:bg-accent/90 px-8">
-                      <Plus className="w-4 h-4 mr-2" /> Add Item
-                   </Button>
+                   <div className="flex gap-2">
+                    <Button type="button" onClick={addOrderItem} className="h-9 bg-accent hover:bg-accent/90 px-8 font-bold">
+                        {editingItemIdx !== null ? <Pencil className="w-4 h-4 mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
+                        {editingItemIdx !== null ? 'Update Item' : 'Add Item'}
+                    </Button>
+                    {editingItemIdx !== null && (
+                      <Button variant="ghost" className="h-9 text-xs" onClick={() => {setEditingItemIdx(null); setCurrentItem({type:'',subCategory:'',size:'',qty:'1'})}}>Cancel</Button>
+                    )}
+                   </div>
                 </div>
               </div>
 
@@ -382,15 +409,20 @@ export default function NewOrderPage() {
                      </thead>
                      <tbody>
                        {orderItems.map((item, i) => (
-                         <tr key={i} className="border-t hover:bg-muted/50">
+                         <tr key={i} className={`border-t hover:bg-muted/50 transition-colors ${editingItemIdx === i ? 'bg-primary/5' : ''}`}>
                            <td className="p-2 font-bold text-primary">{item.type}</td>
                            <td className="p-2 text-xs italic">{item.subCategory || 'N/A'}</td>
                            <td className="p-2 font-mono text-xs">{item.size}</td>
                            <td className="p-2 text-center font-bold">{item.qty}</td>
                            <td className="p-2 text-right">
-                             <Button variant="ghost" size="icon" onClick={() => removeOrderItem(i)} className="text-destructive h-7 w-7">
-                               <Trash2 className="w-4 h-4" />
-                             </Button>
+                             <div className="flex justify-end gap-1">
+                               <Button variant="ghost" size="icon" onClick={() => startEditItem(i)} className="text-primary h-7 w-7">
+                                 <Pencil className="w-4 h-4" />
+                               </Button>
+                               <Button variant="ghost" size="icon" onClick={() => removeOrderItem(i)} className="text-destructive h-7 w-7">
+                                 <Trash2 className="w-4 h-4" />
+                               </Button>
+                             </div>
                            </td>
                          </tr>
                        ))}
