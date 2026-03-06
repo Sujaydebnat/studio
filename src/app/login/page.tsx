@@ -18,6 +18,8 @@ import { useAuth, useFirestore } from '@/firebase';
 import { doc, collection, query, where, getDocs, setDoc, or } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -37,16 +39,26 @@ export default function LoginPage() {
     }
   };
 
-  const handleAuthResult = async (user: any, userData: any) => {
+  const handleAuthResult = (user: any, userData: any) => {
     if (!db) return;
     
     const userRef = doc(db, 'users', user.uid);
-    await setDoc(userRef, {
+    const updateData = {
       ...userData,
       uid: user.uid,
       lastLogin: new Date().toISOString(),
       photoUrl: user.photoURL || userData.photoUrl || ''
-    }, { merge: true });
+    };
+
+    setDoc(userRef, updateData, { merge: true })
+      .catch(async (error) => {
+        const permissionError = new FirestorePermissionError({
+          path: userRef.path,
+          operation: 'update',
+          requestResourceData: updateData,
+        } satisfies SecurityRuleContext);
+        errorEmitter.emit('permission-error', permissionError);
+      });
 
     handleRoleRedirect(userData.role);
     toast({ title: "Login Successful", description: `Welcome back, ${userData.name}.` });
@@ -72,15 +84,17 @@ export default function LoginPage() {
           description: "This Google account is not authorized." 
         });
         await auth.signOut();
-        setGoogleLoading(false);
         return;
       }
 
       const userData = querySnapshot.docs[0].data();
-      await handleAuthResult(user, userData);
+      handleAuthResult(user, userData);
 
     } catch (error: any) {
-      console.error("Google Auth Error:", error);
+      if (error.code === 'auth/popup-closed-by-user') {
+        // User closed the popup, just exit gracefully
+        return;
+      }
       toast({ variant: "destructive", title: "Google Login Failed", description: error.message });
     } finally {
       setGoogleLoading(false);
@@ -109,7 +123,6 @@ export default function LoginPage() {
       
       if (querySnapshot.empty) {
         toast({ variant: "destructive", title: "Login Failed", description: "Account not found." });
-        setLoading(false);
         return;
       }
 
@@ -118,13 +131,12 @@ export default function LoginPage() {
 
       try {
         const authResult = await signInWithEmailAndPassword(auth, userData.email, userPassword);
-        await handleAuthResult(authResult.user, userData);
+        handleAuthResult(authResult.user, userData);
       } catch (authErr: any) {
         if (authErr.code === 'auth/user-not-found' || authErr.code === 'auth/invalid-credential' || authErr.code === 'auth/invalid-login-credentials') {
-          // Fallback if password mismatch or auth user doesn't exist but Firestore entry exists
           try {
             const newAuthResult = await createUserWithEmailAndPassword(auth, userData.email, userPassword);
-            await handleAuthResult(newAuthResult.user, userData);
+            handleAuthResult(newAuthResult.user, userData);
           } catch (createErr: any) {
             toast({ variant: "destructive", title: "Access Denied", description: "Invalid credentials." });
           }
@@ -133,7 +145,6 @@ export default function LoginPage() {
         }
       }
     } catch (error: any) {
-      console.error(error);
       toast({ variant: "destructive", title: "System Error", description: "Check your connection." });
     } finally {
       setLoading(false);
