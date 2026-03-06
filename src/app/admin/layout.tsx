@@ -12,7 +12,8 @@ import {
   PlusCircle,
   Printer,
   ChevronRight,
-  Loader2
+  Loader2,
+  BookOpen
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -26,7 +27,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const db = useFirestore();
   const { user } = useUser();
 
-  // Fetch logged-in admin details from Firestore
   const userRef = useMemoFirebase(() => 
     user && db ? doc(db, 'users', user.uid) : null
   , [db, user]);
@@ -37,6 +37,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { name: 'Dashboard', icon: LayoutDashboard, href: '/admin/dashboard' },
     { name: 'Orders', icon: ClipboardList, href: '/admin/orders' },
     { name: 'Staff Management', icon: Users, href: '/admin/staff' },
+    { name: 'Catalog Manager', icon: BookOpen, href: '/admin/catalog' },
     { name: 'Settings', icon: Settings, href: '/admin/settings' },
   ];
 

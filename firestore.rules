@@ -3,25 +3,21 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // orders collection list/read korar permission
-    match /orders/{orderId} {
-      // Jekono authenticated user (jerom: staff@gmail.com) jate data dekhte pare
-      allow read, list: if request.auth != null;
-      
-      // Data entry korar permission (Admin/Staff)
+    match /catalog/{itemId} {
+      allow read: if true;
       allow write: if request.auth != null;
-      
-      // Tracking portal-er jonno public individual access
+    }
+
+    match /orders/{orderId} {
+      allow read, list: if request.auth != null;
+      allow write: if request.auth != null;
       allow get: if true;
     }
 
-    // Users (Staff/Admin) collection-er jonno permissions
     match /users/{userId} {
-      // Authenticated users-ra profiles dekhte ar modify korte parbe
       allow read, write: if request.auth != null;
     }
 
-    // Default global rules
     match /{document=**} {
       allow read, write: if request.auth != null;
     }

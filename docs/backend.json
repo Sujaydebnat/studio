@@ -23,15 +23,11 @@
       "type": "object",
       "properties": {
         "id": { "type": "string" },
-        "billNumber": { "type": "string", "description": "Manual bill number for tracking." },
+        "billNumber": { "type": "string" },
         "customerName": { "type": "string" },
         "customerEmail": { "type": "string", "format": "email" },
         "phone": { "type": "string" },
-        "workTypes": { 
-          "type": "array",
-          "items": { "type": "string" },
-          "description": "Multiple work types for a single order."
-        },
+        "workTypes": { "type": "array", "items": { "type": "string" } },
         "orderItems": {
           "type": "array",
           "items": {
@@ -59,7 +55,6 @@
     "OrderUpdate": {
       "title": "OrderUpdate",
       "type": "object",
-      "description": "Messages/Notes between Admin and Staff for a specific order.",
       "properties": {
         "id": { "type": "string" },
         "orderId": { "type": "string" },
@@ -70,14 +65,30 @@
         "fileUrl": { "type": "string" },
         "timestamp": { "type": "string", "format": "date-time" }
       }
+    },
+    "CatalogItem": {
+      "title": "CatalogItem",
+      "type": "object",
+      "description": "Represents a product or service offered by the shop.",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "category": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "startingPrice": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "category"]
     }
   },
   "auth": {
     "providers": ["password", "google"]
   },
   "firestore": {
-    "/users/{userId}": { "schema": "#/backend/entities/User", "description": "User profiles with roles." },
+    "/users/{userId}": { "schema": "#/backend/entities/User", "description": "User profiles." },
     "/orders/{orderId}": { "schema": "#/backend/entities/Order", "description": "Print orders." },
-    "/orders/{orderId}/updates/{updateId}": { "schema": "#/backend/entities/OrderUpdate", "description": "Messages for an order." }
+    "/orders/{orderId}/updates/{updateId}": { "schema": "#/backend/entities/OrderUpdate", "description": "Messages for an order." },
+    "/catalog/{itemId}": { "schema": "#/backend/entities/CatalogItem", "description": "Products in the catalog." }
   }
 }

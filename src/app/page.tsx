@@ -1,12 +1,13 @@
+
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Search, ShieldCheck, UserCog, Printer } from 'lucide-react';
+import { Search, ShieldCheck, UserCog, Printer, BookOpen } from 'lucide-react';
 
 export default function Home() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background">
-      <div className="max-w-4xl w-full text-center space-y-8">
+      <div className="max-w-5xl w-full text-center space-y-8">
         <div className="space-y-4">
           <div className="flex justify-center mb-4">
             <div className="bg-primary p-4 rounded-2xl shadow-lg">
@@ -21,17 +22,17 @@ export default function Home() {
           </p>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-6 mt-12">
+        <div className="grid md:grid-cols-3 gap-6 mt-12">
           <Card className="border-2 hover:border-accent transition-all group overflow-hidden">
             <CardHeader>
-              <Search className="w-10 h-10 text-accent mb-2" />
-              <CardTitle className="text-2xl">Customer Portal</CardTitle>
-              <CardDescription>Track your order status and view design previews in real-time.</CardDescription>
+              <BookOpen className="w-10 h-10 text-accent mb-2" />
+              <CardTitle className="text-2xl">Product Catalog</CardTitle>
+              <CardDescription>Browse our printing services, gifts, and design categories.</CardDescription>
             </CardHeader>
             <CardContent>
-              <Link href="/track">
+              <Link href="/catalog">
                 <Button className="w-full bg-accent text-accent-foreground hover:bg-accent/90 py-6 text-lg">
-                  Track My Order
+                  View Catalog
                 </Button>
               </Link>
             </CardContent>
@@ -39,13 +40,28 @@ export default function Home() {
 
           <Card className="border-2 hover:border-primary transition-all group overflow-hidden">
             <CardHeader>
-              <ShieldCheck className="w-10 h-10 text-primary mb-2" />
+              <Search className="w-10 h-10 text-primary mb-2" />
+              <CardTitle className="text-2xl">Track Order</CardTitle>
+              <CardDescription>Track your order status and view design previews in real-time.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Link href="/track">
+                <Button className="w-full bg-primary py-6 text-lg">
+                  Track My Order
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+
+          <Card className="border-2 hover:border-foreground/20 transition-all group overflow-hidden">
+            <CardHeader>
+              <ShieldCheck className="w-10 h-10 text-muted-foreground mb-2" />
               <CardTitle className="text-2xl">Internal Portal</CardTitle>
               <CardDescription>Secure access for Admin and Design Staff to manage operations.</CardDescription>
             </CardHeader>
             <CardContent>
               <Link href="/login">
-                <Button className="w-full bg-primary py-6 text-lg">
+                <Button variant="outline" className="w-full py-6 text-lg">
                   Staff Login
                 </Button>
               </Link>
