@@ -1,12 +1,11 @@
 
 "use client"
 
-import { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Clock, MessageSquare, Loader2, FileText, ChevronRight } from 'lucide-react';
-import { useCollection, useFirestore, useUser } from '@/firebase';
+import { Clock, Loader2, ChevronRight } from 'lucide-react';
+import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import { collection, query, where, orderBy } from 'firebase/firestore';
 import { format } from 'date-fns';
 import Link from 'next/link';
@@ -15,12 +14,12 @@ export default function StaffDashboard() {
   const db = useFirestore();
   const { user } = useUser();
 
-  const ordersQuery = useMemo(() => {
+  const ordersQuery = useMemoFirebase(() => {
     if (!db) return null;
-    return query(collection(db, 'orders'), where('status', '!=', 'Completed'), orderBy('createdAt', 'desc'));
+    return query(collection(db, 'orders'), where('status', '!=', 'Completed'), orderBy('status', 'asc'));
   }, [db]);
 
-  const { data: activeOrders, loading } = useCollection(ordersQuery as any);
+  const { data: activeOrders, loading } = useCollection(ordersQuery);
 
   return (
     <div className="space-y-8">
@@ -41,13 +40,13 @@ export default function StaffDashboard() {
         </div>
       ) : (
         <div className="grid gap-6">
-          {activeOrders?.length === 0 ? (
+          {!activeOrders || activeOrders.length === 0 ? (
             <Card className="p-12 text-center text-muted-foreground border-dashed">
               <Clock className="w-12 h-12 mx-auto mb-4 opacity-20" />
               <p>No active orders currently. Take a well-deserved break!</p>
             </Card>
           ) : (
-            activeOrders?.map((order) => (
+            activeOrders.map((order) => (
               <Card key={order.id} className="hover:border-accent/40 transition-all border-2">
                 <CardHeader className="flex flex-row items-center justify-between pb-2 bg-muted/20">
                   <div className="flex items-center gap-3">
@@ -83,8 +82,3 @@ export default function StaffDashboard() {
     </div>
   );
 }
-
-function useMemo<T>(factory: () => T, deps: any[]): T {
-  return React.useMemo(factory, deps);
-}
-import React from 'react';

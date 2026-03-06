@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Loader2, ArrowLeft, Send, MessageSquare, Info } from 'lucide-react';
-import { useDoc, useCollection, useFirestore, useUser } from '@/firebase';
+import { useDoc, useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import { doc, collection, addDoc, serverTimestamp, query, orderBy } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { Label } from '@/components/ui/label';
@@ -22,17 +22,24 @@ export default function StaffOrderDetail() {
   const [newMessage, setNewMessage] = useState('');
   const [sending, setSending] = useState(false);
 
-  const orderRef = useMemo(() => id && db ? doc(db, 'orders', id as string) : null, [db, id]);
-  const { data: order, loading: loadingOrder } = useDoc(orderRef as any);
+  const orderRef = useMemoFirebase(() => 
+    id && db ? doc(db, 'orders', id as string) : null
+  , [db, id]);
 
-  const updatesRef = useMemo(() => id && db ? collection(db, 'orders', id as string, 'updates') : null, [db, id]);
-  const updatesQuery = useMemo(() => updatesRef ? query(updatesRef, orderBy('timestamp', 'asc')) : null, [updatesRef]);
-  const { data: updates, loading: loadingUpdates } = useCollection(updatesQuery as any);
+  const { data: order, loading: loadingOrder } = useDoc(orderRef);
+
+  const updatesQuery = useMemoFirebase(() => {
+    if (!id || !db) return null;
+    return query(collection(db, 'orders', id as string, 'updates'), orderBy('timestamp', 'asc'));
+  }, [db, id]);
+
+  const { data: updates, loading: loadingUpdates } = useCollection(updatesQuery);
 
   const handleSendMessage = async () => {
-    if (!newMessage.trim() || !updatesRef || !user) return;
+    if (!newMessage.trim() || !id || !db || !user) return;
     setSending(true);
     try {
+      const updatesRef = collection(db, 'orders', id as string, 'updates');
       await addDoc(updatesRef, {
         orderId: id,
         senderId: user.uid,

@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { UserPlus, Shield, Loader2, Trash2 } from 'lucide-react';
-import { useCollection, useFirestore } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, doc, setDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 
@@ -23,9 +23,12 @@ export default function StaffManagement() {
     role: 'staff'
   });
 
-  const { data: users, loading: loadingUsers } = useCollection(
-    db ? collection(db, 'users') : null
-  );
+  const usersQuery = useMemoFirebase(() => {
+    if (!db) return null;
+    return collection(db, 'users');
+  }, [db]);
+
+  const { data: users, loading: loadingUsers } = useCollection(usersQuery);
 
   const handleCreateStaff = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,8 +36,6 @@ export default function StaffManagement() {
 
     setLoading(true);
     try {
-      // For this prototype, we use the email as a temporary ID part or just let Google Login link it
-      // In a real app, this would be a cloud function to create the Auth user too
       const tempId = formData.email.replace(/[@.]/g, '_');
       const userRef = doc(db, 'users', tempId);
       
