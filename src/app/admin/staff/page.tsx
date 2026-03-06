@@ -16,6 +16,7 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { CameraCapture } from '@/components/CameraCapture';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -113,7 +114,6 @@ export default function StaffManagement() {
       password: user.password || '',
       role: user.role || 'staff'
     });
-    // Scroll to top of form
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -172,6 +172,25 @@ export default function StaffManagement() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleCreateOrUpdateStaff} className="space-y-4">
+              <div className="flex justify-center mb-6">
+                <div className="relative">
+                  <Avatar className="w-24 h-24 border-4 border-primary/20">
+                    <AvatarImage src={formData.photoUrl} alt="Preview" />
+                    <AvatarFallback className="text-2xl">{formData.name?.charAt(0) || '?'}</AvatarFallback>
+                  </Avatar>
+                  <div className="absolute -bottom-2 -right-2">
+                    <CameraCapture 
+                      onCapture={(img) => setFormData({...formData, photoUrl: img})} 
+                      trigger={
+                        <Button size="icon" className="rounded-full shadow-lg h-10 w-10">
+                          <Camera className="w-5 h-5" />
+                        </Button>
+                      }
+                    />
+                  </div>
+                </div>
+              </div>
+
               <div className="space-y-1">
                 <Label>Full Name</Label>
                 <Input required value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} placeholder="e.g. Rahul Dev" />
@@ -197,11 +216,8 @@ export default function StaffManagement() {
                 <Input required type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} placeholder="staff@printflow.com" disabled={editMode} />
               </div>
               <div className="space-y-1">
-                <Label>Photo URL (Optional)</Label>
-                <div className="relative">
-                  <Input value={formData.photoUrl} onChange={(e) => setFormData({...formData, photoUrl: e.target.value})} className="pl-9" placeholder="https://..." />
-                  <Camera className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                </div>
+                <Label>Photo URL (Captured automatically from Camera)</Label>
+                <Input value={formData.photoUrl} onChange={(e) => setFormData({...formData, photoUrl: e.target.value})} placeholder="Base64 Data..." />
               </div>
               <div className="space-y-1">
                 <Label>Portal Password</Label>
@@ -294,9 +310,6 @@ export default function StaffManagement() {
                       </TableCell>
                     </TableRow>
                   ))}
-                  {(!users || users.length === 0) && (
-                    <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground italic">No staff authorized yet.</TableCell></TableRow>
-                  )}
                 </TableBody>
               </Table>
             )}
@@ -304,7 +317,6 @@ export default function StaffManagement() {
         </Card>
       </div>
 
-      {/* Modern Delete Confirmation Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -313,8 +325,7 @@ export default function StaffManagement() {
               <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
             </div>
             <AlertDialogDescription>
-              This will permanently remove <strong>{staffToDelete?.name}</strong> from the system. 
-              They will lose access to the portal immediately. This action cannot be undone.
+              This will permanently remove <strong>{staffToDelete?.name}</strong> from the system.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -324,8 +335,7 @@ export default function StaffManagement() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               disabled={!!deletingId}
             >
-              {deletingId ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Trash2 className="w-4 h-4 mr-2" />}
-              Remove Authorization
+              Confirm Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
