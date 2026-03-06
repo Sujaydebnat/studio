@@ -8,11 +8,15 @@
       "properties": {
         "id": { "type": "string" },
         "name": { "type": "string" },
+        "username": { "type": "string" },
         "email": { "type": "string", "format": "email" },
+        "phone": { "type": "string" },
+        "photoUrl": { "type": "string" },
         "role": { "type": "string", "enum": ["admin", "staff"] },
+        "password": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["id", "name", "email", "role"]
+      "required": ["id", "name", "username", "email", "role"]
     },
     "Order": {
       "title": "Order",

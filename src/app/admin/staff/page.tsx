@@ -8,12 +8,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { UserPlus, Shield, Loader2, Trash2, Key, AlertCircle, Pencil, X } from 'lucide-react';
+import { UserPlus, Shield, Loader2, Trash2, Key, AlertCircle, Pencil, X, Phone, User as UserIcon, Camera } from 'lucide-react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, doc, setDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 export default function StaffManagement() {
   const db = useFirestore();
@@ -24,7 +25,10 @@ export default function StaffManagement() {
   
   const [formData, setFormData] = useState({
     name: '',
+    username: '',
     email: '',
+    phone: '',
+    photoUrl: '',
     password: '',
     role: 'staff'
   });
@@ -51,14 +55,16 @@ export default function StaffManagement() {
 
     setLoading(true);
     try {
-      // If editing, use existing ID, else create from email
       const targetId = editMode && editingUserId ? editingUserId : formData.email.toLowerCase().replace(/[@.]/g, '_');
       const userRef = doc(db, 'users', targetId);
       
       const userData = {
         id: targetId,
         name: formData.name,
-        email: formData.email.toLowerCase(),
+        username: formData.username.toLowerCase().trim(),
+        email: formData.email.toLowerCase().trim(),
+        phone: formData.phone.trim(),
+        photoUrl: formData.photoUrl.trim(),
         password: formData.password,
         role: formData.role,
         updatedAt: serverTimestamp(),
@@ -86,7 +92,10 @@ export default function StaffManagement() {
     setEditingUserId(user.id);
     setFormData({
       name: user.name,
+      username: user.username || '',
       email: user.email,
+      phone: user.phone || '',
+      photoUrl: user.photoUrl || '',
       password: user.password || '',
       role: user.role || 'staff'
     });
@@ -95,7 +104,7 @@ export default function StaffManagement() {
   const resetForm = () => {
     setEditMode(false);
     setEditingUserId(null);
-    setFormData({ name: '', email: '', password: '', role: 'staff' });
+    setFormData({ name: '', username: '', email: '', phone: '', photoUrl: '', password: '', role: 'staff' });
   };
 
   const handleDelete = (id: string, name: string) => {
@@ -126,7 +135,7 @@ export default function StaffManagement() {
       <div className="flex justify-between items-start">
         <div>
           <h2 className="text-3xl font-bold font-headline text-primary">Staff Management</h2>
-          <p className="text-muted-foreground">Admin Portal: Manage team access and permissions.</p>
+          <p className="text-muted-foreground">Manage internal team access, credentials, and identity.</p>
         </div>
       </div>
 
@@ -145,7 +154,7 @@ export default function StaffManagement() {
               )}
             </div>
             <CardDescription>
-              {editMode ? `Updating access for ${formData.name}` : 'Assign an email and password for internal login.'}
+              Assign login credentials and personal info.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -159,19 +168,58 @@ export default function StaffManagement() {
                   placeholder="John Doe"
                 />
               </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Username</Label>
+                  <div className="relative">
+                    <Input 
+                      required 
+                      value={formData.username}
+                      onChange={(e) => setFormData({...formData, username: e.target.value})}
+                      placeholder="johndoe123"
+                      className="pl-9"
+                    />
+                    <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Mobile No</Label>
+                  <div className="relative">
+                    <Input 
+                      required 
+                      value={formData.phone}
+                      onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                      placeholder="01700000000"
+                      className="pl-9"
+                    />
+                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  </div>
+                </div>
+              </div>
               <div className="space-y-2">
-                <Label>Email Address (Username)</Label>
+                <Label>Email Address</Label>
                 <Input 
                   required 
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({...formData, email: e.target.value})}
                   placeholder="staff@printflow.com"
-                  disabled={editMode} // Email usually acts as key, disable editing for consistency
                 />
               </div>
               <div className="space-y-2">
-                <Label>Password</Label>
+                <Label>Photo URL</Label>
+                <div className="relative">
+                  <Input 
+                    value={formData.photoUrl}
+                    onChange={(e) => setFormData({...formData, photoUrl: e.target.value})}
+                    placeholder="https://image-link.com/photo.jpg"
+                    className="pl-9"
+                  />
+                  <Camera className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Portal Password</Label>
                 <div className="relative">
                   <Input 
                     required 
@@ -183,7 +231,6 @@ export default function StaffManagement() {
                   />
                   <Key className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 </div>
-                <p className="text-[10px] text-muted-foreground italic">Update password for staff entry.</p>
               </div>
               <div className="space-y-2">
                 <Label>Role</Label>
@@ -201,18 +248,13 @@ export default function StaffManagement() {
                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Shield className="w-4 h-4" />}
                 {editMode ? 'Update Account' : 'Authorize & Save'}
               </Button>
-              {editMode && (
-                <Button type="button" variant="outline" className="w-full" onClick={resetForm}>
-                  Cancel Editing
-                </Button>
-              )}
             </form>
           </CardContent>
         </Card>
 
         <Card className="lg:col-span-2 shadow-md">
           <CardHeader>
-            <CardTitle>Authorized Access List</CardTitle>
+            <CardTitle>Team Authorization List</CardTitle>
           </CardHeader>
           <CardContent>
             {loadingUsers ? (
@@ -221,8 +263,9 @@ export default function StaffManagement() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/50">
-                    <TableHead>Name</TableHead>
-                    <TableHead>Email / Login</TableHead>
+                    <TableHead>Profile</TableHead>
+                    <TableHead>Contact Info</TableHead>
+                    <TableHead>Username</TableHead>
                     <TableHead>Password</TableHead>
                     <TableHead>Role</TableHead>
                     <TableHead className="text-right">Action</TableHead>
@@ -231,8 +274,22 @@ export default function StaffManagement() {
                 <TableBody>
                   {users?.map((user) => (
                     <TableRow key={user.id} className={`hover:bg-muted/30 ${editingUserId === user.id ? 'bg-primary/5' : ''}`}>
-                      <TableCell className="font-bold">{user.name}</TableCell>
-                      <TableCell className="text-sm">{user.email}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <Avatar className="w-8 h-8">
+                            <AvatarImage src={user.photoUrl} alt={user.name} />
+                            <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
+                          </Avatar>
+                          <span className="font-bold text-sm">{user.name}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col text-xs">
+                          <span className="text-muted-foreground">{user.email}</span>
+                          <span className="font-medium">{user.phone || 'N/A'}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-xs font-mono">@{user.username || 'n/a'}</TableCell>
                       <TableCell className="font-mono text-xs text-muted-foreground">{user.password}</TableCell>
                       <TableCell>
                         <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
@@ -243,42 +300,19 @@ export default function StaffManagement() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            onClick={() => handleEdit(user)}
-                            className="hover:bg-primary/10 group"
-                          >
+                          <Button variant="ghost" size="icon" onClick={() => handleEdit(user)} className="h-8 w-8 hover:bg-primary/10 group">
                             <Pencil className="w-4 h-4 text-muted-foreground group-hover:text-primary" />
                           </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            onClick={() => handleDelete(user.id, user.name)} 
-                            className="hover:bg-destructive/10 group"
-                          >
+                          <Button variant="ghost" size="icon" onClick={() => handleDelete(user.id, user.name)} className="h-8 w-8 hover:bg-destructive/10 group">
                             <Trash2 className="w-4 h-4 text-muted-foreground group-hover:text-destructive" />
                           </Button>
                         </div>
                       </TableCell>
                     </TableRow>
                   ))}
-                  {(!users || users.length === 0) && (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center py-12 text-muted-foreground italic">
-                        No authorized staff found. Add one on the left.
-                      </TableCell>
-                    </TableRow>
-                  )}
                 </TableBody>
               </Table>
             )}
-            <div className="mt-4 p-4 bg-muted/30 rounded-lg flex items-start gap-3 border">
-              <AlertCircle className="w-4 h-4 text-muted-foreground mt-0.5" />
-              <p className="text-[10px] text-muted-foreground leading-relaxed">
-                Admins can update credentials instantly. Staff will use the updated password on their next login session.
-              </p>
-            </div>
           </CardContent>
         </Card>
       </div>
