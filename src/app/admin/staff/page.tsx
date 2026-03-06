@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { UserPlus, Shield, Loader2, Trash2, Key, Pencil, X, Phone, User as UserIcon, Camera, AlertTriangle, Upload, PlusCircle, ArrowLeft } from 'lucide-react';
+import { UserPlus, Shield, Loader2, Trash2, Pencil, Phone, User as UserIcon, Camera, AlertTriangle, Upload, PlusCircle, ArrowLeft } from 'lucide-react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, doc, setDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -47,7 +47,6 @@ export default function StaffManagement() {
     email: '',
     phone: '',
     photoUrl: '',
-    password: '',
     role: 'staff'
   });
 
@@ -73,15 +72,6 @@ export default function StaffManagement() {
     e.preventDefault();
     if (!db) return;
 
-    if (formData.password.length < 6) {
-      toast({ 
-        variant: "destructive", 
-        title: "Weak Password", 
-        description: "Password must be at least 6 characters." 
-      });
-      return;
-    }
-
     setLoading(true);
     try {
       const targetId = editMode && editingUserId ? editingUserId : formData.email.toLowerCase().replace(/[@.]/g, '_');
@@ -94,7 +84,7 @@ export default function StaffManagement() {
         email: formData.email.toLowerCase().trim(),
         phone: formData.phone.trim(),
         photoUrl: formData.photoUrl.trim(),
-        password: formData.password,
+        password: '123456', // Constant default password for no-security setup
         role: formData.role,
         updatedAt: serverTimestamp(),
         ...(editMode ? {} : { createdAt: serverTimestamp() })
@@ -103,7 +93,7 @@ export default function StaffManagement() {
       await setDoc(userRef, userData, { merge: true });
 
       toast({ 
-        title: editMode ? "Staff Updated" : "Staff Authorized", 
+        title: editMode ? "Staff Updated" : "Staff Added", 
         description: `${formData.name} account is now active.` 
       });
       
@@ -126,7 +116,6 @@ export default function StaffManagement() {
       email: user.email,
       phone: user.phone || '',
       photoUrl: user.photoUrl || '',
-      password: user.password || '',
       role: user.role || 'staff'
     });
   };
@@ -134,7 +123,7 @@ export default function StaffManagement() {
   const resetForm = () => {
     setEditMode(false);
     setEditingUserId(null);
-    setFormData({ name: '', username: '', email: '', phone: '', photoUrl: '', password: '', role: 'staff' });
+    setFormData({ name: '', username: '', email: '', phone: '', photoUrl: '', role: 'staff' });
     setIsFormVisible(false);
   };
 
@@ -151,7 +140,7 @@ export default function StaffManagement() {
     
     try {
       await deleteDoc(userRef);
-      toast({ title: "Authorization Removed", description: `${staffToDelete.name} has been deleted.` });
+      toast({ title: "Removed", description: `${staffToDelete.name} has been deleted.` });
       if (editingUserId === staffToDelete.id) resetForm();
     } catch (error: any) {
       const permissionError = new FirestorePermissionError({
@@ -168,12 +157,11 @@ export default function StaffManagement() {
 
   return (
     <div className="space-y-8">
-      {/* Header section always visible when in list mode */}
       {!isFormVisible && (
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <h2 className="text-3xl font-bold font-headline text-primary">Staff Management</h2>
-            <p className="text-muted-foreground">Manage internal team IDs, passwords, and access roles.</p>
+            <p className="text-muted-foreground">Manage internal team IDs and access roles.</p>
           </div>
           <Button onClick={() => setIsFormVisible(true)} className="gap-2 h-11 px-6 font-bold shadow-md">
             <PlusCircle className="w-5 h-5" />
@@ -182,10 +170,8 @@ export default function StaffManagement() {
         </div>
       )}
 
-      {/* Exclusive View Management */}
       <div className="max-w-7xl mx-auto">
         {isFormVisible ? (
-          /* FORM VIEW: List is hidden here */
           <div className="max-w-2xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-300">
             <Card className={cn(
               "shadow-lg border-2",
@@ -200,9 +186,8 @@ export default function StaffManagement() {
                     <div>
                       <CardTitle className="text-xl flex items-center gap-2">
                         {editMode ? <Pencil className="w-5 h-5" /> : <UserPlus className="w-5 h-5" />}
-                        {editMode ? 'Edit Staff Profile' : 'New Staff Authorization'}
+                        {editMode ? 'Edit Staff Profile' : 'New Staff Access'}
                       </CardTitle>
-                      <CardDescription>{editMode ? 'Update credentials for existing staff.' : 'Set up identity and access level.'}</CardDescription>
                     </div>
                   </div>
                 </div>
@@ -218,30 +203,9 @@ export default function StaffManagement() {
                         </AvatarFallback>
                       </Avatar>
                       <div className="absolute -bottom-2 -right-2 flex gap-1">
-                        <input 
-                          type="file" 
-                          ref={fileInputRef} 
-                          className="hidden" 
-                          accept="image/*" 
-                          onChange={handleFileChange} 
-                        />
-                        <Button 
-                          type="button"
-                          size="icon" 
-                          variant="secondary"
-                          className="rounded-full shadow-lg h-10 w-10 border border-border"
-                          onClick={() => fileInputRef.current?.click()}
-                        >
-                          <Upload className="w-4 h-4" />
-                        </Button>
-                        <CameraCapture 
-                          onCapture={(img) => setFormData({...formData, photoUrl: img})} 
-                          trigger={
-                            <Button type="button" size="icon" className="rounded-full shadow-lg h-10 w-10 border border-primary">
-                              <Camera className="w-5 h-5" />
-                            </Button>
-                          }
-                        />
+                        <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
+                        <Button type="button" size="icon" variant="secondary" className="rounded-full shadow-lg h-10 w-10 border border-border" onClick={() => fileInputRef.current?.click()}><Upload className="w-4 h-4" /></Button>
+                        <CameraCapture onCapture={(img) => setFormData({...formData, photoUrl: img})} trigger={<Button type="button" size="icon" className="rounded-full shadow-lg h-10 w-10 border border-primary"><Camera className="w-5 h-5" /></Button>} />
                       </div>
                     </div>
                   </div>
@@ -274,32 +238,22 @@ export default function StaffManagement() {
                     </div>
                   </div>
 
-                  <div className="grid md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <Label>Portal Password</Label>
-                      <div className="relative">
-                        <Input required type="text" value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})} className="pr-10" />
-                        <Key className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      </div>
-                      <p className="text-[10px] text-muted-foreground">Used for direct portal login.</p>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Access Role</Label>
-                      <Select value={formData.role} onValueChange={(val) => setFormData({...formData, role: val})}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="admin">Admin (Full Control)</SelectItem>
-                          <SelectItem value="staff">Staff (Production Only)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                  <div className="space-y-2">
+                    <Label>Access Role</Label>
+                    <Select value={formData.role} onValueChange={(val) => setFormData({...formData, role: val})}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="admin">Admin (Full Control)</SelectItem>
+                        <SelectItem value="staff">Staff (Production Only)</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   <div className="pt-4 flex gap-3">
                     <Button type="button" variant="outline" className="flex-1 h-12" onClick={resetForm}>Cancel</Button>
                     <Button className="flex-[2] gap-2 font-bold h-12 shadow-md" disabled={loading}>
                       {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Shield className="w-5 h-5" />}
-                      {editMode ? 'Save Profile Changes' : 'Authorize & Create Account'}
+                      {editMode ? 'Save Profile' : 'Authorize Staff'}
                     </Button>
                   </div>
                 </form>
@@ -307,7 +261,6 @@ export default function StaffManagement() {
             </Card>
           </div>
         ) : (
-          /* LIST VIEW: Form is hidden here */
           <Card className="shadow-md animate-in fade-in duration-300">
             <CardHeader className="border-b bg-muted/5">
               <CardTitle className="text-xl">Authorized Staff Members</CardTitle>
@@ -322,7 +275,6 @@ export default function StaffManagement() {
                       <TableHead className="pl-6">Profile</TableHead>
                       <TableHead>Contact Info</TableHead>
                       <TableHead>System ID</TableHead>
-                      <TableHead>Security</TableHead>
                       <TableHead>Access Level</TableHead>
                       <TableHead className="text-right pr-6">Management</TableHead>
                     </TableRow>
@@ -330,8 +282,8 @@ export default function StaffManagement() {
                   <TableBody>
                     {users?.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center py-20 text-muted-foreground italic">
-                          No authorized staff found. Add your first member to get started.
+                        <TableCell colSpan={5} className="text-center py-20 text-muted-foreground italic">
+                          No staff found.
                         </TableCell>
                       </TableRow>
                     ) : (
@@ -345,7 +297,6 @@ export default function StaffManagement() {
                               </Avatar>
                               <div>
                                 <p className="font-bold text-sm">{u.name}</p>
-                                <p className="text-[10px] text-muted-foreground">Member since {u.createdAt?.seconds ? new Date(u.createdAt.seconds * 1000).toLocaleDateString() : 'N/A'}</p>
                               </div>
                             </div>
                           </TableCell>
@@ -358,9 +309,6 @@ export default function StaffManagement() {
                           <TableCell className="text-xs font-mono">
                             <Badge variant="outline" className="font-mono bg-white">@{u.username}</Badge>
                           </TableCell>
-                          <TableCell className="font-mono text-xs">
-                            <span className="bg-muted px-2 py-0.5 rounded text-muted-foreground">{u.password}</span>
-                          </TableCell>
                           <TableCell>
                             <Badge variant={u.role === 'admin' ? 'default' : 'secondary'} className="text-[10px] uppercase font-bold tracking-wider">
                               {u.role}
@@ -368,22 +316,10 @@ export default function StaffManagement() {
                           </TableCell>
                           <TableCell className="text-right pr-6">
                             <div className="flex justify-end gap-2">
-                              <Button 
-                                variant="outline" 
-                                size="sm" 
-                                onClick={() => handleEdit(u)} 
-                                className="h-8 gap-1 hover:border-primary hover:text-primary"
-                                disabled={deletingId === u.id}
-                              >
+                              <Button variant="outline" size="sm" onClick={() => handleEdit(u)} className="h-8 gap-1 hover:border-primary hover:text-primary" disabled={deletingId === u.id}>
                                 <Pencil className="w-3 h-3" /> Edit
                               </Button>
-                              <Button 
-                                variant="destructive" 
-                                size="icon" 
-                                onClick={() => confirmDelete(u.id, u.name)} 
-                                className="h-8 w-8 shadow-sm"
-                                disabled={deletingId === u.id}
-                              >
+                              <Button variant="destructive" size="icon" onClick={() => confirmDelete(u.id, u.name)} className="h-8 w-8 shadow-sm" disabled={deletingId === u.id}>
                                 {deletingId === u.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                               </Button>
                             </div>
@@ -404,21 +340,17 @@ export default function StaffManagement() {
           <AlertDialogHeader>
             <div className="flex items-center gap-3 text-destructive mb-2">
               <AlertTriangle className="w-6 h-6" />
-              <AlertDialogTitle>Permanent Authorization Removal</AlertDialogTitle>
+              <AlertDialogTitle>Confirm Removal</AlertDialogTitle>
             </div>
             <AlertDialogDescription>
               Are you sure you want to delete <strong>{staffToDelete?.name}</strong>? 
-              This will immediately revoke their access to the PrintFlow portal. This action cannot be undone.
+              This will revoke their access to the portal.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={!!deletingId}>Keep Staff</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={handleDelete} 
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-bold"
-              disabled={!!deletingId}
-            >
-              Confirm Removal
+            <AlertDialogCancel disabled={!!deletingId}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-bold" disabled={!!deletingId}>
+              Confirm
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
