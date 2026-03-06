@@ -35,7 +35,8 @@ export default function NewOrderPage() {
     keywords: '',
     priority: 'Normal',
     assignedStaffId: '',
-    size: '',
+    width: '',
+    height: '',
     quantity: '1',
     additionalDetails: '',
     referenceImages: [] as string[]
@@ -187,6 +188,7 @@ export default function NewOrderPage() {
                       <SelectItem value="Visiting Card">Visiting Card</SelectItem>
                       <SelectItem value="Poster">Poster</SelectItem>
                       <SelectItem value="Flex Print">Flex Print</SelectItem>
+                      <SelectItem value="Logo Design">Logo Design</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -219,11 +221,15 @@ export default function NewOrderPage() {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Print Size</Label>
-                  <Input value={formData.size} onChange={(e) => setFormData({...formData, size: e.target.value})} />
+                  <Label>Print Size (Width x Height)</Label>
+                  <div className="flex items-center gap-2">
+                    <Input placeholder="W" value={formData.width} onChange={(e) => setFormData({...formData, width: e.target.value})} />
+                    <span className="text-muted-foreground font-bold">×</span>
+                    <Input placeholder="H" value={formData.height} onChange={(e) => setFormData({...formData, height: e.target.value})} />
+                  </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>Quantity</Label>
+                  <Label>Quantity (Pis)</Label>
                   <Input type="number" value={formData.quantity} onChange={(e) => setFormData({...formData, quantity: e.target.value})} />
                 </div>
               </div>

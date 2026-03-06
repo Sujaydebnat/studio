@@ -94,8 +94,13 @@ export default function StaffOrderDetail() {
             <CardHeader className="bg-accent/5"><CardTitle className="text-sm uppercase flex items-center gap-2"><Ruler className="w-4 h-4 text-accent" /> Specs</CardTitle></CardHeader>
             <CardContent className="space-y-4 pt-4">
               <div className="grid grid-cols-2 gap-4">
-                <div><Label className="text-[10px] uppercase font-bold">Size</Label><p className="font-extrabold text-primary">{order.size || 'N/A'}</p></div>
-                <div><Label className="text-[10px] uppercase font-bold">Qty</Label><p className="font-extrabold text-primary">{order.quantity || '1'}</p></div>
+                <div>
+                  <Label className="text-[10px] uppercase font-bold">Size (W × H)</Label>
+                  <p className="font-extrabold text-primary">
+                    {order.width && order.height ? `${order.width} × ${order.height}` : order.size || 'N/A'}
+                  </p>
+                </div>
+                <div><Label className="text-[10px] uppercase font-bold">Qty (Pis)</Label><p className="font-extrabold text-primary">{order.quantity || '1'}</p></div>
               </div>
               <Separator />
               <p className="text-xs font-medium bg-muted p-2 rounded">{order.additionalDetails || 'No special instructions.'}</p>
@@ -134,6 +139,7 @@ export default function StaffOrderDetail() {
               <CardHeader><CardTitle className="text-xs uppercase flex items-center gap-2"><Sparkles className="w-4 h-4 text-primary" /> AI Brief Summary</CardTitle></CardHeader>
               <CardContent className="text-xs space-y-3">
                 <div><Label className="text-[10px] font-bold opacity-70">OVERVIEW</Label><p>{order.designBrief.overview}</p></div>
+                <div><Label className="text-[10px] font-bold opacity-70">TARGET AUDIENCE</Label><p>{order.designBrief.targetAudience}</p></div>
                 <div><Label className="text-[10px] font-bold opacity-70">VISUAL STYLE</Label><p className="text-primary font-bold">{order.designBrief.visualStyle}</p></div>
               </CardContent>
             </Card>
