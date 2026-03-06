@@ -2,28 +2,27 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Orders collection: Authenticated users can read, list and write
+    // orders collection list/read korar permission
     match /orders/{orderId} {
-      // Login kora thakle read/list kora jabe
+      // Jekono authenticated user (jerom: staff@gmail.com) jate data dekhte pare
       allow read, list: if request.auth != null;
       
-      // Prototyping-er jonno authenticated users-ke write allow kora hoyeche
+      // Data entry korar permission
       allow write: if request.auth != null;
 
-      // Updates sub-collection
+      // Public tracking portal-er jonno (Order ID diye check korar jonno)
+      // PRD requirement: Public-facing page for customers to check status
+      allow get: if true;
+
+      // Updates sub-collection communication-er jonno
       match /updates/{updateId} {
         allow read, write: if request.auth != null;
       }
     }
 
-    // Onno sob collection-er jonno (Users management ebong login logic-er jonno dorkar)
+    // Jodi onno kono collection thake (jerom: users collection manage korar jonno)
     match /{document=**} {
       allow read, write: if request.auth != null;
-    }
-    
-    // Allow public to GET a single order for tracking (must know the ID)
-    match /orders/{orderId} {
-      allow get: if true;
     }
   }
 }
