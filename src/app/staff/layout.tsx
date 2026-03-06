@@ -7,13 +7,26 @@ import {
   LayoutDashboard, 
   CheckSquare,
   LogOut, 
-  Printer
+  Printer,
+  Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { useUser, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
+import { doc } from 'firebase/firestore';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 export default function StaffLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const db = useFirestore();
+  const { user, isUserLoading } = useUser();
+
+  // Fetch logged-in user details from Firestore
+  const userRef = useMemoFirebase(() => 
+    user && db ? doc(db, 'users', user.uid) : null
+  , [db, user]);
+
+  const { data: userData, isLoading: isDataLoading } = useDoc(userRef);
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
@@ -68,12 +81,19 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
           <h1 className="font-bold text-lg font-headline text-accent-foreground">Staff Portal</h1>
           <div className="flex items-center gap-4">
             <div className="flex flex-col items-end">
-              <span className="text-sm font-semibold">Staff User</span>
-              <span className="text-xs text-muted-foreground">Production Team</span>
+              <span className="text-sm font-semibold">
+                {isDataLoading ? 'Loading...' : (userData?.name || 'Staff Member')}
+              </span>
+              <span className="text-xs text-muted-foreground uppercase tracking-tighter text-[10px]">
+                {userData?.role || 'Production Team'}
+              </span>
             </div>
-            <div className="w-10 h-10 rounded-full bg-accent/20 flex items-center justify-center font-bold text-accent-foreground">
-              ST
-            </div>
+            <Avatar className="w-10 h-10 border-2 border-accent/20">
+              <AvatarImage src={userData?.photoUrl} alt={userData?.name} />
+              <AvatarFallback className="bg-accent/20 text-accent-foreground font-bold">
+                {userData?.name?.charAt(0) || <Loader2 className="w-4 h-4 animate-spin" />}
+              </AvatarFallback>
+            </Avatar>
           </div>
         </header>
         <div className="p-8">

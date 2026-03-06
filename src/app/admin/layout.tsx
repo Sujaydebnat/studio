@@ -11,14 +11,27 @@ import {
   LogOut, 
   PlusCircle,
   Printer,
-  ChevronRight
+  ChevronRight,
+  Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useUser, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
+import { doc } from 'firebase/firestore';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const db = useFirestore();
+  const { user } = useUser();
+
+  // Fetch logged-in admin details from Firestore
+  const userRef = useMemoFirebase(() => 
+    user && db ? doc(db, 'users', user.uid) : null
+  , [db, user]);
+
+  const { data: userData, isLoading: isDataLoading } = useDoc(userRef);
 
   const navItems = [
     { name: 'Dashboard', icon: LayoutDashboard, href: '/admin/dashboard' },
@@ -84,12 +97,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <h1 className="font-bold text-lg font-headline text-primary">Admin Portal</h1>
           <div className="flex items-center gap-4">
             <div className="flex flex-col items-end">
-              <span className="text-sm font-semibold">Admin User</span>
-              <span className="text-xs text-muted-foreground">Master Account</span>
+              <span className="text-sm font-semibold">
+                {isDataLoading ? 'Loading...' : (userData?.name || 'Admin User')}
+              </span>
+              <span className="text-xs text-muted-foreground uppercase tracking-tighter text-[10px]">
+                {userData?.role === 'admin' ? 'Master Account' : 'Staff Access'}
+              </span>
             </div>
-            <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center font-bold text-primary">
-              AU
-            </div>
+            <Avatar className="w-10 h-10 border-2 border-primary/20">
+              <AvatarImage src={userData?.photoUrl} alt={userData?.name} />
+              <AvatarFallback className="bg-primary/20 text-primary font-bold">
+                {userData?.name?.charAt(0) || <Loader2 className="w-4 h-4 animate-spin" />}
+              </AvatarFallback>
+            </Avatar>
           </div>
         </header>
         <div className="p-8">
