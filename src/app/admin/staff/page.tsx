@@ -273,7 +273,6 @@ export default function StaffManagement() {
                   <TableHeader>
                     <TableRow className="bg-muted/50">
                       <TableHead className="pl-6">Profile</TableHead>
-                      <TableHead>Contact Info</TableHead>
                       <TableHead>System ID</TableHead>
                       <TableHead>Access Level</TableHead>
                       <TableHead className="text-right pr-6">Management</TableHead>
@@ -282,7 +281,7 @@ export default function StaffManagement() {
                   <TableBody>
                     {users?.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={5} className="text-center py-20 text-muted-foreground italic">
+                        <TableCell colSpan={4} className="text-center py-20 text-muted-foreground italic">
                           No staff found.
                         </TableCell>
                       </TableRow>
@@ -298,12 +297,6 @@ export default function StaffManagement() {
                               <div>
                                 <p className="font-bold text-sm">{u.name}</p>
                               </div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex flex-col text-xs space-y-0.5">
-                              <span className="text-primary font-medium">{u.email}</span>
-                              <span className="text-muted-foreground">{u.phone || 'No Mobile'}</span>
                             </div>
                           </TableCell>
                           <TableCell className="text-xs font-mono">
