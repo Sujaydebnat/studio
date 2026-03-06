@@ -37,8 +37,6 @@ export default function LoginPage() {
   const handleAuthResult = async (user: any, userData: any) => {
     if (!db) return;
     
-    // Email verification removed as per user request for direct login.
-    
     // Ensure the UID mapping is stored in Firestore
     const userRef = doc(db, 'users', user.uid);
     await setDoc(userRef, {
@@ -48,7 +46,7 @@ export default function LoginPage() {
     }, { merge: true });
 
     handleRoleRedirect(userData.role);
-    toast({ title: "Login Successful", description: `Welcome to the ${userData.role.toUpperCase()} portal.` });
+    toast({ title: "Login Successful", description: `Welcome back, ${userData.name}.` });
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -73,7 +71,7 @@ export default function LoginPage() {
       const querySnapshot = await getDocs(q);
       
       if (querySnapshot.empty) {
-        toast({ variant: "destructive", title: "Login Failed", description: "This account is not registered. Contact Admin." });
+        toast({ variant: "destructive", title: "Login Failed", description: "Account not registered. Please contact Admin." });
         setLoading(false);
         return;
       }
@@ -82,7 +80,7 @@ export default function LoginPage() {
       
       // Step 2: Validate password (stored in Firestore for pre-authorized users)
       if (userData.password !== password) {
-        toast({ variant: "destructive", title: "Login Failed", description: "Incorrect credentials." });
+        toast({ variant: "destructive", title: "Login Failed", description: "Incorrect password." });
         setLoading(false);
         return;
       }
@@ -93,15 +91,16 @@ export default function LoginPage() {
         await handleAuthResult(authResult.user, userData);
       } catch (authErr: any) {
         // Auto-Activation: If Firebase Auth account doesn't exist yet, create it using Firestore info
-        if (authErr.code === 'auth/user-not-found' || authErr.code === 'auth/invalid-credential') {
+        if (authErr.code === 'auth/user-not-found' || authErr.code === 'auth/invalid-credential' || authErr.code === 'auth/invalid-login-credentials') {
           try {
             const newAuthResult = await createUserWithEmailAndPassword(auth, userData.email, password);
             await handleAuthResult(newAuthResult.user, userData);
           } catch (createErr: any) {
-            toast({ variant: "destructive", title: "Activation Failed", description: createErr.message });
+            console.error("Auto-activation failed:", createErr);
+            toast({ variant: "destructive", title: "Direct Login Failed", description: "System could not auto-activate your account." });
           }
         } else {
-          toast({ variant: "destructive", title: "Authentication Error", description: authErr.message });
+          toast({ variant: "destructive", title: "Auth Error", description: authErr.message });
         }
       }
     } catch (error: any) {
@@ -126,7 +125,7 @@ export default function LoginPage() {
           <CardTitle className="text-2xl font-bold flex items-center justify-center gap-2">
             <UserCheck className="w-6 h-6 text-primary" /> Personnel Portal
           </CardTitle>
-          <CardDescription>Username, Email, or Mobile to login</CardDescription>
+          <CardDescription>Login with Email, Username, or Mobile</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <form onSubmit={handleLogin} className="space-y-4">
@@ -164,12 +163,12 @@ export default function LoginPage() {
           <div className="relative">
             <Separator />
             <span className="absolute left-1/2 -top-2.5 -translate-x-1/2 bg-background px-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-              Direct Access
+              No Verification Required
             </span>
           </div>
           
           <p className="text-[10px] text-center text-muted-foreground italic">
-            Staff accounts are pre-authorized. Login directly with your credentials.
+            Direct access for authorized personnel.
           </p>
         </CardContent>
       </Card>

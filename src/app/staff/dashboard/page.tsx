@@ -1,12 +1,13 @@
 
 "use client"
 
+import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Clock, Loader2, ChevronRight, User } from 'lucide-react';
 import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
-import { collection, query, where, orderBy } from 'firebase/firestore';
+import { collection, query, where } from 'firebase/firestore';
 import { format } from 'date-fns';
 import Link from 'next/link';
 
@@ -14,17 +15,27 @@ export default function StaffDashboard() {
   const db = useFirestore();
   const { user } = useUser();
 
-  // Filter orders assigned specifically to this staff member
+  // Optimized query for Staff assignments
+  // Removed orderBy to avoid missing index errors during prototyping
   const ordersQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
     return query(
       collection(db, 'orders'), 
-      where('assignedStaffId', '==', user.uid),
-      orderBy('createdAt', 'desc')
+      where('assignedStaffId', '==', user.uid)
     );
   }, [db, user]);
 
-  const { data: activeOrders, loading } = useCollection(ordersQuery);
+  const { data: rawOrders, loading } = useCollection(ordersQuery);
+
+  // Sorting in memory to avoid index requirements
+  const activeOrders = useMemo(() => {
+    if (!rawOrders) return [];
+    return [...rawOrders].sort((a, b) => {
+      const dateA = a.createdAt?.seconds || 0;
+      const dateB = b.createdAt?.seconds || 0;
+      return dateB - dateA; // Descending
+    });
+  }, [rawOrders]);
 
   return (
     <div className="space-y-8">
@@ -37,7 +48,7 @@ export default function StaffDashboard() {
           <p className="text-xs font-bold text-accent-foreground flex items-center gap-1">
             <User className="w-3 h-3" /> MY ASSIGNMENTS
           </p>
-          <p className="text-2xl font-bold text-accent-foreground">{activeOrders?.length || 0}</p>
+          <p className="text-2xl font-bold text-accent-foreground">{activeOrders.length}</p>
         </div>
       </div>
 
@@ -47,7 +58,7 @@ export default function StaffDashboard() {
         </div>
       ) : (
         <div className="grid gap-6">
-          {!activeOrders || activeOrders.length === 0 ? (
+          {activeOrders.length === 0 ? (
             <Card className="p-12 text-center text-muted-foreground border-dashed">
               <Clock className="w-12 h-12 mx-auto mb-4 opacity-20" />
               <p className="text-lg">No orders assigned to you yet.</p>
@@ -80,7 +91,7 @@ export default function StaffDashboard() {
                   <div className="mt-4 flex gap-4 text-xs text-muted-foreground">
                     <div className="flex items-center gap-1">
                       <Clock className="w-3 h-3" />
-                      Assigned: {order.createdAt?.seconds ? format(new Date(order.createdAt.seconds * 1000), 'PPP') : 'N/A'}
+                      Assigned: {order.createdAt?.seconds ? format(new Date(order.createdAt.seconds * 1000), 'PPP') : 'Recently'}
                     </div>
                   </div>
                 </CardContent>

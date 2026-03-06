@@ -4,13 +4,13 @@ service cloud.firestore {
   match /databases/{database}/documents {
     
     // Prototyping mode: Allow all authenticated users to read/write all collections.
-    // This allows Admin and Staff to manage orders and users once logged in.
+    // This ensures Admin and Staff can manage data without permission errors.
     match /{document=**} {
       allow read, write: if request.auth != null;
     }
 
     // Public tracking portal access: Allows anyone to view a specific order by ID
-    // but not to list the entire collection or modify data.
+    // but not to list the entire collection.
     match /orders/{orderId} {
       allow get: if true;
     }
