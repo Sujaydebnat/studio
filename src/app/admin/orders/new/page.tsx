@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Sparkles, Loader2, ArrowLeft, Save, HelpCircle, Users, ImageIcon, Plus, Trash2, Camera, Upload, FileText } from 'lucide-react';
+import { Sparkles, Loader2, ArrowLeft, Save, HelpCircle, Users, ImageIcon, Plus, Trash2, Camera, Upload, FileText, Ruler } from 'lucide-react';
 import { aiDesignBriefTool, type AIDesignBriefToolOutput } from '@/ai/flows/ai-design-brief-tool-flow';
 import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, where } from 'firebase/firestore';
@@ -37,6 +37,7 @@ export default function NewOrderPage() {
     assignedStaffId: '',
     width: '',
     height: '',
+    unit: 'Inches',
     quantity: '1',
     additionalDetails: '',
     referenceImages: [] as string[]
@@ -113,11 +114,8 @@ export default function NewOrderPage() {
     }
 
     setSaving(true);
-    const orderNumber = `ORD-${Date.now().toString().slice(-6)}`;
-
     const orderData = {
       ...formData,
-      orderNumber,
       adminId: user.uid,
       status: 'Pending',
       designBrief: designBrief || null,
@@ -217,15 +215,24 @@ export default function NewOrderPage() {
           </Card>
 
           <Card className="shadow-sm border-2">
-            <CardHeader><CardTitle>Production Specs</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="flex items-center gap-2"><Ruler className="w-5 h-5 text-primary" /> Production Specs</CardTitle></CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Print Size (Width x Height)</Label>
+                  <Label>Print Size (W × H)</Label>
                   <div className="flex items-center gap-2">
                     <Input placeholder="W" value={formData.width} onChange={(e) => setFormData({...formData, width: e.target.value})} />
                     <span className="text-muted-foreground font-bold">×</span>
                     <Input placeholder="H" value={formData.height} onChange={(e) => setFormData({...formData, height: e.target.value})} />
+                    <Select value={formData.unit} onValueChange={(val) => setFormData({...formData, unit: val})}>
+                      <SelectTrigger className="w-[100px]"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Inches">Inches</SelectItem>
+                        <SelectItem value="mm">mm</SelectItem>
+                        <SelectItem value="cm">cm</SelectItem>
+                        <SelectItem value="ft">ft</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
                 <div className="space-y-2">

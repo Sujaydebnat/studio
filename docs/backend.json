@@ -29,7 +29,7 @@
         "status": { "type": "string" },
         "width": { "type": "string", "description": "Width of the print project" },
         "height": { "type": "string", "description": "Height of the print project" },
-        "size": { "type": "string", "description": "Full dimensions legacy field" },
+        "unit": { "type": "string", "description": "Unit of measurement (Inches, mm, cm, ft)" },
         "quantity": { "type": "string", "description": "Number of pieces requested" },
         "additionalDetails": { "type": "string", "description": "Special instructions from the customer" },
         "referenceImages": { "type": "array", "items": { "type": "string" }, "description": "URLs or Base64 of reference images/documents" },

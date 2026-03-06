@@ -97,7 +97,9 @@ export default function StaffOrderDetail() {
                 <div>
                   <Label className="text-[10px] uppercase font-bold">Size (W × H)</Label>
                   <p className="font-extrabold text-primary">
-                    {order.width && order.height ? `${order.width} × ${order.height}` : order.size || 'N/A'}
+                    {order.width && order.height 
+                      ? `${order.width} × ${order.height} ${order.unit || ''}` 
+                      : order.size || 'N/A'}
                   </p>
                 </div>
                 <div><Label className="text-[10px] uppercase font-bold">Qty (Pis)</Label><p className="font-extrabold text-primary">{order.quantity || '1'}</p></div>
