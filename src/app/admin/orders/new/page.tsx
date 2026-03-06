@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Sparkles, Loader2, ArrowLeft, Save, ImageIcon, Upload, FileText, Ruler, Calendar as CalendarIcon, Hash, Banknote, Mail, Plus, Trash2 } from 'lucide-react';
+import { Sparkles, Loader2, ArrowLeft, Save, ImageIcon, Upload, FileText, Ruler, Calendar as CalendarIcon, Hash, Banknote, Mail, Plus, Trash2, Layers } from 'lucide-react';
 import { aiDesignBriefTool, type AIDesignBriefToolOutput } from '@/ai/flows/ai-design-brief-tool-flow';
 import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, where } from 'firebase/firestore';
@@ -19,15 +19,17 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 import { CameraCapture } from '@/components/CameraCapture';
 
-const WORK_TYPES = [
+// Unified Categories for Order and Catalog
+const CATEGORIES = [
   "GIFT", "FLEX", "DIGITAL PAPER", "PHOTOPAPER", "GUM PAPER", 
-  "LOGO", "PLATE", "REDIEM", "VINAIL", "DTF", "UV"
+  "LOGO", "VISITING CARD", "PLATE", "REDIEM", "VINAIL", "DTF", "UV", "OTHERS"
 ];
 
 const PHOTOPAPER_SIZES = ["12 × 18", "12 × 8"];
 
 interface OrderItem {
   type: string;
+  subCategory: string;
   size: string;
   qty: string;
 }
@@ -58,7 +60,7 @@ export default function NewOrderPage() {
   });
 
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
-  const [currentItem, setCurrentItem] = useState<OrderItem>({ type: '', size: '', qty: '1' });
+  const [currentItem, setCurrentItem] = useState<OrderItem>({ type: '', subCategory: '', size: '', qty: '1' });
 
   const staffQuery = useMemoFirebase(() => {
     if (!db) return null;
@@ -82,11 +84,11 @@ export default function NewOrderPage() {
 
   const addOrderItem = () => {
     if (!currentItem.type || !currentItem.size || !currentItem.qty) {
-      toast({ variant: "destructive", title: "Missing Info", description: "Select type, enter size and quantity for the item." });
+      toast({ variant: "destructive", title: "Missing Info", description: "Select category, enter size and quantity." });
       return;
     }
     setOrderItems([...orderItems, currentItem]);
-    setCurrentItem({ type: '', size: '', qty: '1' });
+    setCurrentItem({ type: '', subCategory: '', size: '', qty: '1' });
   };
 
   const removeOrderItem = (idx: number) => {
@@ -152,12 +154,12 @@ export default function NewOrderPage() {
     if (!db || !user) return;
 
     if (!formData.customerName || !formData.phone || formData.workTypes.length === 0 || !formData.billNumber) {
-      toast({ variant: "destructive", title: "Missing Details", description: "Bill Number, Customer name, phone, and at least one work type are required." });
+      toast({ variant: "destructive", title: "Missing Details", description: "Bill Number, Customer name, phone, and at least one category are required." });
       return;
     }
 
     if (orderItems.length === 0) {
-      toast({ variant: "destructive", title: "No Items", description: "Please add at least one item size and quantity." });
+      toast({ variant: "destructive", title: "No Items", description: "Please add at least one item detail (Category, Size, Qty)." });
       return;
     }
 
@@ -267,9 +269,9 @@ export default function NewOrderPage() {
               </div>
 
               <div className="space-y-3">
-                <Label className="text-primary font-bold">Select All Work Types in this Bill</Label>
+                <Label className="text-primary font-bold">Select Work Categories in this Bill</Label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 bg-muted/30 p-4 rounded-lg border">
-                  {WORK_TYPES.map((type) => (
+                  {CATEGORIES.map((type) => (
                     <div key={type} className="flex items-center space-x-2">
                       <Checkbox 
                         id={`type-${type}`} 
@@ -313,18 +315,22 @@ export default function NewOrderPage() {
           </Card>
 
           <Card className="shadow-sm border-2">
-            <CardHeader><CardTitle className="flex items-center gap-2 text-lg text-primary"><Ruler className="w-5 h-5" /> Detailed Order Items (Multiple Sizes)</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="flex items-center gap-2 text-lg text-primary"><Ruler className="w-5 h-5" /> Detailed Order Items (Category & Specs)</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div className="bg-muted/20 p-4 rounded-lg border-2 border-dashed space-y-4">
                 <div className="grid grid-cols-12 gap-2">
                   <div className="col-span-4 space-y-1">
-                    <Label className="text-[10px] font-bold">Type</Label>
+                    <Label className="text-[10px] font-bold">Category</Label>
                     <Select value={currentItem.type} onValueChange={(v) => setCurrentItem({...currentItem, type: v, size: ''})}>
-                      <SelectTrigger className="h-9"><SelectValue placeholder="Type" /></SelectTrigger>
+                      <SelectTrigger className="h-9"><SelectValue placeholder="Category" /></SelectTrigger>
                       <SelectContent>
                         {formData.workTypes.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
                       </SelectContent>
                     </Select>
+                  </div>
+                  <div className="col-span-4 space-y-1">
+                    <Label className="text-[10px] font-bold">Sub-category</Label>
+                    <Input placeholder="e.g. Glossy" value={currentItem.subCategory} onChange={(e) => setCurrentItem({...currentItem, subCategory: e.target.value})} className="h-9" />
                   </div>
                   <div className="col-span-4 space-y-1">
                     <Label className="text-[10px] font-bold">Size</Label>
@@ -339,15 +345,15 @@ export default function NewOrderPage() {
                       <Input placeholder="Size (e.g. 10x20 in)" value={currentItem.size} onChange={(e) => setCurrentItem({...currentItem, size: e.target.value})} className="h-9" />
                     )}
                   </div>
-                  <div className="col-span-2 space-y-1">
-                    <Label className="text-[10px] font-bold">Qty</Label>
-                    <Input type="number" value={currentItem.qty} onChange={(e) => setCurrentItem({...currentItem, qty: e.target.value})} className="h-9" />
-                  </div>
-                  <div className="col-span-2 flex items-end">
-                    <Button type="button" onClick={addOrderItem} className="w-full h-9 bg-accent hover:bg-accent/90">
-                      <Plus className="w-4 h-4" />
-                    </Button>
-                  </div>
+                </div>
+                <div className="flex gap-2 items-end">
+                   <div className="flex-1 space-y-1">
+                      <Label className="text-[10px] font-bold">Qty</Label>
+                      <Input type="number" value={currentItem.qty} onChange={(e) => setCurrentItem({...currentItem, qty: e.target.value})} className="h-9" />
+                   </div>
+                   <Button type="button" onClick={addOrderItem} className="h-9 bg-accent hover:bg-accent/90 px-8">
+                      <Plus className="w-4 h-4 mr-2" /> Add Item
+                   </Button>
                 </div>
               </div>
 
@@ -356,7 +362,8 @@ export default function NewOrderPage() {
                    <table className="w-full text-sm">
                      <thead className="bg-muted">
                        <tr>
-                         <th className="p-2 text-left">Type</th>
+                         <th className="p-2 text-left">Category</th>
+                         <th className="p-2 text-left">Sub-Cat</th>
                          <th className="p-2 text-left">Size</th>
                          <th className="p-2 text-center">Qty</th>
                          <th className="p-2 text-right">Action</th>
@@ -366,8 +373,9 @@ export default function NewOrderPage() {
                        {orderItems.map((item, i) => (
                          <tr key={i} className="border-t hover:bg-muted/50">
                            <td className="p-2 font-bold text-primary">{item.type}</td>
-                           <td className="p-2 font-mono">{item.size}</td>
-                           <td className="p-2 text-center">{item.qty}</td>
+                           <td className="p-2 text-xs italic">{item.subCategory || 'N/A'}</td>
+                           <td className="p-2 font-mono text-xs">{item.size}</td>
+                           <td className="p-2 text-center font-bold">{item.qty}</td>
                            <td className="p-2 text-right">
                              <Button variant="ghost" size="icon" onClick={() => removeOrderItem(i)} className="text-destructive h-7 w-7">
                                <Trash2 className="w-4 h-4" />

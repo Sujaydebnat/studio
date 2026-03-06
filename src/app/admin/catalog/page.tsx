@@ -29,7 +29,10 @@ import { Badge } from '@/components/ui/badge';
 import { CameraCapture } from '@/components/CameraCapture';
 import Image from 'next/image';
 
-const CATEGORIES = ["GIFT", "FLEX", "DIGITAL PAPER", "PHOTOPAPER", "LOGO", "VISITING CARD", "UV", "OTHERS"];
+const CATEGORIES = [
+  "GIFT", "FLEX", "DIGITAL PAPER", "PHOTOPAPER", "GUM PAPER", 
+  "LOGO", "VISITING CARD", "PLATE", "REDIEM", "VINAIL", "DTF", "UV", "OTHERS"
+];
 
 export default function CatalogManager() {
   const db = useFirestore();
@@ -139,7 +142,7 @@ export default function CatalogManager() {
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-3xl font-bold font-headline text-primary">Catalog Manager</h2>
-          <p className="text-muted-foreground">Showcase your products with categories and sub-categories.</p>
+          <p className="text-muted-foreground">Manage products using the same categories as orders.</p>
         </div>
         {!isFormOpen && (
           <Button onClick={() => setIsFormOpen(true)} className="gap-2 h-11 px-6 font-bold shadow-md">

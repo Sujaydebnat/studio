@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Search, Package, Clock, CheckCircle2, FileText, Image as ImageIcon, Printer, AlertCircle, Loader2, WifiOff, Calendar as CalendarIcon, Banknote, Hash, Ruler } from 'lucide-react';
+import { Search, Package, Clock, CheckCircle2, FileText, Image as ImageIcon, Printer, AlertCircle, Loader2, WifiOff, Calendar as CalendarIcon, Banknote, Hash, Ruler, Layers } from 'lucide-react';
 import Image from 'next/image';
 import { useFirestore } from '@/firebase';
 import { doc, getDoc, query, collection, where, getDocs, or } from 'firebase/firestore';
@@ -180,18 +180,21 @@ export default function TrackOrderPage() {
 
               <div className="space-y-4">
                 <h3 className="font-bold text-lg border-b pb-2 flex items-center gap-2 text-primary">
-                  <Package className="w-5 h-5" /> Order Item Details
+                  <Package className="w-5 h-5" /> Detailed Order Items
                 </h3>
                 <div className="grid gap-3">
                   {order.orderItems?.map((item: any, idx: number) => (
-                    <div key={idx} className="flex justify-between items-center p-3 bg-muted/50 rounded-lg border">
-                      <div className="space-y-1">
-                        <p className="text-sm font-bold">{item.type}</p>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <Ruler className="w-3 h-3" /> {item.size}
-                        </div>
+                    <div key={idx} className="flex flex-col p-3 bg-muted/50 rounded-lg border gap-2">
+                      <div className="flex justify-between items-center">
+                        <p className="text-sm font-bold flex items-center gap-2">
+                          {item.type}
+                          {item.subCategory && <Badge variant="outline" className="text-[9px] bg-white"><Layers className="w-2 h-2 mr-1" /> {item.subCategory}</Badge>}
+                        </p>
+                        <Badge variant="outline" className="bg-white font-bold">{item.qty} Pcs</Badge>
                       </div>
-                      <Badge variant="outline" className="bg-white font-bold">{item.qty} Pcs</Badge>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Ruler className="w-3 h-3" /> Size: {item.size}
+                      </div>
                     </div>
                   ))}
                 </div>

@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Loader2, ArrowLeft, Send, MessageSquare, Image as ImageIcon, Users, Plus, Trash2, Camera, Upload, FileText, Download, Ruler, Calendar as CalendarIcon, Hash, Banknote, Mail } from 'lucide-react';
+import { Loader2, ArrowLeft, Send, MessageSquare, Image as ImageIcon, Users, Plus, Trash2, Camera, Upload, FileText, Download, Ruler, Calendar as CalendarIcon, Hash, Banknote, Mail, Layers } from 'lucide-react';
 import { useDoc, useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import { doc, collection, addDoc, serverTimestamp, query, orderBy, updateDoc, arrayUnion, where, arrayRemove } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -19,13 +19,16 @@ import { CameraCapture } from '@/components/CameraCapture';
 import { Label } from '@/components/ui/label';
 import { format } from 'date-fns';
 
-const WORK_TYPES = [
+const CATEGORIES = [
   "GIFT", "FLEX", "DIGITAL PAPER", "PHOTOPAPER", "GUM PAPER", 
-  "LOGO", "PLATE", "REDIEM", "VINAIL", "DTF", "UV"
+  "LOGO", "VISITING CARD", "PLATE", "REDIEM", "VINAIL", "DTF", "UV", "OTHERS"
 ];
+
+const PHOTOPAPER_SIZES = ["12 × 18", "12 × 8"];
 
 interface OrderItem {
   type: string;
+  subCategory: string;
   size: string;
   qty: string;
 }
@@ -43,7 +46,7 @@ export default function AdminOrderDetail() {
   const [sending, setSending] = useState(false);
   const [updating, setUpdating] = useState(false);
   
-  const [newItem, setNewItem] = useState<OrderItem>({ type: '', size: '', qty: '1' });
+  const [newItem, setNewItem] = useState<OrderItem>({ type: '', subCategory: '', size: '', qty: '1' });
 
   const orderRef = useMemoFirebase(() => 
     id && db ? doc(db, 'orders', id as string) : null
@@ -137,7 +140,7 @@ export default function AdminOrderDetail() {
     try {
       const currentItems = order?.orderItems || [];
       await updateDoc(orderRef, { orderItems: [...currentItems, newItem], updatedAt: serverTimestamp() });
-      setNewItem({ type: '', size: '', qty: '1' });
+      setNewItem({ type: '', subCategory: '', size: '', qty: '1' });
     } finally {
       setUpdating(false);
     }
@@ -214,10 +217,10 @@ export default function AdminOrderDetail() {
           </Card>
 
           <Card>
-            <CardHeader><CardTitle className="flex items-center gap-2"><ImageIcon className="w-5 h-5 text-primary" /> Work Types</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="flex items-center gap-2"><ImageIcon className="w-5 h-5 text-primary" /> Work Categories</CardTitle></CardHeader>
             <CardContent className="space-y-3">
               <div className="grid grid-cols-2 gap-2 bg-muted/20 p-3 rounded-lg border">
-                {WORK_TYPES.map((type) => (
+                {CATEGORIES.map((type) => (
                   <div key={type} className="flex items-center space-x-2">
                     <Checkbox 
                       id={`edit-type-${type}`} 
@@ -236,32 +239,44 @@ export default function AdminOrderDetail() {
             <CardHeader><CardTitle className="flex items-center gap-2 text-primary"><Ruler className="w-5 h-5" /> Detailed Items</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div className="bg-muted/30 p-3 rounded-lg border-2 border-dashed space-y-3">
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 gap-2">
                   <Select value={newItem.type} onValueChange={(v) => setNewItem({...newItem, type: v})}>
-                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Type" /></SelectTrigger>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Category" /></SelectTrigger>
                     <SelectContent>
                       {(order.workTypes || []).map((t: string) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
                     </SelectContent>
                   </Select>
-                  <Input placeholder="Size" value={newItem.size} onChange={(e) => setNewItem({...newItem, size: e.target.value})} className="h-8 text-xs" />
-                </div>
-                <div className="flex gap-2">
-                  <Input type="number" value={newItem.qty} onChange={(e) => setNewItem({...newItem, qty: e.target.value})} className="h-8 text-xs flex-1" />
-                  <Button onClick={addItemToList} size="sm" className="h-8"><Plus className="w-3 h-3" /></Button>
+                  <Input placeholder="Sub-category" value={newItem.subCategory} onChange={(e) => setNewItem({...newItem, subCategory: e.target.value})} className="h-8 text-xs" />
+                  
+                  {newItem.type === 'PHOTOPAPER' ? (
+                    <Select value={newItem.size} onValueChange={(v) => setNewItem({...newItem, size: v})}>
+                      <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Size" /></SelectTrigger>
+                      <SelectContent>
+                        {PHOTOPAPER_SIZES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input placeholder="Size" value={newItem.size} onChange={(e) => setNewItem({...newItem, size: e.target.value})} className="h-8 text-xs" />
+                  )}
+                  
+                  <div className="flex gap-2">
+                    <Input type="number" value={newItem.qty} onChange={(e) => setNewItem({...newItem, qty: e.target.value})} className="h-8 text-xs flex-1" />
+                    <Button onClick={addItemToList} size="sm" className="h-8 bg-accent hover:bg-accent/90"><Plus className="w-3 h-3 mr-1" /> Add</Button>
+                  </div>
                 </div>
               </div>
 
               {order.orderItems?.length > 0 && (
                 <div className="space-y-2">
                   {order.orderItems.map((item: any, i: number) => (
-                    <div key={i} className="flex items-center justify-between p-2 rounded bg-muted/50 border text-xs">
-                      <div className="flex-1">
-                        <span className="font-bold text-primary mr-2">{item.type}</span>
-                        <span className="font-mono">{item.size}</span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="bg-primary/10 px-2 py-0.5 rounded font-bold">{item.qty} pcs</span>
+                    <div key={i} className="flex flex-col p-2 rounded bg-muted/50 border text-xs gap-1">
+                      <div className="flex justify-between items-center">
+                        <span className="font-bold text-primary">{item.type}</span>
                         <Button variant="ghost" size="icon" onClick={() => removeItemFromList(i)} className="h-6 w-6 text-destructive"><Trash2 className="w-3 h-3" /></Button>
+                      </div>
+                      <div className="flex justify-between text-[10px] text-muted-foreground italic">
+                        <span>{item.subCategory || 'No Sub-Cat'}</span>
+                        <span>{item.size} — <strong>{item.qty} pcs</strong></span>
                       </div>
                     </div>
                   ))}
