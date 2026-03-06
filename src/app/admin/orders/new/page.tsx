@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,11 +9,11 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Sparkles, Loader2, ArrowLeft, Save, HelpCircle } from 'lucide-react';
+import { Sparkles, Loader2, ArrowLeft, Save, HelpCircle, Users } from 'lucide-react';
 import { aiDesignBriefTool, type AIDesignBriefToolOutput } from '@/ai/flows/ai-design-brief-tool-flow';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { useFirestore, useUser } from '@/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, addDoc, serverTimestamp, query, where } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
@@ -33,7 +33,16 @@ export default function NewOrderPage() {
     workType: '',
     keywords: '',
     priority: 'Normal',
+    assignedStaffId: '',
   });
+
+  // Fetch only Staff members for assignment
+  const staffQuery = useMemoFirebase(() => {
+    if (!db) return null;
+    return query(collection(db, 'users'), where('role', '==', 'staff'));
+  }, [db]);
+
+  const { data: staffList } = useCollection(staffQuery);
 
   const handleGenerateBrief = async () => {
     if (!formData.workType || !formData.keywords) {
@@ -147,8 +156,8 @@ export default function NewOrderPage() {
       <div className="grid md:grid-cols-2 gap-8">
         <Card className="shadow-sm border-2">
           <CardHeader>
-            <CardTitle>Customer Details</CardTitle>
-            <CardDescription>Basic information for order contact and billing.</CardDescription>
+            <CardTitle>Customer & Assignment</CardTitle>
+            <CardDescription>Order details and staff responsibility.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
@@ -202,6 +211,25 @@ export default function NewOrderPage() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+            <div className="space-y-2 pt-2">
+              <Label className="flex items-center gap-2">
+                <Users className="w-4 h-4 text-primary" /> Assign to Staff
+              </Label>
+              <Select onValueChange={(val) => setFormData({...formData, assignedStaffId: val})}>
+                <SelectTrigger className="border-primary/30">
+                  <SelectValue placeholder="Select Staff Member" />
+                </SelectTrigger>
+                <SelectContent>
+                  {staffList?.map((staff) => (
+                    <SelectItem key={staff.id} value={staff.id}>{staff.name}</SelectItem>
+                  ))}
+                  {(!staffList || staffList.length === 0) && (
+                    <SelectItem value="unassigned" disabled>No Staff Authorized Yet</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] text-muted-foreground">Assigned staff will see this in their workbench.</p>
             </div>
           </CardContent>
         </Card>
