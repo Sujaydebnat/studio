@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/componen
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Separator } from '@/components/ui/separator';
 import { Search, Printer, Package, Info, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
@@ -24,7 +25,7 @@ export default function PublicCatalog() {
     return query(collection(db, 'catalog'), orderBy('createdAt', 'desc'));
   }, [db]);
 
-  const { data: items, loading } = useCollection(catalogQuery);
+  const { data: items, isLoading: loading } = useCollection(catalogQuery);
 
   const filteredItems = useMemo(() => {
     if (!items) return [];
