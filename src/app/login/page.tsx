@@ -11,7 +11,6 @@ import { Printer, Loader2, LogIn, Chrome, ShieldAlert, UserCheck, KeySquare } fr
 import { 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
-  GoogleAuthProvider, 
   signInWithPopup,
   sendEmailVerification 
 } from 'firebase/auth';
@@ -37,29 +36,32 @@ export default function LoginPage() {
     }
   };
 
-  const handleAuthResult = async (user: any) => {
+  const handleAuthResult = async (user: any, userData: any) => {
     if (!db) return;
-    const userDocRef = doc(db, 'users', user.uid);
-    let userDoc = await getDoc(userDocRef);
-
-    if (!userDoc.exists()) {
-      const emailId = user.email.toLowerCase().replace(/[@.]/g, '_');
-      const emailDocRef = doc(db, 'users', emailId);
-      userDoc = await getDoc(emailDocRef);
+    
+    // Send verification email if not verified
+    if (!user.emailVerified) {
+      try {
+        await sendEmailVerification(user);
+        toast({ 
+          title: "Account Verification", 
+          description: `A verification link has been sent to ${user.email}. Please verify to continue.` 
+        });
+      } catch (e) {
+        console.error("Verification error", e);
+      }
     }
 
-    if (userDoc.exists()) {
-      const data = userDoc.data();
-      handleRoleRedirect(data.role);
-      toast({ title: "Welcome back!", description: `Portal: ${data.role.toUpperCase()}` });
-    } else {
-      toast({ 
-        variant: "destructive", 
-        title: "Unauthorized", 
-        description: "This account is not authorized. Please contact your Admin." 
-      });
-      await auth.signOut();
-    }
+    // Ensure the UID mapping is stored in Firestore
+    const userRef = doc(db, 'users', user.uid);
+    await setDoc(userRef, {
+      ...userData,
+      uid: user.uid,
+      lastLogin: new Date().toISOString()
+    }, { merge: true });
+
+    handleRoleRedirect(userData.role);
+    toast({ title: "Login Successful", description: `Portal: ${userData.role.toUpperCase()}` });
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -70,7 +72,7 @@ export default function LoginPage() {
     const cleanId = identifier.trim().toLowerCase();
 
     try {
-      // Find the user in Firestore using multi-identifier query
+      // Step 1: Find the user metadata in Firestore using multi-identifier query
       const usersRef = collection(db, 'users');
       const q = query(
         usersRef, 
@@ -84,53 +86,40 @@ export default function LoginPage() {
       const querySnapshot = await getDocs(q);
       
       if (querySnapshot.empty) {
-        toast({ variant: "destructive", title: "Login Failed", description: "Invalid credentials." });
+        toast({ variant: "destructive", title: "Login Failed", description: "This account is not registered. Contact Admin." });
         setLoading(false);
         return;
       }
 
       const userData = querySnapshot.docs[0].data();
       
-      // Verify password stored in Firestore (Note: for real production, use BCrypt or similar, but this follows the "pre-authorized" pattern)
+      // Step 2: Validate password (stored in Firestore for pre-authorized users)
       if (userData.password !== password) {
-        toast({ variant: "destructive", title: "Login Failed", description: "Incorrect password." });
+        toast({ variant: "destructive", title: "Login Failed", description: "Incorrect credentials." });
         setLoading(false);
         return;
       }
 
-      // If password matches, attempt Firebase Auth sign in using the email associated with the user
+      // Step 3: Firebase Auth Sign In or Auto-Activation
       try {
         const authResult = await signInWithEmailAndPassword(auth, userData.email, password);
-        await handleAuthResult(authResult.user);
+        await handleAuthResult(authResult.user, userData);
       } catch (authErr: any) {
-        // If Auth account doesn't exist yet, create it (Auto-Activation)
+        // Auto-Activation: If Firebase Auth account doesn't exist yet, create it using Firestore info
         if (authErr.code === 'auth/user-not-found' || authErr.code === 'auth/invalid-credential') {
           try {
             const newAuthResult = await createUserWithEmailAndPassword(auth, userData.email, password);
-            await sendEmailVerification(newAuthResult.user);
-            
-            const userRef = doc(db, 'users', newAuthResult.user.uid);
-            await setDoc(userRef, {
-              ...userData,
-              uid: newAuthResult.user.uid,
-              lastLogin: new Date().toISOString()
-            }, { merge: true });
-            
-            handleRoleRedirect(userData.role);
-            toast({ 
-              title: "Account Activated", 
-              description: `A verification email has been sent to ${userData.email}.` 
-            });
+            await handleAuthResult(newAuthResult.user, userData);
           } catch (createErr: any) {
             toast({ variant: "destructive", title: "Activation Failed", description: createErr.message });
           }
         } else {
-          toast({ variant: "destructive", title: "Auth Error", description: authErr.message });
+          toast({ variant: "destructive", title: "Authentication Error", description: authErr.message });
         }
       }
     } catch (error: any) {
       console.error(error);
-      toast({ variant: "destructive", title: "Error", description: "System connectivity issue." });
+      toast({ variant: "destructive", title: "System Error", description: "Check your internet connection." });
     } finally {
       setLoading(false);
     }
@@ -148,9 +137,9 @@ export default function LoginPage() {
       <Card className="w-full max-w-md shadow-2xl border-2">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-bold flex items-center justify-center gap-2">
-            <UserCheck className="w-6 h-6 text-primary" /> Internal Portal
+            <UserCheck className="w-6 h-6 text-primary" /> Personnel Portal
           </CardTitle>
-          <CardDescription>Email, Username, or Mobile No to login</CardDescription>
+          <CardDescription>Enter Username, Email, or Phone to login</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <form onSubmit={handleLogin} className="space-y-4">
@@ -162,14 +151,14 @@ export default function LoginPage() {
                   required 
                   value={identifier} 
                   onChange={(e) => setIdentifier(e.target.value)} 
-                  placeholder="Email, Username, or Phone" 
+                  placeholder="Username / Email / Mobile No" 
                   className="h-11 pl-10"
                 />
                 <KeySquare className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">Security Password</Label>
               <Input 
                 id="password"
                 type="password" 
@@ -181,27 +170,22 @@ export default function LoginPage() {
             </div>
             <Button type="submit" className="w-full h-12 text-lg font-bold shadow-md" disabled={loading}>
               {loading ? <Loader2 className="animate-spin w-5 h-5" /> : <LogIn className="mr-2 w-5 h-5" />}
-              {loading ? 'Authenticating...' : 'Enter Portal'}
+              {loading ? 'Authenticating...' : 'Login to Workspace'}
             </Button>
           </form>
           
           <div className="relative">
             <Separator />
             <span className="absolute left-1/2 -top-2.5 -translate-x-1/2 bg-background px-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-              Security
+              Role-Based Access
             </span>
           </div>
           
           <p className="text-[10px] text-center text-muted-foreground italic">
-            Admins: Use your authorized credentials. Staff: Use info assigned by Admin.
+            Admins have full shop control. Staff accounts are pre-authorized by Administration.
           </p>
         </CardContent>
       </Card>
-      
-      <div className="mt-8 flex items-center gap-2 text-muted-foreground">
-        <ShieldAlert className="w-4 h-4" />
-        <p className="text-xs font-medium">Authorized personnel only.</p>
-      </div>
     </div>
   );
 }

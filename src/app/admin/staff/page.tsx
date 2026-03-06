@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { UserPlus, Shield, Loader2, Trash2, Key, AlertCircle, Pencil, X, Phone, User as UserIcon, Camera } from 'lucide-react';
+import { UserPlus, Shield, Loader2, Trash2, Key, Pencil, X, Phone, User as UserIcon, Camera } from 'lucide-react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, doc, setDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -38,7 +38,7 @@ export default function StaffManagement() {
     return collection(db, 'users');
   }, [db]);
 
-  const { data: users, loading: loadingUsers } = useCollection(usersQuery);
+  const { data: users, isLoading: loadingUsers } = useCollection(usersQuery);
 
   const handleCreateOrUpdateStaff = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,6 +55,7 @@ export default function StaffManagement() {
 
     setLoading(true);
     try {
+      // If editing, keep the same ID. If new, create ID from email.
       const targetId = editMode && editingUserId ? editingUserId : formData.email.toLowerCase().replace(/[@.]/g, '_');
       const userRef = doc(db, 'users', targetId);
       
@@ -75,13 +76,13 @@ export default function StaffManagement() {
 
       toast({ 
         title: editMode ? "Staff Updated" : "Staff Authorized", 
-        description: `${formData.name} account has been ${editMode ? 'updated' : 'created'} successfully.` 
+        description: `${formData.name} account is now active.` 
       });
       
       resetForm();
     } catch (error: any) {
       console.error(error);
-      toast({ variant: "destructive", title: "Operation Failed", description: "Could not save staff data. Check permissions." });
+      toast({ variant: "destructive", title: "Operation Failed", description: "Check permissions or network." });
     } finally {
       setLoading(false);
     }
@@ -108,17 +109,12 @@ export default function StaffManagement() {
   };
 
   const handleDelete = (id: string, name: string) => {
-    if (!db) return;
-    if (!confirm(`Are you sure you want to remove ${name}'s authorization? They will no longer be able to login.`)) return;
+    if (!db || !confirm(`Remove ${name}'s authorization? They will lose access immediately.`)) return;
     
     const userRef = doc(db, 'users', id);
-    
     deleteDoc(userRef)
       .then(() => {
-        toast({ 
-          title: "Authorization Removed", 
-          description: `${name} has been deleted from the access list.` 
-        });
+        toast({ title: "Authorization Removed" });
         if (editingUserId === id) resetForm();
       })
       .catch(async (error) => {
@@ -132,130 +128,83 @@ export default function StaffManagement() {
 
   return (
     <div className="space-y-8">
-      <div className="flex justify-between items-start">
-        <div>
-          <h2 className="text-3xl font-bold font-headline text-primary">Staff Management</h2>
-          <p className="text-muted-foreground">Manage internal team access, credentials, and identity.</p>
-        </div>
+      <div>
+        <h2 className="text-3xl font-bold font-headline text-primary">Staff Management</h2>
+        <p className="text-muted-foreground">Manage internal team IDs, passwords, and access roles.</p>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-8">
-        <Card className={`lg:col-span-1 h-fit shadow-lg border-2 ${editMode ? 'border-primary' : ''}`}>
+        <Card className={`lg:col-span-1 h-fit shadow-lg border-2 ${editMode ? 'border-primary' : 'border-border'}`}>
           <CardHeader>
             <div className="flex justify-between items-center">
-              <CardTitle className="flex items-center gap-2">
-                {editMode ? <Pencil className="w-5 h-5 text-primary" /> : <UserPlus className="w-5 h-5 text-primary" />}
-                {editMode ? 'Edit Staff ID' : 'Create Staff ID'}
+              <CardTitle className="text-xl flex items-center gap-2">
+                {editMode ? <Pencil className="w-5 h-5" /> : <UserPlus className="w-5 h-5" />}
+                {editMode ? 'Edit Profile' : 'New Authorization'}
               </CardTitle>
-              {editMode && (
-                <Button variant="ghost" size="icon" onClick={resetForm}>
-                  <X className="w-4 h-4" />
-                </Button>
-              )}
+              {editMode && <Button variant="ghost" size="icon" onClick={resetForm}><X className="w-4 h-4" /></Button>}
             </div>
-            <CardDescription>
-              Assign login credentials and personal info.
-            </CardDescription>
+            <CardDescription>Assign credentials and identity.</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleCreateOrUpdateStaff} className="space-y-4">
-              <div className="space-y-2">
+              <div className="space-y-1">
                 <Label>Full Name</Label>
-                <Input 
-                  required 
-                  value={formData.name}
-                  onChange={(e) => setFormData({...formData, name: e.target.value})}
-                  placeholder="John Doe"
-                />
+                <Input required value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} placeholder="e.g. Rahul Dev" />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
                   <Label>Username</Label>
                   <div className="relative">
-                    <Input 
-                      required 
-                      value={formData.username}
-                      onChange={(e) => setFormData({...formData, username: e.target.value})}
-                      placeholder="johndoe123"
-                      className="pl-9"
-                    />
+                    <Input required value={formData.username} onChange={(e) => setFormData({...formData, username: e.target.value})} className="pl-9" placeholder="rahul123" />
                     <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Mobile No</Label>
+                <div className="space-y-1">
+                  <Label>Phone No</Label>
                   <div className="relative">
-                    <Input 
-                      required 
-                      value={formData.phone}
-                      onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                      placeholder="01700000000"
-                      className="pl-9"
-                    />
+                    <Input required value={formData.phone} onChange={(e) => setFormData({...formData, phone: e.target.value})} className="pl-9" placeholder="01XXX..." />
                     <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   </div>
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label>Email Address</Label>
-                <Input 
-                  required 
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({...formData, email: e.target.value})}
-                  placeholder="staff@printflow.com"
-                />
+              <div className="space-y-1">
+                <Label>Work Email</Label>
+                <Input required type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} placeholder="staff@printflow.com" disabled={editMode} />
               </div>
-              <div className="space-y-2">
-                <Label>Photo URL</Label>
+              <div className="space-y-1">
+                <Label>Photo URL (Optional)</Label>
                 <div className="relative">
-                  <Input 
-                    value={formData.photoUrl}
-                    onChange={(e) => setFormData({...formData, photoUrl: e.target.value})}
-                    placeholder="https://image-link.com/photo.jpg"
-                    className="pl-9"
-                  />
+                  <Input value={formData.photoUrl} onChange={(e) => setFormData({...formData, photoUrl: e.target.value})} className="pl-9" placeholder="https://..." />
                   <Camera className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 </div>
               </div>
-              <div className="space-y-2">
+              <div className="space-y-1">
                 <Label>Portal Password</Label>
                 <div className="relative">
-                  <Input 
-                    required 
-                    type="text"
-                    value={formData.password}
-                    onChange={(e) => setFormData({...formData, password: e.target.value})}
-                    placeholder="Set login password"
-                    className="pr-10"
-                  />
+                  <Input required type="text" value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})} className="pr-10" />
                   <Key className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label>Role</Label>
+              <div className="space-y-1">
+                <Label>Access Role</Label>
                 <Select value={formData.role} onValueChange={(val) => setFormData({...formData, role: val})}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="admin">Admin (Full Control)</SelectItem>
-                    <SelectItem value="staff">Staff (Production Only)</SelectItem>
+                    <SelectItem value="staff">Staff (Production)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              <Button className="w-full gap-2 h-11 font-bold" disabled={loading}>
+              <Button className="w-full gap-2 font-bold" disabled={loading}>
                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Shield className="w-4 h-4" />}
-                {editMode ? 'Update Account' : 'Authorize & Save'}
+                {editMode ? 'Update Staff Member' : 'Authorize Staff'}
               </Button>
             </form>
           </CardContent>
         </Card>
 
         <Card className="lg:col-span-2 shadow-md">
-          <CardHeader>
-            <CardTitle>Team Authorization List</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle>Active Authorization List</CardTitle></CardHeader>
           <CardContent>
             {loadingUsers ? (
               <div className="flex justify-center p-8"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
@@ -264,7 +213,7 @@ export default function StaffManagement() {
                 <TableHeader>
                   <TableRow className="bg-muted/50">
                     <TableHead>Profile</TableHead>
-                    <TableHead>Contact Info</TableHead>
+                    <TableHead>Contact</TableHead>
                     <TableHead>Username</TableHead>
                     <TableHead>Password</TableHead>
                     <TableHead>Role</TableHead>
@@ -272,44 +221,45 @@ export default function StaffManagement() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {users?.map((user) => (
-                    <TableRow key={user.id} className={`hover:bg-muted/30 ${editingUserId === user.id ? 'bg-primary/5' : ''}`}>
+                  {users?.map((u) => (
+                    <TableRow key={u.id} className={editingUserId === u.id ? 'bg-primary/5' : ''}>
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <Avatar className="w-8 h-8">
-                            <AvatarImage src={user.photoUrl} alt={user.name} />
-                            <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
+                            <AvatarImage src={u.photoUrl} alt={u.name} />
+                            <AvatarFallback>{u.name.charAt(0)}</AvatarFallback>
                           </Avatar>
-                          <span className="font-bold text-sm">{user.name}</span>
+                          <span className="font-bold text-sm">{u.name}</span>
                         </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-col text-xs">
-                          <span className="text-muted-foreground">{user.email}</span>
-                          <span className="font-medium">{user.phone || 'N/A'}</span>
+                          <span className="text-muted-foreground">{u.email}</span>
+                          <span className="font-medium">{u.phone || 'No Phone'}</span>
                         </div>
                       </TableCell>
-                      <TableCell className="text-xs font-mono">@{user.username || 'n/a'}</TableCell>
-                      <TableCell className="font-mono text-xs text-muted-foreground">{user.password}</TableCell>
+                      <TableCell className="text-xs font-mono">@{u.username}</TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground">{u.password}</TableCell>
                       <TableCell>
-                        <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
-                          user.role === 'admin' ? 'bg-primary/10 text-primary' : 'bg-accent/10 text-accent-foreground'
-                        }`}>
-                          {user.role}
-                        </span>
+                        <Badge variant={u.role === 'admin' ? 'default' : 'secondary'} className="text-[10px] uppercase">
+                          {u.role}
+                        </Badge>
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button variant="ghost" size="icon" onClick={() => handleEdit(user)} className="h-8 w-8 hover:bg-primary/10 group">
-                            <Pencil className="w-4 h-4 text-muted-foreground group-hover:text-primary" />
+                        <div className="flex justify-end gap-1">
+                          <Button variant="ghost" size="icon" onClick={() => handleEdit(u)} className="h-8 w-8 hover:text-primary">
+                            <Pencil className="w-4 h-4" />
                           </Button>
-                          <Button variant="ghost" size="icon" onClick={() => handleDelete(user.id, user.name)} className="h-8 w-8 hover:bg-destructive/10 group">
-                            <Trash2 className="w-4 h-4 text-muted-foreground group-hover:text-destructive" />
+                          <Button variant="ghost" size="icon" onClick={() => handleDelete(u.id, u.name)} className="h-8 w-8 hover:text-destructive">
+                            <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>
                       </TableCell>
                     </TableRow>
                   ))}
+                  {(!users || users.length === 0) && (
+                    <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground italic">No staff authorized yet.</TableCell></TableRow>
+                  )}
                 </TableBody>
               </Table>
             )}
