@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "User": {
@@ -28,13 +29,18 @@
           "type": "string",
           "enum": ["GIFT", "FLEX", "DIGITAL PAPER", "PHOTOPAPER", "GUM PAPER", "LOGO", "PLATE", "REDIEM", "VINAIL", "DTF", "UV"]
         },
+        "subWorkType": {
+          "type": "string",
+          "enum": ["VISITING CARD", "TABLE MENU CARD", "HAND MENU CARD", "PVC CARD"],
+          "description": "Specific sub-category for DIGITAL PAPER"
+        },
         "status": { "type": "string" },
-        "width": { "type": "string", "description": "Width of the print project" },
-        "height": { "type": "string", "description": "Height of the print project" },
-        "unit": { "type": "string", "description": "Unit of measurement (Inches, mm, cm, ft)" },
-        "quantity": { "type": "string", "description": "Number of pieces requested" },
-        "additionalDetails": { "type": "string", "description": "Special instructions from the customer" },
-        "referenceImages": { "type": "array", "items": { "type": "string" }, "description": "URLs or Base64 of reference images/documents" },
+        "width": { "type": "string" },
+        "height": { "type": "string" },
+        "unit": { "type": "string" },
+        "quantity": { "type": "string" },
+        "additionalDetails": { "type": "string" },
+        "referenceImages": { "type": "array", "items": { "type": "string" } },
         "adminId": { "type": "string" },
         "assignedStaffId": { "type": "string" },
         "priority": { "type": "string" },

@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useRef } from 'react';
@@ -7,8 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Sparkles, Loader2, ArrowLeft, Save, HelpCircle, Users, ImageIcon, Plus, Trash2, Camera, Upload, FileText, Ruler } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Sparkles, Loader2, ArrowLeft, Save, ImageIcon, Upload, FileText, Ruler } from 'lucide-react';
 import { aiDesignBriefTool, type AIDesignBriefToolOutput } from '@/ai/flows/ai-design-brief-tool-flow';
 import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, where } from 'firebase/firestore';
@@ -31,6 +32,7 @@ export default function NewOrderPage() {
     customerName: '',
     phone: '',
     workType: '',
+    subWorkType: '',
     keywords: '',
     priority: 'Normal',
     assignedStaffId: '',
@@ -92,7 +94,7 @@ export default function NewOrderPage() {
     setLoadingAI(true);
     try {
       const brief = await aiDesignBriefTool({
-        projectType: formData.workType,
+        projectType: formData.workType + (formData.subWorkType ? ` (${formData.subWorkType})` : ''),
         keywords: formData.keywords,
       });
       setDesignBrief(brief);
@@ -175,10 +177,10 @@ export default function NewOrderPage() {
                   <Input value={formData.phone} onChange={(e) => setFormData({...formData, phone: e.target.value})} />
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Work Type</Label>
-                  <Select onValueChange={(val) => setFormData({...formData, workType: val})}>
+                  <Select onValueChange={(val) => setFormData({...formData, workType: val, subWorkType: ''})}>
                     <SelectTrigger><SelectValue placeholder="Select Type" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="GIFT">GIFT</SelectItem>
@@ -195,6 +197,22 @@ export default function NewOrderPage() {
                     </SelectContent>
                   </Select>
                 </div>
+                {formData.workType === 'DIGITAL PAPER' && (
+                  <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                    <Label>Sub Work Type</Label>
+                    <Select onValueChange={(val) => setFormData({...formData, subWorkType: val})}>
+                      <SelectTrigger><SelectValue placeholder="Select Sub Type" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="VISITING CARD">VISITING CARD</SelectItem>
+                        <SelectItem value="TABLE MENU CARD">TABLE MENU CARD</SelectItem>
+                        <SelectItem value="HAND MENU CARD">HAND MENU CARD</SelectItem>
+                        <SelectItem value="PVC CARD">PVC CARD</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Priority</Label>
                   <Select onValueChange={(val) => setFormData({...formData, priority: val})} defaultValue="Normal">
@@ -289,7 +307,7 @@ export default function NewOrderPage() {
                         <span className="text-[8px] text-center">Document</span>
                       </div>
                     )}
-                    <button onClick={() => removeRefFile(i)} className="absolute top-1 right-1 bg-destructive p-1 rounded-full text-white opacity-0 group-hover:opacity-100"><Trash2 className="w-3 h-3" /></button>
+                    <button onClick={() => removeRefFile(i)} className="absolute top-1 right-1 bg-destructive p-1 rounded-full text-white opacity-0 group-hover:opacity-100"><FileText className="w-3 h-3" /></button>
                   </div>
                 ))}
               </div>

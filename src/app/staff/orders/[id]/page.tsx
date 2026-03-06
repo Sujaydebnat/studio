@@ -91,8 +91,19 @@ export default function StaffOrderDetail() {
       <div className="grid lg:grid-cols-12 gap-6">
         <div className="lg:col-span-4 space-y-6">
           <Card className="border-accent/20">
-            <CardHeader className="bg-accent/5"><CardTitle className="text-sm uppercase flex items-center gap-2"><Ruler className="w-4 h-4 text-accent" /> Specs</CardTitle></CardHeader>
+            <CardHeader className="bg-accent/5">
+              <CardTitle className="text-sm uppercase flex items-center gap-2">
+                <Ruler className="w-4 h-4 text-accent" /> Specs
+              </CardTitle>
+            </CardHeader>
             <CardContent className="space-y-4 pt-4">
+              <div className="space-y-1">
+                <Label className="text-[10px] uppercase font-bold">Work Type</Label>
+                <p className="font-extrabold text-primary text-sm">
+                  {order.workType} {order.subWorkType ? `(${order.subWorkType})` : ''}
+                </p>
+              </div>
+              <Separator />
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="text-[10px] uppercase font-bold">Size (W × H)</Label>
@@ -105,7 +116,10 @@ export default function StaffOrderDetail() {
                 <div><Label className="text-[10px] uppercase font-bold">Qty (Pis)</Label><p className="font-extrabold text-primary">{order.quantity || '1'}</p></div>
               </div>
               <Separator />
-              <p className="text-xs font-medium bg-muted p-2 rounded">{order.additionalDetails || 'No special instructions.'}</p>
+              <div className="space-y-1">
+                <Label className="text-[10px] uppercase font-bold">Instructions</Label>
+                <p className="text-xs font-medium bg-muted p-2 rounded">{order.additionalDetails || 'No special instructions.'}</p>
+              </div>
             </CardContent>
           </Card>
 
