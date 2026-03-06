@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useRef } from 'react';
@@ -109,7 +108,7 @@ export default function NewOrderPage() {
     if (!db || !user) return;
 
     if (!formData.customerName || !formData.phone || !formData.workType) {
-      toast({ variant: "destructive", title: "Missing Details" });
+      toast({ variant: "destructive", title: "Missing Details", description: "Customer name, phone, and work type are required." });
       return;
     }
 
@@ -180,13 +179,19 @@ export default function NewOrderPage() {
                 <div className="space-y-2">
                   <Label>Work Type</Label>
                   <Select onValueChange={(val) => setFormData({...formData, workType: val})}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder="Select Type" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Banner">Banner</SelectItem>
-                      <SelectItem value="Visiting Card">Visiting Card</SelectItem>
-                      <SelectItem value="Poster">Poster</SelectItem>
-                      <SelectItem value="Flex Print">Flex Print</SelectItem>
-                      <SelectItem value="Logo Design">Logo Design</SelectItem>
+                      <SelectItem value="GIFT">GIFT</SelectItem>
+                      <SelectItem value="FLEX">FLEX</SelectItem>
+                      <SelectItem value="DIGITAL PAPER">DIGITAL PAPER</SelectItem>
+                      <SelectItem value="PHOTOPAPER">PHOTOPAPER</SelectItem>
+                      <SelectItem value="GUM PAPER">GUM PAPER</SelectItem>
+                      <SelectItem value="LOGO">LOGO</SelectItem>
+                      <SelectItem value="PLATE">PLATE</SelectItem>
+                      <SelectItem value="REDIEM">REDIEM</SelectItem>
+                      <SelectItem value="VINAIL">VINAIL</SelectItem>
+                      <SelectItem value="DTF">DTF</SelectItem>
+                      <SelectItem value="UV">UV</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

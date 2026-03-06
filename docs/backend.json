@@ -1,4 +1,3 @@
-
 {
   "entities": {
     "User": {
@@ -25,7 +24,10 @@
         "id": { "type": "string" },
         "customerName": { "type": "string" },
         "phone": { "type": "string" },
-        "workType": { "type": "string" },
+        "workType": { 
+          "type": "string",
+          "enum": ["GIFT", "FLEX", "DIGITAL PAPER", "PHOTOPAPER", "GUM PAPER", "LOGO", "PLATE", "REDIEM", "VINAIL", "DTF", "UV"]
+        },
         "status": { "type": "string" },
         "width": { "type": "string", "description": "Width of the print project" },
         "height": { "type": "string", "description": "Height of the print project" },
