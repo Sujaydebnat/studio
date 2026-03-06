@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { UserPlus, Shield, Loader2, Trash2, Pencil, Phone, User as UserIcon, Camera, AlertTriangle, Upload, PlusCircle, ArrowLeft } from 'lucide-react';
+import { UserPlus, Shield, Loader2, Trash2, Pencil, Phone, User as UserIcon, Camera, AlertTriangle, Upload, PlusCircle, ArrowLeft, Lock } from 'lucide-react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, doc, setDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -47,6 +47,7 @@ export default function StaffManagement() {
     email: '',
     phone: '',
     photoUrl: '',
+    password: '',
     role: 'staff'
   });
 
@@ -84,7 +85,7 @@ export default function StaffManagement() {
         email: formData.email.toLowerCase().trim(),
         phone: formData.phone.trim(),
         photoUrl: formData.photoUrl.trim(),
-        password: '123456', // Constant default password for no-security setup
+        password: formData.password || '123456',
         role: formData.role,
         updatedAt: serverTimestamp(),
         ...(editMode ? {} : { createdAt: serverTimestamp() })
@@ -116,6 +117,7 @@ export default function StaffManagement() {
       email: user.email,
       phone: user.phone || '',
       photoUrl: user.photoUrl || '',
+      password: user.password || '',
       role: user.role || 'staff'
     });
   };
@@ -123,7 +125,7 @@ export default function StaffManagement() {
   const resetForm = () => {
     setEditMode(false);
     setEditingUserId(null);
-    setFormData({ name: '', username: '', email: '', phone: '', photoUrl: '', role: 'staff' });
+    setFormData({ name: '', username: '', email: '', phone: '', photoUrl: '', password: '', role: 'staff' });
     setIsFormVisible(false);
   };
 
@@ -161,7 +163,7 @@ export default function StaffManagement() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <h2 className="text-3xl font-bold font-headline text-primary">Staff Management</h2>
-            <p className="text-muted-foreground">Manage internal team IDs and access roles.</p>
+            <p className="text-muted-foreground">Manage internal team access and roles.</p>
           </div>
           <Button onClick={() => setIsFormVisible(true)} className="gap-2 h-11 px-6 font-bold shadow-md">
             <PlusCircle className="w-5 h-5" />
@@ -238,15 +240,24 @@ export default function StaffManagement() {
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label>Access Role</Label>
-                    <Select value={formData.role} onValueChange={(val) => setFormData({...formData, role: val})}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="admin">Admin (Full Control)</SelectItem>
-                        <SelectItem value="staff">Staff (Production Only)</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  <div className="grid md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label>Password</Label>
+                      <div className="relative">
+                        <Input required type="password" value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})} className="pl-9" placeholder="••••••••" />
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Access Role</Label>
+                      <Select value={formData.role} onValueChange={(val) => setFormData({...formData, role: val})}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="admin">Admin (Full Control)</SelectItem>
+                          <SelectItem value="staff">Staff (Production Only)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
 
                   <div className="pt-4 flex gap-3">

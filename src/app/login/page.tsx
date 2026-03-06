@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Printer, Loader2, LogIn, UserCheck, User as UserIcon } from 'lucide-react';
+import { Printer, Loader2, LogIn, UserCheck, User as UserIcon, Lock } from 'lucide-react';
 import { 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword,
@@ -27,6 +27,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [identifier, setIdentifier] = useState(''); // Email, username, or phone
+  const [password, setPassword] = useState('');
 
   const handleRoleRedirect = (role: string) => {
     if (role === 'admin') {
@@ -113,21 +114,22 @@ export default function LoginPage() {
       }
 
       const userData = querySnapshot.docs[0].data();
-      const userPassword = userData.password || '123456'; // Default password if not set
+      const userPassword = password || userData.password || '123456';
 
       try {
         const authResult = await signInWithEmailAndPassword(auth, userData.email, userPassword);
         await handleAuthResult(authResult.user, userData);
       } catch (authErr: any) {
         if (authErr.code === 'auth/user-not-found' || authErr.code === 'auth/invalid-credential' || authErr.code === 'auth/invalid-login-credentials') {
+          // Fallback if password mismatch or auth user doesn't exist but Firestore entry exists
           try {
             const newAuthResult = await createUserWithEmailAndPassword(auth, userData.email, userPassword);
             await handleAuthResult(newAuthResult.user, userData);
           } catch (createErr: any) {
-            toast({ variant: "destructive", title: "Entry Failed", description: "System could not authorize entry." });
+            toast({ variant: "destructive", title: "Access Denied", description: "Invalid credentials." });
           }
         } else {
-          toast({ variant: "destructive", title: "Error", description: authErr.message });
+          toast({ variant: "destructive", title: "Error", description: "Authentication failed. Check your password." });
         }
       }
     } catch (error: any) {
@@ -152,7 +154,7 @@ export default function LoginPage() {
           <CardTitle className="text-2xl font-bold flex items-center justify-center gap-2">
             <UserCheck className="w-6 h-6 text-primary" /> Personnel Portal
           </CardTitle>
-          <CardDescription>Enter your ID to access workspace</CardDescription>
+          <CardDescription>Enter your ID and Password to access workspace</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <form onSubmit={handleLogin} className="space-y-4">
@@ -168,6 +170,21 @@ export default function LoginPage() {
                   className="h-12 pl-10"
                 />
                 <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <div className="relative">
+                <Input 
+                  id="password"
+                  type="password"
+                  required 
+                  value={password} 
+                  onChange={(e) => setPassword(e.target.value)} 
+                  placeholder="••••••••" 
+                  className="h-12 pl-10"
+                />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               </div>
             </div>
             <Button type="submit" className="w-full h-12 text-lg font-bold shadow-md" disabled={loading || googleLoading}>
