@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { UserPlus, Shield, Loader2, Trash2, Key, AlertCircle } from 'lucide-react';
+import { UserPlus, Shield, Loader2, Trash2, Key, AlertCircle, Pencil, X } from 'lucide-react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, doc, setDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -19,6 +19,9 @@ export default function StaffManagement() {
   const db = useFirestore();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -33,7 +36,7 @@ export default function StaffManagement() {
 
   const { data: users, loading: loadingUsers } = useCollection(usersQuery);
 
-  const handleCreateStaff = async (e: React.FormEvent) => {
+  const handleCreateOrUpdateStaff = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!db) return;
 
@@ -48,32 +51,51 @@ export default function StaffManagement() {
 
     setLoading(true);
     try {
-      // Use email as ID (sanitized)
-      const tempId = formData.email.toLowerCase().replace(/[@.]/g, '_');
-      const userRef = doc(db, 'users', tempId);
+      // If editing, use existing ID, else create from email
+      const targetId = editMode && editingUserId ? editingUserId : formData.email.toLowerCase().replace(/[@.]/g, '_');
+      const userRef = doc(db, 'users', targetId);
       
       const userData = {
-        id: tempId,
+        id: targetId,
         name: formData.name,
         email: formData.email.toLowerCase(),
-        password: formData.password, // Stored for manual verification logic in login
+        password: formData.password,
         role: formData.role,
-        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        ...(editMode ? {} : { createdAt: serverTimestamp() })
       };
 
-      await setDoc(userRef, userData);
+      await setDoc(userRef, userData, { merge: true });
 
       toast({ 
-        title: "Staff Authorized", 
-        description: `${formData.name} can now login with the assigned credentials.` 
+        title: editMode ? "Staff Updated" : "Staff Authorized", 
+        description: `${formData.name} account has been ${editMode ? 'updated' : 'created'} successfully.` 
       });
-      setFormData({ name: '', email: '', password: '', role: 'staff' });
+      
+      resetForm();
     } catch (error: any) {
       console.error(error);
-      toast({ variant: "destructive", title: "Error", description: "Could not authorize staff. Check your permissions." });
+      toast({ variant: "destructive", title: "Operation Failed", description: "Could not save staff data. Check permissions." });
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleEdit = (user: any) => {
+    setEditMode(true);
+    setEditingUserId(user.id);
+    setFormData({
+      name: user.name,
+      email: user.email,
+      password: user.password || '',
+      role: user.role || 'staff'
+    });
+  };
+
+  const resetForm = () => {
+    setEditMode(false);
+    setEditingUserId(null);
+    setFormData({ name: '', email: '', password: '', role: 'staff' });
   };
 
   const handleDelete = (id: string, name: string) => {
@@ -88,6 +110,7 @@ export default function StaffManagement() {
           title: "Authorization Removed", 
           description: `${name} has been deleted from the access list.` 
         });
+        if (editingUserId === id) resetForm();
       })
       .catch(async (error) => {
         const permissionError = new FirestorePermissionError({
@@ -100,21 +123,33 @@ export default function StaffManagement() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h2 className="text-3xl font-bold font-headline text-primary">Staff Management</h2>
-        <p className="text-muted-foreground">Admin Portal: Authorize staff accounts and manage access.</p>
+      <div className="flex justify-between items-start">
+        <div>
+          <h2 className="text-3xl font-bold font-headline text-primary">Staff Management</h2>
+          <p className="text-muted-foreground">Admin Portal: Manage team access and permissions.</p>
+        </div>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-8">
-        <Card className="lg:col-span-1 h-fit shadow-lg border-2">
+        <Card className={`lg:col-span-1 h-fit shadow-lg border-2 ${editMode ? 'border-primary' : ''}`}>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <UserPlus className="w-5 h-5 text-primary" /> Create Staff ID
-            </CardTitle>
-            <CardDescription>Assign an email and password for internal login.</CardDescription>
+            <div className="flex justify-between items-center">
+              <CardTitle className="flex items-center gap-2">
+                {editMode ? <Pencil className="w-5 h-5 text-primary" /> : <UserPlus className="w-5 h-5 text-primary" />}
+                {editMode ? 'Edit Staff ID' : 'Create Staff ID'}
+              </CardTitle>
+              {editMode && (
+                <Button variant="ghost" size="icon" onClick={resetForm}>
+                  <X className="w-4 h-4" />
+                </Button>
+              )}
+            </div>
+            <CardDescription>
+              {editMode ? `Updating access for ${formData.name}` : 'Assign an email and password for internal login.'}
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleCreateStaff} className="space-y-4">
+            <form onSubmit={handleCreateOrUpdateStaff} className="space-y-4">
               <div className="space-y-2">
                 <Label>Full Name</Label>
                 <Input 
@@ -132,10 +167,11 @@ export default function StaffManagement() {
                   value={formData.email}
                   onChange={(e) => setFormData({...formData, email: e.target.value})}
                   placeholder="staff@printflow.com"
+                  disabled={editMode} // Email usually acts as key, disable editing for consistency
                 />
               </div>
               <div className="space-y-2">
-                <Label>Initial Password</Label>
+                <Label>Password</Label>
                 <div className="relative">
                   <Input 
                     required 
@@ -147,7 +183,7 @@ export default function StaffManagement() {
                   />
                   <Key className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 </div>
-                <p className="text-[10px] text-muted-foreground italic">Provide this to the staff member for their portal entry.</p>
+                <p className="text-[10px] text-muted-foreground italic">Update password for staff entry.</p>
               </div>
               <div className="space-y-2">
                 <Label>Role</Label>
@@ -163,8 +199,13 @@ export default function StaffManagement() {
               </div>
               <Button className="w-full gap-2 h-11 font-bold" disabled={loading}>
                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Shield className="w-4 h-4" />}
-                Authorize & Save
+                {editMode ? 'Update Account' : 'Authorize & Save'}
               </Button>
+              {editMode && (
+                <Button type="button" variant="outline" className="w-full" onClick={resetForm}>
+                  Cancel Editing
+                </Button>
+              )}
             </form>
           </CardContent>
         </Card>
@@ -182,14 +223,14 @@ export default function StaffManagement() {
                   <TableRow className="bg-muted/50">
                     <TableHead>Name</TableHead>
                     <TableHead>Email / Login</TableHead>
-                    <TableHead>Initial Pwd</TableHead>
+                    <TableHead>Password</TableHead>
                     <TableHead>Role</TableHead>
                     <TableHead className="text-right">Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {users?.map((user) => (
-                    <TableRow key={user.id} className="hover:bg-muted/30">
+                    <TableRow key={user.id} className={`hover:bg-muted/30 ${editingUserId === user.id ? 'bg-primary/5' : ''}`}>
                       <TableCell className="font-bold">{user.name}</TableCell>
                       <TableCell className="text-sm">{user.email}</TableCell>
                       <TableCell className="font-mono text-xs text-muted-foreground">{user.password}</TableCell>
@@ -201,14 +242,24 @@ export default function StaffManagement() {
                         </span>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          onClick={() => handleDelete(user.id, user.name)} 
-                          className="hover:bg-destructive/10 group"
-                        >
-                          <Trash2 className="w-4 h-4 text-muted-foreground group-hover:text-destructive" />
-                        </Button>
+                        <div className="flex justify-end gap-2">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => handleEdit(user)}
+                            className="hover:bg-primary/10 group"
+                          >
+                            <Pencil className="w-4 h-4 text-muted-foreground group-hover:text-primary" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => handleDelete(user.id, user.name)} 
+                            className="hover:bg-destructive/10 group"
+                          >
+                            <Trash2 className="w-4 h-4 text-muted-foreground group-hover:text-destructive" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -225,7 +276,7 @@ export default function StaffManagement() {
             <div className="mt-4 p-4 bg-muted/30 rounded-lg flex items-start gap-3 border">
               <AlertCircle className="w-4 h-4 text-muted-foreground mt-0.5" />
               <p className="text-[10px] text-muted-foreground leading-relaxed">
-                Deleting a user from this list will revoke their access immediately. If they have already signed in with Google, their account will remain in Firebase Auth but they will be denied entry to the portals.
+                Admins can update credentials instantly. Staff will use the updated password on their next login session.
               </p>
             </div>
           </CardContent>
