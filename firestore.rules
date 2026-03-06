@@ -2,29 +2,45 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Check if user is specifically an admin
+    
+    // Safety check if user is an admin
     function isAdmin() {
-      return request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return request.auth != null && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // Allow staff/admin to check authorization list during login logic
+    // Users collection: Necessary for login role detection and Staff Management
     match /users/{userId} {
-      allow read: if true; 
-      // Only Admin can create or delete staff authorizations
-      allow write, delete: if isAdmin() || !exists(/databases/$(database)/documents/users/$(userId)); 
+      // Allow all authenticated users to read profiles (needed for login/redirection logic)
+      allow read: if request.auth != null;
+      
+      // Allow a user to create/update their own profile (initial activation)
+      // Or allow Admin to manage all staff profiles
+      allow write: if isAdmin() || (request.auth != null && request.auth.uid == userId);
+      allow delete: if isAdmin();
     }
     
-    // Orders
+    // Orders collection
     match /orders/{orderId} {
-      allow read: if true; 
-      // Only Admin can place orders
+      // Allow public to GET a single order for tracking (must know the ID)
+      allow get: if true;
+      
+      // Allow authenticated users (Admin/Staff) to LIST orders for their dashboards
+      allow list: if request.auth != null;
+      
+      // Only Admin can create new orders
       allow create: if isAdmin();
-      // Allow updates for both admin and staff (notes/status)
+      
+      // Allow Admins and assigned Staff to update orders (notes, status, previews)
       allow update: if request.auth != null;
+      
+      // Only Admin can delete orders
       allow delete: if isAdmin();
       
-      // Updates / Messages
+      // Updates / Messages sub-collection
       match /updates/{updateId} {
+        // Authenticated users can read and write updates for communication
         allow read, write: if request.auth != null;
       }
     }
