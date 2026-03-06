@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { UserPlus, Shield, Loader2, Trash2, Key, Pencil, X, Phone, User as UserIcon, Camera, AlertTriangle, Upload } from 'lucide-react';
+import { UserPlus, Shield, Loader2, Trash2, Key, Pencil, X, Phone, User as UserIcon, Camera, AlertTriangle, Upload, PlusCircle } from 'lucide-react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, doc, setDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -17,6 +17,7 @@ import { FirestorePermissionError } from '@/firebase/errors';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { CameraCapture } from '@/components/CameraCapture';
+import { cn } from '@/lib/utils';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -38,6 +39,7 @@ export default function StaffManagement() {
   const [staffToDelete, setStaffToDelete] = useState<{id: string, name: string} | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [isFormVisible, setIsFormVisible] = useState(false);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -117,6 +119,7 @@ export default function StaffManagement() {
   const handleEdit = (user: any) => {
     setEditMode(true);
     setEditingUserId(user.id);
+    setIsFormVisible(true);
     setFormData({
       name: user.name,
       username: user.username || '',
@@ -133,6 +136,7 @@ export default function StaffManagement() {
     setEditMode(false);
     setEditingUserId(null);
     setFormData({ name: '', username: '', email: '', phone: '', photoUrl: '', password: '', role: 'staff' });
+    setIsFormVisible(false);
   };
 
   const confirmDelete = (id: string, name: string) => {
@@ -165,114 +169,128 @@ export default function StaffManagement() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h2 className="text-3xl font-bold font-headline text-primary">Staff Management</h2>
-        <p className="text-muted-foreground">Manage internal team IDs, passwords, and access roles.</p>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h2 className="text-3xl font-bold font-headline text-primary">Staff Management</h2>
+          <p className="text-muted-foreground">Manage internal team IDs, passwords, and access roles.</p>
+        </div>
+        {!isFormVisible && (
+          <Button onClick={() => setIsFormVisible(true)} className="gap-2 h-11 px-6 font-bold shadow-md">
+            <PlusCircle className="w-5 h-5" />
+            Add New Staff
+          </Button>
+        )}
       </div>
 
       <div className="grid lg:grid-cols-3 gap-8">
-        <Card className={`lg:col-span-1 h-fit shadow-lg border-2 transition-all ${editMode ? 'border-primary ring-2 ring-primary/20' : 'border-border'}`}>
-          <CardHeader>
-            <div className="flex justify-between items-center">
-              <CardTitle className="text-xl flex items-center gap-2">
-                {editMode ? <Pencil className="w-5 h-5" /> : <UserPlus className="w-5 h-5" />}
-                {editMode ? 'Edit Profile' : 'New Authorization'}
-              </CardTitle>
-              {editMode && <Button variant="ghost" size="icon" onClick={resetForm}><X className="w-4 h-4" /></Button>}
-            </div>
-            <CardDescription>{editMode ? 'Update existing credentials.' : 'Assign credentials and identity.'}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleCreateOrUpdateStaff} className="space-y-4">
-              <div className="flex justify-center mb-6">
-                <div className="relative">
-                  <Avatar className="w-24 h-24 border-4 border-primary/20">
-                    <AvatarImage src={formData.photoUrl} alt="Preview" />
-                    <AvatarFallback className="text-2xl">{formData.name?.charAt(0) || '?'}</AvatarFallback>
-                  </Avatar>
-                  <div className="absolute -bottom-2 -right-2 flex gap-1">
-                    <input 
-                      type="file" 
-                      ref={fileInputRef} 
-                      className="hidden" 
-                      accept="image/*" 
-                      onChange={handleFileChange} 
-                    />
-                    <Button 
-                      type="button"
-                      size="icon" 
-                      variant="secondary"
-                      className="rounded-full shadow-lg h-10 w-10"
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      <Upload className="w-4 h-4" />
-                    </Button>
-                    <CameraCapture 
-                      onCapture={(img) => setFormData({...formData, photoUrl: img})} 
-                      trigger={
-                        <Button type="button" size="icon" className="rounded-full shadow-lg h-10 w-10">
-                          <Camera className="w-5 h-5" />
-                        </Button>
-                      }
-                    />
-                  </div>
-                </div>
+        {isFormVisible && (
+          <Card className={cn(
+            "lg:col-span-1 h-fit shadow-lg border-2 transition-all animate-in fade-in slide-in-from-left-4 duration-300",
+            editMode ? 'border-primary ring-2 ring-primary/20' : 'border-border'
+          )}>
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <CardTitle className="text-xl flex items-center gap-2">
+                  {editMode ? <Pencil className="w-5 h-5" /> : <UserPlus className="w-5 h-5" />}
+                  {editMode ? 'Edit Profile' : 'New Authorization'}
+                </CardTitle>
+                <Button variant="ghost" size="icon" onClick={resetForm} className="h-8 w-8">
+                  <X className="w-4 h-4" />
+                </Button>
               </div>
-
-              <div className="space-y-1">
-                <Label>Full Name</Label>
-                <Input required value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} placeholder="e.g. Rahul Dev" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label>Username</Label>
+              <CardDescription>{editMode ? 'Update existing credentials.' : 'Assign credentials and identity.'}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleCreateOrUpdateStaff} className="space-y-4">
+                <div className="flex justify-center mb-6">
                   <div className="relative">
-                    <Input required value={formData.username} onChange={(e) => setFormData({...formData, username: e.target.value})} className="pl-9" placeholder="rahul123" />
-                    <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Avatar className="w-24 h-24 border-4 border-primary/20">
+                      <AvatarImage src={formData.photoUrl} alt="Preview" />
+                      <AvatarFallback className="text-2xl">{formData.name?.charAt(0) || '?'}</AvatarFallback>
+                    </Avatar>
+                    <div className="absolute -bottom-2 -right-2 flex gap-1">
+                      <input 
+                        type="file" 
+                        ref={fileInputRef} 
+                        className="hidden" 
+                        accept="image/*" 
+                        onChange={handleFileChange} 
+                      />
+                      <Button 
+                        type="button"
+                        size="icon" 
+                        variant="secondary"
+                        className="rounded-full shadow-lg h-10 w-10"
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        <Upload className="w-4 h-4" />
+                      </Button>
+                      <CameraCapture 
+                        onCapture={(img) => setFormData({...formData, photoUrl: img})} 
+                        trigger={
+                          <Button type="button" size="icon" className="rounded-full shadow-lg h-10 w-10">
+                            <Camera className="w-5 h-5" />
+                          </Button>
+                        }
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <Label>Full Name</Label>
+                  <Input required value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} placeholder="e.g. Rahul Dev" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label>Username</Label>
+                    <div className="relative">
+                      <Input required value={formData.username} onChange={(e) => setFormData({...formData, username: e.target.value})} className="pl-9" placeholder="rahul123" />
+                      <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Phone No</Label>
+                    <div className="relative">
+                      <Input required value={formData.phone} onChange={(e) => setFormData({...formData, phone: e.target.value})} className="pl-9" placeholder="01XXX..." />
+                      <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    </div>
                   </div>
                 </div>
                 <div className="space-y-1">
-                  <Label>Phone No</Label>
+                  <Label>Work Email</Label>
+                  <Input required type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} placeholder="staff@printflow.com" disabled={editMode} />
+                </div>
+                <div className="space-y-1">
+                  <Label>Portal Password</Label>
                   <div className="relative">
-                    <Input required value={formData.phone} onChange={(e) => setFormData({...formData, phone: e.target.value})} className="pl-9" placeholder="01XXX..." />
-                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input required type="text" value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})} className="pr-10" />
+                    <Key className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   </div>
                 </div>
-              </div>
-              <div className="space-y-1">
-                <Label>Work Email</Label>
-                <Input required type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} placeholder="staff@printflow.com" disabled={editMode} />
-              </div>
-              <div className="space-y-1">
-                <Label>Photo URL / Base64</Label>
-                <Input value={formData.photoUrl} onChange={(e) => setFormData({...formData, photoUrl: e.target.value})} placeholder="Captured or selected image data..." />
-              </div>
-              <div className="space-y-1">
-                <Label>Portal Password</Label>
-                <div className="relative">
-                  <Input required type="text" value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})} className="pr-10" />
-                  <Key className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <div className="space-y-1">
+                  <Label>Access Role</Label>
+                  <Select value={formData.role} onValueChange={(val) => setFormData({...formData, role: val})}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="admin">Admin (Full Control)</SelectItem>
+                      <SelectItem value="staff">Staff (Production)</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-              </div>
-              <div className="space-y-1">
-                <Label>Access Role</Label>
-                <Select value={formData.role} onValueChange={(val) => setFormData({...formData, role: val})}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="admin">Admin (Full Control)</SelectItem>
-                    <SelectItem value="staff">Staff (Production)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button className="w-full gap-2 font-bold h-12" disabled={loading}>
-                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Shield className="w-5 h-5" />}
-                {editMode ? 'Update Staff Member' : 'Authorize Staff'}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+                <Button className="w-full gap-2 font-bold h-12" disabled={loading}>
+                  {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Shield className="w-5 h-5" />}
+                  {editMode ? 'Update Staff Member' : 'Authorize Staff'}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        )}
 
-        <Card className="lg:col-span-2 shadow-md">
+        <Card className={cn(
+          "shadow-md transition-all duration-300",
+          isFormVisible ? "lg:col-span-2" : "lg:col-span-3"
+        )}>
           <CardHeader><CardTitle>Active Authorization List</CardTitle></CardHeader>
           <CardContent>
             {loadingUsers ? (
@@ -291,7 +309,7 @@ export default function StaffManagement() {
                 </TableHeader>
                 <TableBody>
                   {users?.map((u) => (
-                    <TableRow key={u.id} className={editingUserId === u.id ? 'bg-primary/5' : ''}>
+                    <TableRow key={u.id} className={cn("transition-colors", editingUserId === u.id ? 'bg-primary/5' : '')}>
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <Avatar className="w-8 h-8">
