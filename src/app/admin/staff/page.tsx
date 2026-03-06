@@ -23,8 +23,10 @@ import {
   ArrowLeft, 
   Lock,
   Eye,
+  EyeOff,
   Mail,
-  Fingerprint
+  Fingerprint,
+  Key
 } from 'lucide-react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, doc, setDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
@@ -55,6 +57,7 @@ export default function StaffManagement() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [staffToDelete, setStaffToDelete] = useState<{id: string, name: string} | null>(null);
+  const [showPasswordInProfile, setShowPasswordInProfile] = useState(false);
   
   // UI Modes
   const [viewMode, setViewMode] = useState<'list' | 'form' | 'profile'>('list');
@@ -145,6 +148,7 @@ export default function StaffManagement() {
 
   const handleViewProfile = (user: any) => {
     setSelectedUser(user);
+    setShowPasswordInProfile(false);
     setViewMode('profile');
   };
 
@@ -152,6 +156,7 @@ export default function StaffManagement() {
     setEditMode(false);
     setEditingUserId(null);
     setSelectedUser(null);
+    setShowPasswordInProfile(false);
     setFormData({ name: '', username: '', email: '', phone: '', photoUrl: '', password: '', role: 'staff' });
     setViewMode('list');
   };
@@ -272,7 +277,7 @@ export default function StaffManagement() {
                     <div className="space-y-2">
                       <Label>Login Password</Label>
                       <div className="relative">
-                        <Input required type="password" value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})} className="pl-9" placeholder="••••••••" />
+                        <Input required type="text" value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})} className="pl-9" placeholder="••••••••" />
                         <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       </div>
                     </div>
@@ -332,20 +337,42 @@ export default function StaffManagement() {
                 <div className="grid gap-6 -mt-8">
                   <div className="space-y-4">
                     <h4 className="text-xs font-bold uppercase text-muted-foreground tracking-tighter">System Access</h4>
-                    <div className="grid grid-cols-2 gap-4">
-                       <div className="p-4 rounded-xl bg-muted/50 border flex items-center gap-3">
-                         <Fingerprint className="w-5 h-5 text-primary" />
-                         <div>
-                            <p className="text-[10px] uppercase font-bold text-muted-foreground">Username</p>
-                            <p className="font-mono text-sm">@{selectedUser.username}</p>
+                    <div className="grid gap-4">
+                       <div className="grid grid-cols-2 gap-4">
+                         <div className="p-4 rounded-xl bg-muted/50 border flex items-center gap-3">
+                           <Fingerprint className="w-5 h-5 text-primary" />
+                           <div>
+                              <p className="text-[10px] uppercase font-bold text-muted-foreground">Username</p>
+                              <p className="font-mono text-sm">@{selectedUser.username}</p>
+                           </div>
+                         </div>
+                         <div className="p-4 rounded-xl bg-muted/50 border flex items-center gap-3">
+                           <Shield className="w-5 h-5 text-primary" />
+                           <div>
+                              <p className="text-[10px] uppercase font-bold text-muted-foreground">Account Status</p>
+                              <p className="text-sm font-bold text-green-600">Active</p>
+                           </div>
                          </div>
                        </div>
-                       <div className="p-4 rounded-xl bg-muted/50 border flex items-center gap-3">
-                         <Shield className="w-5 h-5 text-primary" />
-                         <div>
-                            <p className="text-[10px] uppercase font-bold text-muted-foreground">Account Status</p>
-                            <p className="text-sm font-bold text-green-600">Active</p>
+                       
+                       <div className="p-4 rounded-xl bg-muted/50 border flex items-center justify-between">
+                         <div className="flex items-center gap-3">
+                           <Key className="w-5 h-5 text-primary" />
+                           <div>
+                              <p className="text-[10px] uppercase font-bold text-muted-foreground">Access Password</p>
+                              <p className="font-mono text-sm">
+                                {showPasswordInProfile ? selectedUser.password : '••••••••'}
+                              </p>
+                           </div>
                          </div>
+                         <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 text-muted-foreground hover:text-primary"
+                            onClick={() => setShowPasswordInProfile(!showPasswordInProfile)}
+                         >
+                            {showPasswordInProfile ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                         </Button>
                        </div>
                     </div>
                   </div>
