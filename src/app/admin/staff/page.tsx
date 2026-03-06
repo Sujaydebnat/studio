@@ -8,7 +8,24 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { UserPlus, Shield, Loader2, Trash2, Pencil, Phone, User as UserIcon, Camera, AlertTriangle, Upload, PlusCircle, ArrowLeft, Lock } from 'lucide-react';
+import { 
+  UserPlus, 
+  Shield, 
+  Loader2, 
+  Trash2, 
+  Pencil, 
+  Phone, 
+  User as UserIcon, 
+  Camera, 
+  AlertTriangle, 
+  Upload, 
+  PlusCircle, 
+  ArrowLeft, 
+  Lock,
+  Eye,
+  Mail,
+  Fingerprint
+} from 'lucide-react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, doc, setDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -18,6 +35,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { CameraCapture } from '@/components/CameraCapture';
 import { cn } from '@/lib/utils';
+import { Separator } from '@/components/ui/separator';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,9 +55,12 @@ export default function StaffManagement() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [staffToDelete, setStaffToDelete] = useState<{id: string, name: string} | null>(null);
+  
+  // UI Modes
+  const [viewMode, setViewMode] = useState<'list' | 'form' | 'profile'>('list');
   const [editMode, setEditMode] = useState(false);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
-  const [isFormVisible, setIsFormVisible] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<any | null>(null);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -98,7 +119,7 @@ export default function StaffManagement() {
         description: `${formData.name} account is now active.` 
       });
       
-      resetForm();
+      resetToListView();
     } catch (error: any) {
       console.error(error);
       toast({ variant: "destructive", title: "Operation Failed", description: "Check permissions or network." });
@@ -110,7 +131,7 @@ export default function StaffManagement() {
   const handleEdit = (user: any) => {
     setEditMode(true);
     setEditingUserId(user.id);
-    setIsFormVisible(true);
+    setViewMode('form');
     setFormData({
       name: user.name,
       username: user.username || '',
@@ -122,11 +143,17 @@ export default function StaffManagement() {
     });
   };
 
-  const resetForm = () => {
+  const handleViewProfile = (user: any) => {
+    setSelectedUser(user);
+    setViewMode('profile');
+  };
+
+  const resetToListView = () => {
     setEditMode(false);
     setEditingUserId(null);
+    setSelectedUser(null);
     setFormData({ name: '', username: '', email: '', phone: '', photoUrl: '', password: '', role: 'staff' });
-    setIsFormVisible(false);
+    setViewMode('list');
   };
 
   const confirmDelete = (id: string, name: string) => {
@@ -143,7 +170,7 @@ export default function StaffManagement() {
     try {
       await deleteDoc(userRef);
       toast({ title: "Removed", description: `${staffToDelete.name} has been deleted.` });
-      if (editingUserId === staffToDelete.id) resetForm();
+      if (editingUserId === staffToDelete.id || selectedUser?.id === staffToDelete.id) resetToListView();
     } catch (error: any) {
       const permissionError = new FirestorePermissionError({
         path: userRef.path,
@@ -159,13 +186,13 @@ export default function StaffManagement() {
 
   return (
     <div className="space-y-8">
-      {!isFormVisible && (
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      {viewMode === 'list' && (
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 animate-in fade-in duration-500">
           <div>
             <h2 className="text-3xl font-bold font-headline text-primary">Staff Management</h2>
             <p className="text-muted-foreground">Manage internal team access and roles.</p>
           </div>
-          <Button onClick={() => setIsFormVisible(true)} className="gap-2 h-11 px-6 font-bold shadow-md">
+          <Button onClick={() => setViewMode('form')} className="gap-2 h-11 px-6 font-bold shadow-md">
             <PlusCircle className="w-5 h-5" />
             Add New Staff
           </Button>
@@ -173,7 +200,8 @@ export default function StaffManagement() {
       )}
 
       <div className="max-w-7xl mx-auto">
-        {isFormVisible ? (
+        {/* FORM VIEW (ADD/EDIT) */}
+        {viewMode === 'form' && (
           <div className="max-w-2xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-300">
             <Card className={cn(
               "shadow-lg border-2",
@@ -182,7 +210,7 @@ export default function StaffManagement() {
               <CardHeader className="border-b bg-muted/5">
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-3">
-                    <Button variant="ghost" size="icon" onClick={resetForm} className="h-8 w-8">
+                    <Button variant="ghost" size="icon" onClick={resetToListView} className="h-8 w-8">
                       <ArrowLeft className="w-5 h-5" />
                     </Button>
                     <div>
@@ -242,7 +270,7 @@ export default function StaffManagement() {
 
                   <div className="grid md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <Label>Password</Label>
+                      <Label>Login Password</Label>
                       <div className="relative">
                         <Input required type="password" value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})} className="pl-9" placeholder="••••••••" />
                         <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -261,7 +289,7 @@ export default function StaffManagement() {
                   </div>
 
                   <div className="pt-4 flex gap-3">
-                    <Button type="button" variant="outline" className="flex-1 h-12" onClick={resetForm}>Cancel</Button>
+                    <Button type="button" variant="outline" className="flex-1 h-12" onClick={resetToListView}>Cancel</Button>
                     <Button className="flex-[2] gap-2 font-bold h-12 shadow-md" disabled={loading}>
                       {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Shield className="w-5 h-5" />}
                       {editMode ? 'Save Profile' : 'Authorize Staff'}
@@ -271,7 +299,86 @@ export default function StaffManagement() {
               </CardContent>
             </Card>
           </div>
-        ) : (
+        )}
+
+        {/* PROFILE VIEW MODE */}
+        {viewMode === 'profile' && selectedUser && (
+          <div className="max-w-2xl mx-auto animate-in fade-in zoom-in-95 duration-300">
+            <Card className="shadow-xl border-2 overflow-hidden">
+              <div className="h-32 bg-primary/10 relative">
+                <Button variant="ghost" size="icon" onClick={resetToListView} className="absolute top-4 left-4 bg-white/80 hover:bg-white">
+                  <ArrowLeft className="w-5 h-5 text-primary" />
+                </Button>
+                <div className="absolute top-4 right-4 flex gap-2">
+                   <Button variant="outline" size="sm" onClick={() => handleEdit(selectedUser)} className="bg-white/80">
+                     <Pencil className="w-4 h-4 mr-2" /> Edit
+                   </Button>
+                </div>
+              </div>
+              <CardContent className="relative pt-0 px-8 pb-10">
+                <div className="flex flex-col items-center -translate-y-16">
+                  <Avatar className="w-32 h-32 border-4 border-white shadow-2xl">
+                    <AvatarImage src={selectedUser.photoUrl} alt={selectedUser.name} />
+                    <AvatarFallback className="text-4xl font-bold bg-primary text-primary-foreground">{selectedUser.name.charAt(0)}</AvatarFallback>
+                  </Avatar>
+                  <div className="text-center mt-4">
+                    <h3 className="text-2xl font-bold text-foreground">{selectedUser.name}</h3>
+                    <Badge variant={selectedUser.role === 'admin' ? 'default' : 'secondary'} className="mt-2 uppercase tracking-widest text-[10px] font-bold">
+                      {selectedUser.role} Level
+                    </Badge>
+                  </div>
+                </div>
+
+                <div className="grid gap-6 -mt-8">
+                  <div className="space-y-4">
+                    <h4 className="text-xs font-bold uppercase text-muted-foreground tracking-tighter">System Access</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                       <div className="p-4 rounded-xl bg-muted/50 border flex items-center gap-3">
+                         <Fingerprint className="w-5 h-5 text-primary" />
+                         <div>
+                            <p className="text-[10px] uppercase font-bold text-muted-foreground">Username</p>
+                            <p className="font-mono text-sm">@{selectedUser.username}</p>
+                         </div>
+                       </div>
+                       <div className="p-4 rounded-xl bg-muted/50 border flex items-center gap-3">
+                         <Shield className="w-5 h-5 text-primary" />
+                         <div>
+                            <p className="text-[10px] uppercase font-bold text-muted-foreground">Account Status</p>
+                            <p className="text-sm font-bold text-green-600">Active</p>
+                         </div>
+                       </div>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  <div className="space-y-4">
+                    <h4 className="text-xs font-bold uppercase text-muted-foreground tracking-tighter">Contact Information</h4>
+                    <div className="space-y-3">
+                       <div className="flex items-center gap-3 p-1">
+                         <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary"><Mail className="w-4 h-4" /></div>
+                         <div>
+                            <p className="text-[10px] uppercase font-bold text-muted-foreground">Email Address</p>
+                            <p className="text-sm font-medium">{selectedUser.email}</p>
+                         </div>
+                       </div>
+                       <div className="flex items-center gap-3 p-1">
+                         <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary"><Phone className="w-4 h-4" /></div>
+                         <div>
+                            <p className="text-[10px] uppercase font-bold text-muted-foreground">Phone Number</p>
+                            <p className="text-sm font-medium">{selectedUser.phone || 'N/A'}</p>
+                         </div>
+                       </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* LIST VIEW MODE */}
+        {viewMode === 'list' && (
           <Card className="shadow-md animate-in fade-in duration-300">
             <CardHeader className="border-b bg-muted/5">
               <CardTitle className="text-xl">Authorized Staff Members</CardTitle>
@@ -293,7 +400,7 @@ export default function StaffManagement() {
                     {users?.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={4} className="text-center py-20 text-muted-foreground italic">
-                          No staff found.
+                          No staff found. Click "Add New Staff" to begin.
                         </TableCell>
                       </TableRow>
                     ) : (
@@ -320,6 +427,9 @@ export default function StaffManagement() {
                           </TableCell>
                           <TableCell className="text-right pr-6">
                             <div className="flex justify-end gap-2">
+                              <Button variant="outline" size="sm" onClick={() => handleViewProfile(u)} className="h-8 gap-1 hover:border-accent hover:text-accent">
+                                <Eye className="w-3 h-3" /> View
+                              </Button>
                               <Button variant="outline" size="sm" onClick={() => handleEdit(u)} className="h-8 gap-1 hover:border-primary hover:text-primary" disabled={deletingId === u.id}>
                                 <Pencil className="w-3 h-3" /> Edit
                               </Button>
@@ -348,13 +458,13 @@ export default function StaffManagement() {
             </div>
             <AlertDialogDescription>
               Are you sure you want to delete <strong>{staffToDelete?.name}</strong>? 
-              This will revoke their access to the portal.
+              This will revoke tader access to the portal permanent bhabe.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={!!deletingId}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-bold" disabled={!!deletingId}>
-              Confirm
+              Confirm Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
