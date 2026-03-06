@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -15,7 +15,7 @@ import {
   TableHeader, 
   TableRow 
 } from '@/components/ui/table';
-import { Search, Filter, MoreVertical, Eye, Trash2, Download, Loader2, PlusCircle } from 'lucide-react';
+import { Search, Filter, MoreVertical, Eye, Trash2, Download, Loader2, PlusCircle, AlertTriangle } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, deleteDoc, doc, query, orderBy } from 'firebase/firestore';
@@ -23,11 +23,24 @@ import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function OrdersPage() {
   const db = useFirestore();
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const ordersQuery = useMemoFirebase(() => {
     if (!db) return null;
@@ -36,7 +49,7 @@ export default function OrdersPage() {
 
   const { data: orders, loading } = useCollection(ordersQuery);
 
-  const filteredOrders = useMemoFirebase(() => {
+  const filteredOrders = useMemo(() => {
     if (!orders) return [];
     return orders.filter(order => 
       order.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -55,29 +68,38 @@ export default function OrdersPage() {
     }
   };
 
-  const handleDelete = (id: string) => {
-    if (!db || !confirm('Are you sure you want to delete this order?')) return;
+  const confirmDelete = (id: string) => {
+    setDeleteId(id);
+    setShowDeleteDialog(true);
+  };
+
+  const handleDelete = async () => {
+    if (!db || !deleteId) return;
     
-    const orderRef = doc(db, 'orders', id);
+    setDeleting(true);
+    const orderRef = doc(db, 'orders', deleteId);
     
-    deleteDoc(orderRef)
-      .then(() => {
-        toast({ title: "Order Deleted", description: "The order has been removed from the database." });
-      })
-      .catch(async (error) => {
-        const permissionError = new FirestorePermissionError({
-          path: orderRef.path,
-          operation: 'delete',
-        });
-        errorEmitter.emit('permission-error', permissionError);
+    try {
+      await deleteDoc(orderRef);
+      toast({ title: "Order Deleted", description: "The order has been removed from the database." });
+    } catch (error: any) {
+      const permissionError = new FirestorePermissionError({
+        path: orderRef.path,
+        operation: 'delete',
       });
+      errorEmitter.emit('permission-error', permissionError);
+    } finally {
+      setDeleting(false);
+      setShowDeleteDialog(false);
+      setDeleteId(null);
+    }
   };
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h2 className="text-3xl font-bold font-headline">Manage Orders</h2>
+          <h2 className="text-3xl font-bold font-headline text-primary">Manage Orders</h2>
           <p className="text-muted-foreground">View, filter, and manage all your print orders.</p>
         </div>
         <div className="flex gap-2">
@@ -162,7 +184,7 @@ export default function OrdersPage() {
                                 <Eye className="w-4 h-4" /> View & Edit
                               </Link>
                             </DropdownMenuItem>
-                            <DropdownMenuItem className="gap-2 text-destructive cursor-pointer" onClick={() => handleDelete(order.id)}>
+                            <DropdownMenuItem className="gap-2 text-destructive cursor-pointer" onClick={() => confirmDelete(order.id)}>
                               <Trash2 className="w-4 h-4" /> Delete
                             </DropdownMenuItem>
                           </DropdownMenuContent>
@@ -182,6 +204,28 @@ export default function OrdersPage() {
           )}
         </CardContent>
       </Card>
+
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <div className="flex items-center gap-3 text-destructive mb-2">
+              <AlertTriangle className="w-6 h-6" />
+              <AlertDialogTitle>Delete Order Permanently?</AlertDialogTitle>
+            </div>
+            <AlertDialogDescription>
+              Are you sure you want to delete order <strong>#{deleteId?.slice(0, 8)}</strong>? 
+              This action cannot be undone and the data will be removed from your database.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-bold" disabled={deleting}>
+              {deleting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Confirm Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
