@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, ArrowLeft, Send, MessageSquare, Image as ImageIcon, Users, Plus } from 'lucide-react';
+import { Loader2, ArrowLeft, Send, MessageSquare, Image as ImageIcon, Users, Plus, AlertCircle } from 'lucide-react';
 import { useDoc, useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import { doc, collection, addDoc, serverTimestamp, query, orderBy, updateDoc, arrayUnion, where } from 'firebase/firestore';
 import { format } from 'date-fns';
@@ -70,17 +70,18 @@ export default function AdminOrderDetail() {
     }
   };
 
-  const handleAssignStaff = async (staffId: string) => {
+  const handleUpdateField = async (field: string, value: string) => {
     if (!orderRef || !db) return;
     setUpdating(true);
     try {
       await updateDoc(orderRef, {
-        assignedStaffId: staffId,
+        [field]: value,
         updatedAt: serverTimestamp()
       });
-      toast({ title: "Staff Assigned", description: "Production task has been updated." });
+      toast({ title: "Order Updated", description: `${field.charAt(0).toUpperCase() + field.slice(1)} has been changed.` });
     } catch (e) {
       console.error(e);
+      toast({ variant: "destructive", title: "Update Failed", description: "Check your permissions." });
     } finally {
       setUpdating(false);
     }
@@ -119,25 +120,58 @@ export default function AdminOrderDetail() {
       </div>
 
       <div className="grid lg:grid-cols-12 gap-6">
-        {/* Info Column */}
+        {/* Info & Edit Column */}
         <div className="lg:col-span-4 space-y-6">
           <Card>
             <CardHeader>
               <CardTitle>Core Details</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-6">
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground uppercase">Order Status</Label>
+                <Select 
+                  defaultValue={order.status} 
+                  onValueChange={(val) => handleUpdateField('status', val)}
+                  disabled={updating}
+                >
+                  <SelectTrigger className="border-primary/30">
+                    <SelectValue placeholder="Update Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Pending">Pending</SelectItem>
+                    <SelectItem value="Designing">Designing</SelectItem>
+                    <SelectItem value="Printing">Printing</SelectItem>
+                    <SelectItem value="Completed">Completed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground uppercase">Priority Level</Label>
+                <Select 
+                  defaultValue={order.priority || 'Normal'} 
+                  onValueChange={(val) => handleUpdateField('priority', val)}
+                  disabled={updating}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Update Priority" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Normal">Normal</SelectItem>
+                    <SelectItem value="High">High</SelectItem>
+                    <SelectItem value="Urgent">Urgent</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
               <div>
                 <Label className="text-xs text-muted-foreground uppercase">Customer</Label>
                 <p className="font-bold">{order.customerName}</p>
-                <p className="text-sm text-muted-foreground">{order.phone}</p>
+                <p className="text-sm text-muted-foreground">{order.phone || order.customerPhoneNumber}</p>
               </div>
               <div>
-                <Label className="text-xs text-muted-foreground uppercase">Service</Label>
+                <Label className="text-xs text-muted-foreground uppercase">Service Type</Label>
                 <p className="font-bold">{order.workType}</p>
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground uppercase">Current Status</Label>
-                <Badge className="block mt-1 w-fit">{order.status}</Badge>
               </div>
             </CardContent>
           </Card>
@@ -153,7 +187,7 @@ export default function AdminOrderDetail() {
                 <Label>Assigned Staff Member</Label>
                 <Select 
                   defaultValue={order.assignedStaffId} 
-                  onValueChange={handleAssignStaff}
+                  onValueChange={(val) => handleUpdateField('assignedStaffId', val)}
                   disabled={updating}
                 >
                   <SelectTrigger>
@@ -163,6 +197,9 @@ export default function AdminOrderDetail() {
                     {staffList?.map((staff) => (
                       <SelectItem key={staff.id} value={staff.id}>{staff.name}</SelectItem>
                     ))}
+                    {(!staffList || staffList.length === 0) && (
+                      <SelectItem value="none" disabled>No Staff Found</SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -193,6 +230,9 @@ export default function AdminOrderDetail() {
                   </div>
                 ))}
               </div>
+              {(!order.previews || order.previews.length === 0) && (
+                <p className="text-xs text-center text-muted-foreground py-4">No previews uploaded yet.</p>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -200,8 +240,11 @@ export default function AdminOrderDetail() {
         {/* Communication Column */}
         <Card className="lg:col-span-8 flex flex-col h-[700px]">
           <CardHeader className="border-b">
-            <CardTitle className="flex items-center gap-2">
-              <MessageSquare className="w-5 h-5 text-primary" /> Staff Communication
+            <CardTitle className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="w-5 h-5 text-primary" /> Staff Communication
+              </div>
+              {updating && <Badge variant="outline" className="animate-pulse">Updating Order...</Badge>}
             </CardTitle>
           </CardHeader>
           <CardContent className="flex-1 overflow-hidden p-0">
@@ -220,6 +263,12 @@ export default function AdminOrderDetail() {
                     </div>
                   </div>
                 ))}
+                {(!updates || updates.length === 0) && (
+                  <div className="text-center py-20 text-muted-foreground italic">
+                    <MessageSquare className="w-10 h-10 mx-auto mb-2 opacity-20" />
+                    <p>No messages yet. Send a note to the production staff.</p>
+                  </div>
+                )}
               </div>
             </ScrollArea>
           </CardContent>

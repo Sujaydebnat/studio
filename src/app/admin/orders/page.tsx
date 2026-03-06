@@ -157,10 +157,12 @@ export default function OrdersPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem className="gap-2">
-                              <Eye className="w-4 h-4" /> View Details
+                            <DropdownMenuItem asChild className="gap-2 cursor-pointer">
+                              <Link href={`/admin/orders/${order.id}`}>
+                                <Eye className="w-4 h-4" /> View & Edit
+                              </Link>
                             </DropdownMenuItem>
-                            <DropdownMenuItem className="gap-2 text-destructive" onClick={() => handleDelete(order.id)}>
+                            <DropdownMenuItem className="gap-2 text-destructive cursor-pointer" onClick={() => handleDelete(order.id)}>
                               <Trash2 className="w-4 h-4" /> Delete
                             </DropdownMenuItem>
                           </DropdownMenuContent>
