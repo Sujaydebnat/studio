@@ -3,8 +3,8 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Allow public access to all major collections for development
-    // WARNING: Switch back to auth-based rules before production!
+    // Allow public access for development
+    // SECURITY WARNING: In production, use authentication checks!
     
     match /catalog/{itemId} {
       allow read, write: if true;
@@ -12,12 +12,15 @@ service cloud.firestore {
 
     match /categories/{categoryId} {
       allow read, write: if true;
+      
+      match /subcategories/{subcategoryId} {
+        allow read, write: if true;
+      }
     }
 
     match /orders/{orderId} {
       allow read, write: if true;
       
-      // Allow updates sub-collection
       match /updates/{updateId} {
         allow read, write: if true;
       }
@@ -27,7 +30,6 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
-    // Global fallback for any other path
     match /{document=**} {
       allow read, write: if true;
     }

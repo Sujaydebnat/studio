@@ -86,12 +86,22 @@
     "Category": {
       "title": "Category",
       "type": "object",
-      "description": "Dynamic work categories and their sub-categories.",
+      "description": "Dynamic work categories.",
       "properties": {
         "id": { "type": "string" },
         "name": { "type": "string" },
         "description": { "type": "string" },
-        "subCategories": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name"]
+    },
+    "Subcategory": {
+      "title": "Subcategory",
+      "type": "object",
+      "description": "Subcategories nested under a category.",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "name"]
@@ -105,6 +115,7 @@
     "/orders/{orderId}": { "schema": "#/backend/entities/Order", "description": "Print orders." },
     "/orders/{orderId}/updates/{updateId}": { "schema": "#/backend/entities/OrderUpdate", "description": "Messages for an order." },
     "/catalog/{itemId}": { "schema": "#/backend/entities/CatalogItem", "description": "Products in the catalog." },
-    "/categories/{categoryId}": { "schema": "#/backend/entities/Category", "description": "Customizable work categories." }
+    "/categories/{categoryId}": { "schema": "#/backend/entities/Category", "description": "Customizable work categories." },
+    "/categories/{categoryId}/subcategories/{subcategoryId}": { "schema": "#/backend/entities/Subcategory", "description": "Subcategories for a category." }
   }
 }

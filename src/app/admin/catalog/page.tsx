@@ -60,9 +60,16 @@ export default function CatalogManager() {
   const { data: items, isLoading: loadingItems } = useCollection(catalogQuery);
   const { data: categories } = useCollection(categoriesQuery);
 
-  const selectedCategoryData = useMemo(() => {
-    return categories?.find(c => c.name === formData.category);
+  const selectedCategoryId = useMemo(() => {
+    return categories?.find(c => c.name === formData.category)?.id;
   }, [categories, formData.category]);
+
+  const subQuery = useMemoFirebase(() => {
+    if (!db || !selectedCategoryId) return null;
+    return query(collection(db, 'categories', selectedCategoryId, 'subcategories'), orderBy('name', 'asc'));
+  }, [db, selectedCategoryId]);
+
+  const { data: subCategories, isLoading: loadingSubs } = useCollection(subQuery);
 
   const filteredItems = useMemo(() => {
     if (!items) return [];
@@ -141,7 +148,7 @@ export default function CatalogManager() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!db || !confirm("Are you sure you want to remove this item from catalog?")) return;
+    if (!db || !confirm("Are you sure?")) return;
     await deleteDoc(doc(db, 'catalog', id));
     toast({ title: "Product Removed" });
   };
@@ -157,7 +164,7 @@ export default function CatalogManager() {
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-3xl font-bold font-headline text-primary">Catalog Manager</h2>
-          <p className="text-muted-foreground">Manage products using dynamic categories.</p>
+          <p className="text-muted-foreground">Manage products with nested subcategories.</p>
         </div>
         {!isFormOpen && (
           <Button onClick={() => setIsFormOpen(true)} className="gap-2 h-11 px-6 font-bold shadow-md">
@@ -180,12 +187,7 @@ export default function CatalogManager() {
               <div className="space-y-6">
                 <div className="space-y-2">
                   <Label>Product Name</Label>
-                  <Input 
-                    required 
-                    placeholder="e.g. Glossy Visiting Card" 
-                    value={formData.name} 
-                    onChange={(e) => setFormData({...formData, name: e.target.value})} 
-                  />
+                  <Input required value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -198,48 +200,28 @@ export default function CatalogManager() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Sub-category (Optional)</Label>
-                    <div className="relative">
-                      {selectedCategoryData?.subCategories?.length > 0 ? (
-                        <Select value={formData.subCategory} onValueChange={(v) => setFormData({...formData, subCategory: v})}>
-                          <SelectTrigger className="h-10"><SelectValue placeholder="Select Sub" /></SelectTrigger>
-                          <SelectContent>
-                            {selectedCategoryData.subCategories.map((s: string) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <>
-                          <Input 
-                            placeholder="e.g. Premium Gloss" 
-                            className="pl-8"
-                            value={formData.subCategory} 
-                            onChange={(e) => setFormData({...formData, subCategory: e.target.value})} 
-                          />
-                          <Layers className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
-                        </>
-                      )}
-                    </div>
+                    <Label>Sub-category</Label>
+                    {subCategories && subCategories.length > 0 ? (
+                      <Select value={formData.subCategory} onValueChange={(v) => setFormData({...formData, subCategory: v})}>
+                        <SelectTrigger><SelectValue placeholder="Select Sub" /></SelectTrigger>
+                        <SelectContent>
+                          {subCategories.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input placeholder="e.g. GLOSSY" value={formData.subCategory} onChange={(e) => setFormData({...formData, subCategory: e.target.value})} disabled={loadingSubs} />
+                    )}
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>Starting Price (Optional)</Label>
-                  <Input 
-                    placeholder="e.g. 500" 
-                    value={formData.startingPrice} 
-                    onChange={(e) => setFormData({...formData, startingPrice: e.target.value})} 
-                  />
+                  <Label>Starting Price</Label>
+                  <Input value={formData.startingPrice} onChange={(e) => setFormData({...formData, startingPrice: e.target.value})} />
                 </div>
                 <div className="space-y-2">
                   <Label>Short Description</Label>
-                  <Textarea 
-                    placeholder="Highlight features, material, and quality..." 
-                    className="min-h-[120px]"
-                    value={formData.description} 
-                    onChange={(e) => setFormData({...formData, description: e.target.value})} 
-                  />
+                  <Textarea value={formData.description} onChange={(e) => setFormData({...formData, description: e.target.value})} className="min-h-[120px]" />
                 </div>
               </div>
-
               <div className="space-y-4">
                 <Label>Product Showcase Image</Label>
                 <div className="aspect-square relative rounded-xl border-4 border-dashed border-primary/20 bg-muted/30 flex flex-col items-center justify-center overflow-hidden group">
@@ -253,15 +235,9 @@ export default function CatalogManager() {
                   ) : (
                     <div className="text-center space-y-4 p-6">
                       <ImageIcon className="w-16 h-16 text-muted-foreground/30 mx-auto" />
-                      <div className="space-y-1">
-                        <p className="text-xs font-bold text-muted-foreground">UPLOAD HIGH-QUALITY PREVIEW</p>
-                        <p className="text-[10px] text-muted-foreground/60">JPG, PNG up to 500KB</p>
-                      </div>
                       <div className="flex gap-2 justify-center">
-                        <Button type="button" size="sm" onClick={() => fileInputRef.current?.click()} variant="outline" className="gap-2">
-                          <Upload className="w-4 h-4" /> Browse
-                        </Button>
-                        <CameraCapture onCapture={(img) => setFormData({...formData, imageUrl: img})} trigger={<Button type="button" size="sm" variant="outline" className="gap-2"><Camera className="w-4 h-4" /> Camera</Button>} />
+                        <Button type="button" size="sm" onClick={() => fileInputRef.current?.click()} variant="outline"><Upload className="w-4 h-4 mr-1" /> Browse</Button>
+                        <CameraCapture onCapture={(img) => setFormData({...formData, imageUrl: img})} />
                       </div>
                       <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
                     </div>
@@ -273,78 +249,46 @@ export default function CatalogManager() {
               <Button type="button" variant="outline" onClick={resetForm}>Cancel</Button>
               <Button disabled={loading} className="gap-2 px-8 font-bold shadow-lg">
                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                {editingId ? 'Update Catalog Item' : 'Publish to Catalog'}
+                {editingId ? 'Update Item' : 'Publish to Catalog'}
               </Button>
             </CardFooter>
           </form>
         </Card>
       ) : (
-        <Card className="shadow-md">
+        <Card>
           <CardHeader className="border-b bg-muted/5">
-            <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
-              <CardTitle>Current Catalog Items</CardTitle>
-              <div className="relative w-full md:w-72">
+            <div className="flex justify-between items-center">
+              <CardTitle>Catalog Products</CardTitle>
+              <div className="relative w-72">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input 
-                  placeholder="Search name, category, sub-category..." 
-                  className="pl-9" 
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
+                <Input placeholder="Search catalog..." className="pl-9" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
               </div>
             </div>
           </CardHeader>
-          <CardContent className="p-0">
-            {loadingItems ? (
-              <div className="flex justify-center p-20"><Loader2 className="w-10 h-10 animate-spin text-primary" /></div>
-            ) : filteredItems.length === 0 ? (
-              <div className="text-center py-20 text-muted-foreground italic space-y-4">
-                <Package className="w-12 h-12 mx-auto opacity-20" />
-                <p>No catalog items found. Add your first product to showcase!</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-6">
-                {filteredItems.map((item) => (
-                  <Card key={item.id} className="overflow-hidden border-2 group hover:border-primary transition-colors">
-                    <div className="relative aspect-video bg-muted">
-                      {item.imageUrl ? (
-                        <Image src={item.imageUrl} alt={item.name} fill className="object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center"><ImageIcon className="w-8 h-8 opacity-20" /></div>
-                      )}
-                      <div className="absolute top-2 left-2 flex flex-col gap-1">
-                        <Badge className="bg-primary/80 backdrop-blur-sm w-fit">{item.category}</Badge>
-                        {item.subCategory && (
-                          <Badge variant="secondary" className="bg-white/90 backdrop-blur-sm text-[9px] w-fit shadow-sm">
-                            {item.subCategory}
-                          </Badge>
-                        )}
+          <CardContent className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredItems.map((item) => (
+                <Card key={item.id} className="overflow-hidden border-2 hover:border-primary transition-colors">
+                  <div className="relative aspect-video bg-muted">
+                    {item.imageUrl && <Image src={item.imageUrl} alt={item.name} fill className="object-cover" />}
+                    <div className="absolute top-2 left-2 flex flex-col gap-1">
+                      <Badge className="text-[10px]">{item.category}</Badge>
+                      {item.subCategory && <Badge variant="secondary" className="text-[9px]">{item.subCategory}</Badge>}
+                    </div>
+                  </div>
+                  <div className="p-4 space-y-2">
+                    <div className="flex justify-between items-start">
+                      <h3 className="font-bold text-lg">{item.name}</h3>
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => handleEdit(item)}><Pencil className="w-4 h-4" /></Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(item.id)}><Trash2 className="w-4 h-4" /></Button>
                       </div>
                     </div>
-                    <div className="p-4 space-y-2">
-                      <div className="flex justify-between items-start">
-                        <h3 className="font-bold text-lg">{item.name}</h3>
-                        <div className="flex gap-1">
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => handleEdit(item)}>
-                            <Pencil className="w-4 h-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(item.id)}>
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </div>
-                      <p className="text-xs text-muted-foreground line-clamp-2">{item.description}</p>
-                      <div className="pt-2 flex justify-between items-center border-t mt-2">
-                        <span className="text-[10px] uppercase font-bold text-muted-foreground">Price Basis</span>
-                        <span className="text-sm font-bold text-primary">
-                          {item.startingPrice ? `Starts BDT ${item.startingPrice}` : 'On Request'}
-                        </span>
-                      </div>
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            )}
+                    <p className="text-xs text-muted-foreground line-clamp-2">{item.description}</p>
+                  </div>
+                </Card>
+              ))}
+            </div>
           </CardContent>
         </Card>
       )}
