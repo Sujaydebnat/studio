@@ -2,7 +2,7 @@
 "use client"
 
 import { useState, useRef, useMemo } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -418,6 +418,9 @@ export default function StaffManagement() {
               </Table>
             )}
           </CardContent>
+          <CardFooter className="border-t bg-muted/5 flex justify-center py-4">
+             <p className="text-xs text-muted-foreground italic">Total {users?.length || 0} production staff members registered.</p>
+          </CardFooter>
         </Card>
       )}
 
