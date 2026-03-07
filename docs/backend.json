@@ -9,9 +9,26 @@
         "id": { "type": "string" },
         "shopName": { "type": "string" },
         "ownerId": { "type": "string" },
+        "publicSlug": { "type": "string" },
+        "logo": { "type": "string" },
+        "description": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "shopName", "ownerId"]
+    },
+    "Attendance": {
+      "title": "Attendance",
+      "type": "object",
+      "description": "Staff attendance records.",
+      "properties": {
+        "id": { "type": "string" },
+        "shopId": { "type": "string" },
+        "staffId": { "type": "string" },
+        "checkInTime": { "type": "string", "format": "date-time" },
+        "checkOutTime": { "type": "string", "format": "date-time" },
+        "date": { "type": "string", "format": "date" }
+      },
+      "required": ["shopId", "staffId", "date"]
     },
     "User": {
       "title": "User",
@@ -36,20 +53,6 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "name", "email", "role", "shopId"]
-    },
-    "StaffField": {
-      "title": "StaffField",
-      "type": "object",
-      "description": "Custom column definition for a shop's staff.",
-      "properties": {
-        "id": { "type": "string" },
-        "shopId": { "type": "string" },
-        "fieldName": { "type": "string" },
-        "fieldType": { "type": "string", "enum": ["text", "number", "date", "dropdown"] },
-        "options": { "type": "array", "items": { "type": "string" } },
-        "createdAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["id", "fieldName", "fieldType", "shopId"]
     },
     "Order": {
       "title": "Order",
@@ -78,45 +81,10 @@
         "totalBill": { "type": "string" },
         "deliveryDate": { "type": "string", "format": "date" },
         "additionalDetails": { "type": "string" },
-        "referenceImages": { "type": "array", "items": { "type": "string" } },
-        "previews": { "type": "array", "items": { "type": "string" } },
-        "adminId": { "type": "string" },
-        "assignedStaffId": { "type": "string" },
-        "priority": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["shopId"]
-    },
-    "CatalogItem": {
-      "title": "CatalogItem",
-      "type": "object",
-      "description": "Shop-specific products or services.",
-      "properties": {
-        "id": { "type": "string" },
-        "shopId": { "type": "string" },
-        "name": { "type": "string" },
-        "description": { "type": "string" },
-        "category": { "type": "string" },
-        "subCategory": { "type": "string" },
-        "imageUrl": { "type": "string" },
-        "startingPrice": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["id", "name", "category", "shopId"]
-    },
-    "Category": {
-      "title": "Category",
-      "type": "object",
-      "description": "Shop-specific work categories.",
-      "properties": {
-        "id": { "type": "string" },
-        "shopId": { "type": "string" },
-        "name": { "type": "string" },
-        "description": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["id", "name", "shopId"]
     }
   },
   "auth": {
@@ -125,9 +93,7 @@
   "firestore": {
     "/shops/{shopId}": { "schema": "#/backend/entities/Shop", "description": "Tenants." },
     "/users/{userId}": { "schema": "#/backend/entities/User", "description": "Profiles." },
-    "/staff_fields/{fieldId}": { "schema": "#/backend/entities/StaffField", "description": "Shop-specific custom columns." },
     "/orders/{orderId}": { "schema": "#/backend/entities/Order", "description": "Shop-specific orders." },
-    "/catalog/{itemId}": { "schema": "#/backend/entities/CatalogItem", "description": "Shop-specific catalog items." },
-    "/categories/{categoryId}": { "schema": "#/backend/entities/Category", "description": "Shop-specific categories." }
+    "/attendance/{attendanceId}": { "schema": "#/backend/entities/Attendance", "description": "Attendance logs." }
   }
 }

@@ -3,31 +3,21 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Helper to get current user data
-    function getUserData() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
-    }
-
-    // Helper to check if user belongs to the shop in the resource
-    function belongsToShop(shopId) {
-      return request.auth != null && getUserData().shopId == shopId;
-    }
-
     match /shops/{shopId} {
-      allow read: if true; // Public can see shop info
-      allow write: if request.auth != null; // Registered users can create shops
+      allow read: if true;
+      allow write: if request.auth != null;
     }
 
     match /users/{userId} {
-      allow read, write: if true; // Allow initial setup, in prod restrict to owner/admin
+      allow read, write: if true;
     }
 
     match /orders/{orderId} {
-      allow read, write: if true; // In prod restrict by belongsToShop(resource.data.shopId)
+      allow read, write: if true;
     }
 
     match /catalog/{itemId} {
-      allow read: if true; // Public catalog
+      allow read: if true;
       allow write: if request.auth != null; 
     }
 
@@ -40,7 +30,7 @@ service cloud.firestore {
       }
     }
 
-    match /staff_fields/{fieldId} {
+    match /attendance/{attendanceId} {
       allow read, write: if request.auth != null;
     }
 

@@ -13,7 +13,9 @@ import {
   Printer,
   ChevronRight,
   Loader2,
-  BookOpen
+  BookOpen,
+  QrCode,
+  Clock
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -36,8 +38,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const navItems = [
     { name: 'Dashboard', icon: LayoutDashboard, href: '/admin/dashboard' },
     { name: 'Orders', icon: ClipboardList, href: '/admin/orders' },
-    { name: 'Staff Management', icon: Users, href: '/admin/staff' },
-    { name: 'Catalog Manager', icon: BookOpen, href: '/admin/catalog' },
+    { name: 'Staff Directory', icon: Users, href: '/admin/staff' },
+    { name: 'Attendance Log', icon: Clock, href: '/admin/attendance' },
+    { name: 'Catalog Editor', icon: BookOpen, href: '/admin/catalog' },
+    { name: 'QR Catalog', icon: QrCode, href: '/admin/qr' },
     { name: 'Settings', icon: Settings, href: '/admin/settings' },
   ];
 
@@ -46,15 +50,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* Sidebar */}
       <aside className="w-64 border-r bg-card hidden md:flex flex-col shadow-sm">
         <div className="p-6 flex items-center gap-3">
-          <div className="bg-primary p-2 rounded-lg">
+          <div className="bg-primary p-2 rounded-lg shadow-lg">
             <Printer className="w-6 h-6 text-white" />
           </div>
-          <span className="font-bold text-xl text-primary font-headline">PrintFlow</span>
+          <span className="font-bold text-xl text-primary font-headline tracking-tighter italic">PrintFlow</span>
         </div>
         
         <div className="px-4 mb-4">
           <Link href="/admin/orders/new" className="block w-full">
-            <Button className="w-full bg-accent text-accent-foreground hover:bg-accent/90 justify-start gap-2 font-semibold shadow-sm">
+            <Button className="w-full bg-accent text-accent-foreground hover:bg-accent/90 justify-start gap-2 font-black shadow-lg">
               <PlusCircle className="w-4 h-4" /> New Order
             </Button>
           </Link>
@@ -67,10 +71,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 key={item.href} 
                 href={item.href}
                 className={cn(
-                  "flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+                  "flex items-center justify-between px-3 py-3 rounded-xl text-sm font-bold transition-all",
                   pathname.startsWith(item.href) 
-                    ? "bg-primary/10 text-primary" 
-                    : "text-muted-foreground hover:bg-muted"
+                    ? "bg-primary text-white shadow-md" 
+                    : "text-muted-foreground hover:bg-primary/5 hover:text-primary"
                 )}
               >
                 <div className="flex items-center gap-3">
@@ -83,9 +87,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </nav>
         </ScrollArea>
 
-        <div className="p-4 border-t">
+        <div className="p-4 border-t bg-muted/10">
           <Link href="/" className="block w-full">
-            <Button variant="ghost" className="w-full justify-start gap-2 text-destructive hover:text-destructive hover:bg-destructive/10">
+            <Button variant="ghost" className="w-full justify-start gap-2 text-destructive hover:text-white hover:bg-destructive font-bold transition-colors">
               <LogOut className="w-4 h-4" /> Sign Out
             </Button>
           </Link>
@@ -93,22 +97,22 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-auto relative bg-background/50 backdrop-blur-sm">
-        <header className="h-16 border-b bg-card/50 backdrop-blur-md flex items-center justify-between px-8 sticky top-0 z-10">
-          <h1 className="font-bold text-lg font-headline text-primary">Admin Portal</h1>
+      <main className="flex-1 overflow-auto relative bg-background/50">
+        <header className="h-16 border-b bg-card/80 backdrop-blur-md flex items-center justify-between px-8 sticky top-0 z-10">
+          <h1 className="font-black text-lg font-headline text-primary uppercase tracking-widest">{userData?.role === 'admin' ? 'Master Admin' : 'Admin Portal'}</h1>
           <div className="flex items-center gap-4">
             <div className="flex flex-col items-end">
-              <span className="text-sm font-semibold">
-                {isDataLoading ? 'Loading...' : (userData?.name || 'Admin User')}
+              <span className="text-sm font-black">
+                {isDataLoading ? '---' : (userData?.name || 'Admin')}
               </span>
-              <span className="text-xs text-muted-foreground uppercase tracking-tighter text-[10px]">
-                {userData?.role === 'admin' ? 'Master Account' : 'Staff Access'}
+              <span className="text-[9px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter">
+                Tenant: {userData?.shopId?.slice(0, 8)}
               </span>
             </div>
-            <Avatar className="w-10 h-10 border-2 border-primary/20">
+            <Avatar className="w-10 h-10 border-2 border-primary/20 shadow-sm">
               <AvatarImage src={userData?.photoUrl} alt={userData?.name} />
-              <AvatarFallback className="bg-primary/20 text-primary font-bold">
-                {userData?.name?.charAt(0) || <Loader2 className="w-4 h-4 animate-spin" />}
+              <AvatarFallback className="bg-primary text-white font-bold">
+                {userData?.name?.charAt(0) || '?'}
               </AvatarFallback>
             </Avatar>
           </div>
