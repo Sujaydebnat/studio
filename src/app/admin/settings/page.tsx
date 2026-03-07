@@ -18,7 +18,8 @@ import {
   ListOrdered,
   Pencil,
   ArrowRight,
-  LayoutGrid
+  LayoutGrid,
+  Database
 } from 'lucide-react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, doc, setDoc, deleteDoc, serverTimestamp, query, orderBy } from 'firebase/firestore';
@@ -35,10 +36,14 @@ export default function SettingsPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
+  // Category Fields
   const [categoryName, setCategoryName] = useState('');
   const [categoryDesc, setCategoryDesc] = useState('');
   const [subCategories, setSubCategories] = useState<string[]>([]);
+  
+  // Subcategory management state
   const [newSubName, setNewSubName] = useState('');
+  const [editingSubIdx, setEditingSubIdx] = useState<number | null>(null);
 
   const categoriesQuery = useMemoFirebase(() => {
     if (!db) return null;
@@ -47,19 +52,36 @@ export default function SettingsPage() {
 
   const { data: categories, isLoading: loadingCats } = useCollection(categoriesQuery);
 
-  const handleAddSub = () => {
+  const handleAddOrUpdateSub = () => {
     if (!newSubName.trim()) return;
     const formattedSub = newSubName.trim().toUpperCase();
-    if (subCategories.includes(formattedSub)) {
-      toast({ variant: "destructive", title: "Sub-category already exists" });
-      return;
+    
+    if (editingSubIdx !== null) {
+      const updated = [...subCategories];
+      updated[editingSubIdx] = formattedSub;
+      setSubCategories(updated);
+      setEditingSubIdx(null);
+    } else {
+      if (subCategories.includes(formattedSub)) {
+        toast({ variant: "destructive", title: "Sub-category already exists" });
+        return;
+      }
+      setSubCategories([...subCategories, formattedSub]);
     }
-    setSubCategories([...subCategories, formattedSub]);
     setNewSubName('');
+  };
+
+  const startEditSub = (idx: number) => {
+    setNewSubName(subCategories[idx]);
+    setEditingSubIdx(idx);
   };
 
   const removeSub = (idx: number) => {
     setSubCategories(subCategories.filter((_, i) => i !== idx));
+    if (editingSubIdx === idx) {
+      setEditingSubIdx(null);
+      setNewSubName('');
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -74,46 +96,24 @@ export default function SettingsPage() {
       updatedAt: serverTimestamp(),
     };
 
-    if (editingId) {
-      const docRef = doc(db, 'categories', editingId);
-      setDoc(docRef, catData, { merge: true })
-        .then(() => {
-          toast({ title: "Category Updated Successfully" });
-          resetForm();
-        })
-        .catch(async (serverError) => {
-          const permissionError = new FirestorePermissionError({
-            path: docRef.path,
-            operation: 'update',
-            requestResourceData: catData,
-          } satisfies SecurityRuleContext);
-          errorEmitter.emit('permission-error', permissionError);
-        })
-        .finally(() => setLoading(false));
-    } else {
-      const colRef = collection(db, 'categories');
-      const newDocRef = doc(colRef);
-      const finalData = { 
-        ...catData, 
-        id: newDocRef.id,
-        createdAt: serverTimestamp() 
-      };
-      
-      setDoc(newDocRef, finalData)
-        .then(() => {
-          toast({ title: "Category Created Permanently" });
-          resetForm();
-        })
-        .catch(async (serverError) => {
-          const permissionError = new FirestorePermissionError({
-            path: newDocRef.path,
-            operation: 'create',
-            requestResourceData: finalData,
-          } satisfies SecurityRuleContext);
-          errorEmitter.emit('permission-error', permissionError);
-        })
-        .finally(() => setLoading(false));
-    }
+    const targetId = editingId || doc(collection(db, 'categories')).id;
+    const docRef = doc(db, 'categories', targetId);
+    const finalData = { ...catData, id: targetId, createdAt: editingId ? undefined : serverTimestamp() };
+
+    setDoc(docRef, finalData, { merge: true })
+      .then(() => {
+        toast({ title: "Data saved successfully", description: "Your changes are now live in the database." });
+        resetForm();
+      })
+      .catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: docRef.path,
+          operation: editingId ? 'update' : 'create',
+          requestResourceData: finalData,
+        } satisfies SecurityRuleContext);
+        errorEmitter.emit('permission-error', permissionError);
+      })
+      .finally(() => setLoading(false));
   };
 
   const handleEdit = (cat: any) => {
@@ -130,7 +130,7 @@ export default function SettingsPage() {
     const docRef = doc(db, 'categories', id);
     deleteDoc(docRef)
       .then(() => {
-        toast({ title: "Category Removed Permanently" });
+        toast({ title: "Category Deleted", description: "The item was removed from the database." });
       })
       .catch(async (serverError) => {
         const permissionError = new FirestorePermissionError({
@@ -147,6 +147,7 @@ export default function SettingsPage() {
     setSubCategories([]);
     setNewSubName('');
     setEditingId(null);
+    setEditingSubIdx(null);
     setIsFormOpen(false);
   };
 
@@ -156,13 +157,13 @@ export default function SettingsPage() {
         <div className="space-y-1">
           <h2 className="text-3xl font-bold font-headline text-primary flex items-center gap-2">
             <LayoutGrid className="w-8 h-8" />
-            Category Dashboard
+            Admin Dashboard
           </h2>
-          <p className="text-muted-foreground">Manage your work hierarchy and linked sub-categories.</p>
+          <p className="text-muted-foreground">Manage work categories and hierarchical sub-categories.</p>
         </div>
         {!isFormOpen && (
           <Button onClick={() => setIsFormOpen(true)} className="gap-2 h-11 px-6 font-bold shadow-lg bg-primary hover:bg-primary/90">
-            <Plus className="w-5 h-5" /> Add New Category
+            <Plus className="w-5 h-5" /> Add Category
           </Button>
         )}
       </div>
@@ -171,16 +172,17 @@ export default function SettingsPage() {
         <Card className="max-w-2xl mx-auto shadow-2xl border-2 animate-in slide-in-from-bottom-4">
           <CardHeader className="border-b bg-muted/5 flex flex-row items-center justify-between">
             <div>
-              <CardTitle>{editingId ? 'Edit Category' : 'Create New Category'}</CardTitle>
-              <CardDescription>All fields are saved permanently in the database.</CardDescription>
+              <CardTitle>{editingId ? 'Edit Category' : 'Add New Category'}</CardTitle>
+              <CardDescription>All fields will be stored permanently in Firestore.</CardDescription>
             </div>
             <Button variant="ghost" size="icon" onClick={resetForm}><X className="w-5 h-5" /></Button>
           </CardHeader>
           <form onSubmit={handleSubmit}>
             <CardContent className="pt-6 space-y-6">
               <div className="space-y-2">
-                <Label>Category Name</Label>
+                <Label htmlFor="catName">Category Name</Label>
                 <Input 
+                  id="catName"
                   required 
                   placeholder="e.g. DIGITAL PRINT, FLEX" 
                   value={categoryName} 
@@ -189,8 +191,9 @@ export default function SettingsPage() {
               </div>
 
               <div className="space-y-2">
-                <Label>Description (Optional)</Label>
+                <Label htmlFor="catDesc">Description (Optional)</Label>
                 <Textarea 
+                  id="catDesc"
                   placeholder="Brief purpose of this category..." 
                   value={categoryDesc} 
                   onChange={(e) => setCategoryDesc(e.target.value)} 
@@ -201,49 +204,50 @@ export default function SettingsPage() {
               <Separator />
 
               <div className="space-y-4">
-                <Label className="flex items-center gap-2 text-primary">
+                <Label className="flex items-center gap-2 text-primary font-bold">
                   <ListOrdered className="w-4 h-4" /> 
-                  Sub-categories
+                  Manage Subcategories
                 </Label>
                 <div className="flex gap-2">
                   <Input 
-                    placeholder="Enter sub-category name" 
+                    placeholder="Subcategory Name" 
                     value={newSubName} 
                     onChange={(e) => setNewSubName(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddSub())}
+                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddOrUpdateSub())}
                   />
-                  <Button type="button" variant="outline" className="border-primary text-primary" onClick={handleAddSub}>
-                    <Plus className="w-4 h-4 mr-2" /> Add
+                  <Button type="button" variant="outline" className="border-primary text-primary" onClick={handleAddOrUpdateSub}>
+                    {editingSubIdx !== null ? 'Update' : <Plus className="w-4 h-4" />}
                   </Button>
                 </div>
                 
-                <div className="flex flex-wrap gap-2 pt-2 min-h-[40px] p-4 bg-muted/20 rounded-lg border border-dashed">
+                <div className="grid gap-2 p-4 bg-muted/20 rounded-lg border border-dashed">
                   {subCategories.length === 0 ? (
-                    <p className="text-xs text-muted-foreground italic w-full text-center py-2">No sub-categories linked yet.</p>
+                    <p className="text-xs text-muted-foreground italic text-center py-2">No subcategories linked yet.</p>
                   ) : (
-                    subCategories.map((sub, i) => (
-                      <Badge key={i} className="gap-2 pr-1 pl-3 py-1.5 h-fit bg-white text-primary border-primary/20 shadow-sm">
-                        <span className="font-bold">{sub}</span>
-                        <Button 
-                          type="button" 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-5 w-5 hover:bg-destructive hover:text-white rounded-full transition-colors"
-                          onClick={() => removeSub(i)}
-                        >
-                          <X className="w-3 h-3" />
-                        </Button>
-                      </Badge>
-                    ))
+                    <div className="flex flex-wrap gap-2">
+                      {subCategories.map((sub, i) => (
+                        <Badge key={i} className="gap-2 pr-1 pl-3 py-1.5 h-fit bg-white text-primary border-primary/20 shadow-sm transition-all hover:border-primary">
+                          <span className="font-bold">{sub}</span>
+                          <div className="flex gap-0.5">
+                            <Button type="button" variant="ghost" size="icon" className="h-5 w-5 hover:bg-primary hover:text-white rounded-full" onClick={() => startEditSub(i)}>
+                              <Pencil className="w-3 h-3" />
+                            </Button>
+                            <Button type="button" variant="ghost" size="icon" className="h-5 w-5 hover:bg-destructive hover:text-white rounded-full" onClick={() => removeSub(i)}>
+                              <X className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        </Badge>
+                      ))}
+                    </div>
                   )}
                 </div>
               </div>
             </CardContent>
             <CardFooter className="border-t bg-muted/5 flex justify-end gap-3 pt-6">
               <Button type="button" variant="outline" onClick={resetForm}>Cancel</Button>
-              <Button disabled={loading || !categoryName.trim()} className="gap-2 px-10 font-bold shadow-xl">
-                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                {editingId ? 'Update & Sync' : 'Save Permanent'}
+              <Button disabled={loading || !categoryName.trim()} className="gap-2 px-10 font-bold shadow-xl bg-primary">
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
+                Save to Database
               </Button>
             </CardFooter>
           </form>
@@ -253,19 +257,19 @@ export default function SettingsPage() {
           {loadingCats ? (
             <div className="col-span-full flex flex-col items-center justify-center p-20 gap-4">
               <Loader2 className="w-12 h-12 animate-spin text-primary" />
-              <p className="text-muted-foreground font-medium animate-pulse">Syncing with Firestore...</p>
+              <p className="text-muted-foreground font-medium animate-pulse">Fetching from database...</p>
             </div>
           ) : categories?.length === 0 ? (
             <div className="col-span-full text-center py-24 border-4 border-dashed rounded-3xl space-y-4 bg-muted/10">
               <Settings className="w-16 h-16 mx-auto opacity-20" />
-              <h3 className="text-2xl font-bold text-muted-foreground">No Categories Found</h3>
-              <p className="text-muted-foreground max-w-xs mx-auto">Start by creating your first category to organize your work.</p>
-              <Button onClick={() => setIsFormOpen(true)} className="mt-4">Create First Category</Button>
+              <h3 className="text-2xl font-bold text-muted-foreground">Empty Dashboard</h3>
+              <p className="text-muted-foreground max-w-xs mx-auto">Create your first category to start organizing your work.</p>
+              <Button onClick={() => setIsFormOpen(true)} className="mt-4">Add First Category</Button>
             </div>
           ) : (
             categories?.map((cat) => (
               <Card key={cat.id} className="group hover:border-primary/50 transition-all border-2 shadow-sm hover:shadow-md flex flex-col h-full">
-                <CardHeader className="pb-3">
+                <CardHeader className="pb-3 bg-muted/5">
                   <div className="flex justify-between items-start">
                     <div className="space-y-1">
                       <CardTitle className="text-xl font-black text-primary flex items-center gap-2">
@@ -286,10 +290,10 @@ export default function SettingsPage() {
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="flex-1">
+                <CardContent className="flex-1 pt-4">
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Sub-Categories</p>
+                    <div className="flex items-center justify-between border-b pb-1">
+                      <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Subcategories</p>
                       <Badge variant="outline" className="text-[9px] h-4">{cat.subCategories?.length || 0}</Badge>
                     </div>
                     <div className="flex flex-wrap gap-1.5">
@@ -301,14 +305,17 @@ export default function SettingsPage() {
                           </div>
                         ))
                       ) : (
-                        <span className="text-[10px] text-muted-foreground italic px-1">No linked sub-categories</span>
+                        <span className="text-[10px] text-muted-foreground italic px-1">No linked subcategories</span>
                       )}
                     </div>
                   </div>
                 </CardContent>
-                <CardFooter className="pt-0 border-t bg-muted/5 mt-auto">
-                   <Button variant="ghost" className="w-full text-[10px] uppercase font-bold text-primary tracking-tighter h-8" onClick={() => handleEdit(cat)}>
-                      Manage Hierachy
+                <CardFooter className="pt-2 border-t bg-muted/5 mt-auto flex justify-between">
+                   <Button variant="ghost" size="sm" className="text-[10px] uppercase font-bold text-primary tracking-tighter" onClick={() => handleEdit(cat)}>
+                      Edit Hierarchy
+                   </Button>
+                   <Button variant="ghost" size="sm" className="text-[10px] uppercase font-bold text-destructive" onClick={() => handleDelete(cat.id, cat.name)}>
+                      Delete
                    </Button>
                 </CardFooter>
               </Card>
