@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { ShieldCheck, Loader2, LogIn, Lock, Mail, ArrowLeft } from 'lucide-react';
+import { ShieldCheck, Loader2, LogIn, Lock, Mail, ArrowLeft, ShieldAlert } from 'lucide-react';
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { useAuth, useFirestore } from '@/firebase';
 import { doc, getDoc } from 'firebase/firestore';
@@ -29,11 +29,11 @@ export default function AdminLoginPage() {
     setLoading(true);
 
     try {
-      // 1. Authenticate first
+      // 1. Authenticate with Firebase Auth
       const userCredential = await signInWithEmailAndPassword(auth, email.toLowerCase().trim(), password);
       const user = userCredential.user;
 
-      // 2. Fetch user profile from Firestore by UID to verify role
+      // 2. Fetch user profile from Firestore by UID
       const userRef = doc(db, 'users', user.uid);
       const userSnap = await getDoc(userRef);
 
@@ -41,8 +41,8 @@ export default function AdminLoginPage() {
         await signOut(auth);
         toast({ 
           variant: "destructive", 
-          title: "Profile Not Found", 
-          description: "No registry record found for this account UID." 
+          title: "Access Denied", 
+          description: "No administrative profile found for this UID." 
         });
         setLoading(false);
         return;
@@ -50,27 +50,38 @@ export default function AdminLoginPage() {
 
       const userData = userSnap.data();
 
+      // 3. Verify role and email integrity
       if (userData.role !== 'super_admin') {
-        // If not super_admin, sign them out immediately
         await signOut(auth);
         toast({ 
           variant: "destructive", 
-          title: "Access Denied", 
-          description: "This portal is reserved for System Controllers with super_admin role." 
+          title: "Forbidden", 
+          description: "This portal is reserved for Super Admins only." 
         });
         setLoading(false);
         return;
       }
 
-      // 3. Authorized
-      toast({ title: "Admin Authorized", description: "Accessing global control center." });
+      if (userData.email.toLowerCase() !== user.email?.toLowerCase()) {
+        await signOut(auth);
+        toast({ 
+          variant: "destructive", 
+          title: "Verification Failed", 
+          description: "Profile email does not match authentication account." 
+        });
+        setLoading(false);
+        return;
+      }
+
+      // 4. Authorized
+      toast({ title: "System Unlock", description: "Super Admin authorized. Entering global command center." });
       router.push('/admin/dashboard');
     } catch (error: any) {
-      console.error("Login error:", error);
+      console.error("Admin Login Error:", error);
       toast({ 
         variant: "destructive", 
         title: "Authentication Failed", 
-        description: "Check your admin credentials or system permissions." 
+        description: "Invalid admin credentials or network issue." 
       });
     } finally {
       setLoading(false);
@@ -78,60 +89,64 @@ export default function AdminLoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4">
-      <Link href="/login" className="mb-8 inline-flex items-center gap-2 text-white/50 hover:text-white transition-colors">
-        <ArrowLeft className="w-4 h-4" /> Back to Portal
+    <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4">
+      <Link href="/login" className="mb-8 inline-flex items-center gap-2 text-white/40 hover:text-white transition-colors text-sm font-bold uppercase tracking-widest">
+        <ArrowLeft className="w-4 h-4" /> Exit to Public Portal
       </Link>
       
       <div className="mb-8 flex items-center gap-3">
-        <div className="bg-primary p-3 rounded-2xl shadow-xl shadow-primary/20">
+        <div className="bg-primary p-3 rounded-2xl shadow-2xl shadow-primary/20 ring-4 ring-primary/10">
           <ShieldAlert className="w-10 h-10 text-white" />
         </div>
         <span className="text-4xl font-black text-white font-headline tracking-tighter italic">MasterFlow</span>
       </div>
 
-      <Card className="w-full max-w-md shadow-2xl border-2 bg-slate-800 border-slate-700 text-white">
-        <CardHeader className="text-center border-b border-slate-700">
+      <Card className="w-full max-w-md shadow-2xl border-2 bg-slate-900 border-slate-800 text-white">
+        <CardHeader className="text-center border-b border-slate-800 pb-6">
           <CardTitle className="text-2xl font-black flex items-center justify-center gap-2">
-            <ShieldCheck className="w-6 h-6 text-primary" /> System Controller
+            <ShieldCheck className="w-6 h-6 text-primary" /> Root Controller
           </CardTitle>
-          <CardDescription className="text-slate-400">Global Administration Login</CardDescription>
+          <CardDescription className="text-slate-500 font-bold uppercase text-[10px] tracking-[0.2em]">Global Administration Node</CardDescription>
         </CardHeader>
         <CardContent className="pt-8">
           <form onSubmit={handleLogin} className="space-y-6">
             <div className="space-y-2">
-              <Label className="text-slate-300">Admin Email</Label>
+              <Label className="text-slate-400 text-xs font-bold uppercase">Authorized Email</Label>
               <div className="relative">
-                <Input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="admin@system.com" className="h-12 pl-10 bg-slate-900 border-slate-700 text-white" />
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                <Input 
+                  required 
+                  type="email" 
+                  value={email} 
+                  onChange={(e) => setEmail(e.target.value)} 
+                  placeholder="admin@system.com" 
+                  className="h-12 pl-10 bg-slate-950 border-slate-800 text-white focus-visible:ring-primary" 
+                />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600" />
               </div>
             </div>
             <div className="space-y-2">
-              <Label className="text-slate-300">Secret Key</Label>
+              <Label className="text-slate-400 text-xs font-bold uppercase">System Key</Label>
               <div className="relative">
-                <Input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="h-12 pl-10 bg-slate-900 border-slate-700 text-white" />
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                <Input 
+                  type="password" 
+                  required 
+                  value={password} 
+                  onChange={(e) => setPassword(e.target.value)} 
+                  placeholder="••••••••" 
+                  className="h-12 pl-10 bg-slate-950 border-slate-800 text-white focus-visible:ring-primary" 
+                />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600" />
               </div>
             </div>
-            <Button type="submit" className="w-full h-12 text-lg font-bold shadow-lg" disabled={loading}>
+            <Button type="submit" className="w-full h-14 text-lg font-black shadow-xl bg-primary hover:bg-primary/90" disabled={loading}>
               {loading ? <Loader2 className="animate-spin w-5 h-5" /> : <LogIn className="mr-2 w-5 h-5" />}
-              {loading ? 'Authenticating...' : 'Unlock System'}
+              {loading ? 'VERIFYING...' : 'UNLOCK SYSTEM'}
             </Button>
           </form>
         </CardContent>
       </Card>
       
-      <p className="mt-8 text-xs text-slate-500 uppercase tracking-widest font-bold">Encrypted Control Layer • Tenant Separation Active</p>
+      <p className="mt-8 text-[10px] text-slate-600 uppercase tracking-[0.3em] font-black">Encrypted Access Layer • Multi-Tenant Core V1.0</p>
     </div>
-  );
-}
-
-function ShieldAlert({ className }: { className?: string }) {
-  return (
-    <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.5 3.8 17 5 19 5a1 1 0 0 1 1 1z" />
-      <path d="M12 8v4" />
-      <path d="M12 16h.01" />
-    </svg>
   );
 }
