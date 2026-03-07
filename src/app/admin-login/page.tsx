@@ -26,11 +26,18 @@ export default function AdminLoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!auth || !db) return;
+    
+    const cleanEmail = email.toLowerCase().trim();
+    if (!cleanEmail || !password) {
+      toast({ variant: "destructive", title: "Required", description: "Please enter both email and password." });
+      return;
+    }
+
     setLoading(true);
 
     try {
       // 1. Authenticate with Firebase Auth
-      const userCredential = await signInWithEmailAndPassword(auth, email.toLowerCase().trim(), password);
+      const userCredential = await signInWithEmailAndPassword(auth, cleanEmail, password);
       const user = userCredential.user;
 
       // 2. Fetch user profile from Firestore by UID
@@ -42,7 +49,7 @@ export default function AdminLoginPage() {
         toast({ 
           variant: "destructive", 
           title: "Access Denied", 
-          description: "No administrative profile found for this UID." 
+          description: "No administrative profile found for this account in the database." 
         });
         setLoading(false);
         return;
@@ -50,7 +57,7 @@ export default function AdminLoginPage() {
 
       const userData = userSnap.data();
 
-      // 3. Verify role and email integrity
+      // 3. Verify role integrity
       if (userData.role !== 'super_admin') {
         await signOut(auth);
         toast({ 
@@ -62,26 +69,23 @@ export default function AdminLoginPage() {
         return;
       }
 
-      if (userData.email.toLowerCase() !== user.email?.toLowerCase()) {
-        await signOut(auth);
-        toast({ 
-          variant: "destructive", 
-          title: "Verification Failed", 
-          description: "Profile email does not match authentication account." 
-        });
-        setLoading(false);
-        return;
-      }
-
       // 4. Authorized
       toast({ title: "System Unlock", description: "Super Admin authorized. Entering global command center." });
       router.push('/admin/dashboard');
     } catch (error: any) {
-      console.error("Admin Login Error:", error);
+      // Handle specific Firebase Auth errors
+      let errorMessage = "Invalid admin credentials or network issue.";
+      
+      if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+        errorMessage = "The email or password you entered is incorrect.";
+      } else if (error.code === 'auth/too-many-requests') {
+        errorMessage = "Too many failed attempts. Please try again later.";
+      }
+
       toast({ 
         variant: "destructive", 
         title: "Authentication Failed", 
-        description: "Invalid admin credentials or network issue." 
+        description: errorMessage 
       });
     } finally {
       setLoading(false);
