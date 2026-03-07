@@ -5,7 +5,7 @@ import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Clock, Loader2, ChevronRight, User } from 'lucide-react';
+import { Clock, Loader2, ChevronRight, User, Calendar as CalendarIcon } from 'lucide-react';
 import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import { collection, query, where } from 'firebase/firestore';
 import { format } from 'date-fns';
