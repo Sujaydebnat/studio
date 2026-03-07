@@ -90,24 +90,31 @@ export default function CatalogManager() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!db || !formData.category) {
-      toast({ variant: "destructive", title: "Missing Category", description: "Please select a category." });
+    if (!db) return;
+
+    if (!formData.name || !formData.category) {
+      toast({ variant: "destructive", title: "Validation Error", description: "Product Name and Category are required." });
       return;
     };
 
     setLoading(true);
     try {
-      const itemData = {
-        ...formData,
-        updatedAt: serverTimestamp(),
-        createdAt: editingId ? undefined : serverTimestamp()
+      const itemData: any = {
+        name: formData.name.trim(),
+        description: formData.description.trim() || "",
+        category: formData.category,
+        subCategory: formData.subCategory.trim() || "",
+        imageUrl: formData.imageUrl || "",
+        startingPrice: formData.startingPrice.trim() || "",
+        updatedAt: serverTimestamp()
       };
 
       if (editingId) {
         await setDoc(doc(db, 'catalog', editingId), itemData, { merge: true });
         toast({ title: "Product Updated" });
       } else {
-        await addDoc(collection(db, 'catalog'), { ...itemData, createdAt: serverTimestamp() });
+        itemData.createdAt = serverTimestamp();
+        await addDoc(collection(db, 'catalog'), itemData);
         toast({ title: "Product Added to Catalog" });
       }
 

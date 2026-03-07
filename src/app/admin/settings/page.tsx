@@ -87,21 +87,30 @@ export default function SettingsPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!db || !categoryName.trim()) {
-      toast({ variant: "destructive", title: "Error", description: "Category Name is required." });
+    if (!db) return;
+    
+    const trimmedName = categoryName.trim();
+    if (!trimmedName) {
+      toast({ variant: "destructive", title: "Validation Error", description: "Category Name is required." });
       return;
     }
 
     setLoading(true);
     const targetId = editingId || doc(collection(db, 'categories')).id;
-    const catData = {
+    
+    // Construct data object safely without undefined fields
+    const catData: any = {
       id: targetId,
-      name: categoryName.trim().toUpperCase(),
-      description: categoryDesc.trim(),
-      subCategories: subCategories,
-      updatedAt: serverTimestamp(),
-      createdAt: editingId ? undefined : serverTimestamp()
+      name: trimmedName.toUpperCase(),
+      description: categoryDesc.trim() || "",
+      subCategories: subCategories || [],
+      updatedAt: serverTimestamp()
     };
+
+    // Only add createdAt if it's a new document
+    if (!editingId) {
+      catData.createdAt = serverTimestamp();
+    }
 
     const docRef = doc(db, 'categories', targetId);
 
