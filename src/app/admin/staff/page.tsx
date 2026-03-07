@@ -34,7 +34,7 @@ import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc } from '@
 import { collection, doc, setDoc, serverTimestamp, deleteDoc, addDoc, query, orderBy, where } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
+import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { CameraCapture } from '@/components/CameraCapture';
@@ -119,56 +119,89 @@ export default function StaffManagement() {
     }
   };
 
-  const handleAddField = async () => {
-    if (!db || !newFieldName.trim() || !userData?.shopId) return;
-    setFieldLoading(true);
-    try {
-      await addDoc(collection(db, 'staff_fields'), {
-        shopId: userData.shopId,
-        fieldName: newFieldName.trim(),
-        fieldType: newFieldType,
-        createdAt: serverTimestamp()
-      });
-      setNewFieldName('');
-      toast({ title: "Custom field added" });
-    } finally {
-      setFieldLoading(false);
+  const handleAddField = () => {
+    if (!db || !newFieldName.trim()) {
+      toast({ variant: "destructive", title: "Field name required" });
+      return;
     }
+    if (!userData?.shopId) {
+      toast({ variant: "destructive", title: "Shop ID not found", description: "Please wait for user data to load." });
+      return;
+    }
+
+    setFieldLoading(true);
+    const fieldData = {
+      shopId: userData.shopId,
+      fieldName: newFieldName.trim(),
+      fieldType: newFieldType,
+      createdAt: serverTimestamp()
+    };
+
+    addDoc(collection(db, 'staff_fields'), fieldData)
+      .then(() => {
+        setNewFieldName('');
+        toast({ title: "Custom field added" });
+      })
+      .catch(async (err) => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: 'staff_fields',
+          operation: 'create',
+          requestResourceData: fieldData
+        } satisfies SecurityRuleContext));
+      })
+      .finally(() => {
+        setFieldLoading(false);
+      });
   };
 
-  const handleDeleteField = async (id: string) => {
+  const handleDeleteField = (id: string) => {
     if (!db) return;
-    await deleteDoc(doc(db, 'staff_fields', id));
-    toast({ title: "Custom field removed" });
+    const fieldRef = doc(db, 'staff_fields', id);
+    deleteDoc(fieldRef)
+      .then(() => {
+        toast({ title: "Custom field removed" });
+      })
+      .catch(async (err) => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: fieldRef.path,
+          operation: 'delete'
+        } satisfies SecurityRuleContext));
+      });
   };
 
-  const handleCreateOrUpdateStaff = async (e: React.FormEvent) => {
+  const handleCreateOrUpdateStaff = (e: React.FormEvent) => {
     e.preventDefault();
     if (!db || !userData?.shopId) return;
 
     setLoading(true);
-    try {
-      const targetId = editMode && editingUserId ? editingUserId : formData.username.toLowerCase().trim();
-      const userRef = doc(db, 'users', targetId);
-      
-      const updatedStaffData = {
-        ...formData,
-        id: targetId,
-        shopId: userData.shopId,
-        username: formData.username.toLowerCase().trim(),
-        email: formData.email.toLowerCase().trim(),
-        updatedAt: serverTimestamp(),
-        ...(editMode ? {} : { createdAt: serverTimestamp() })
-      };
+    const targetId = editMode && editingUserId ? editingUserId : formData.username.toLowerCase().trim();
+    const staffRef = doc(db, 'users', targetId);
+    
+    const updatedStaffData = {
+      ...formData,
+      id: targetId,
+      shopId: userData.shopId,
+      username: formData.username.toLowerCase().trim(),
+      email: formData.email.toLowerCase().trim(),
+      updatedAt: serverTimestamp(),
+      ...(editMode ? {} : { createdAt: serverTimestamp() })
+    };
 
-      await setDoc(userRef, updatedStaffData, { merge: true });
-      toast({ title: editMode ? "Staff Updated" : "Staff Added" });
-      resetToListView();
-    } catch (error: any) {
-      toast({ variant: "destructive", title: "Error", description: error.message });
-    } finally {
-      setLoading(false);
-    }
+    setDoc(staffRef, updatedStaffData, { merge: true })
+      .then(() => {
+        toast({ title: editMode ? "Staff Updated" : "Staff Added" });
+        resetToListView();
+      })
+      .catch(async (err) => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: staffRef.path,
+          operation: 'write',
+          requestResourceData: updatedStaffData
+        } satisfies SecurityRuleContext));
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   };
 
   const handleEdit = (user: any) => {
@@ -219,17 +252,23 @@ export default function StaffManagement() {
     setEditingUserId(null);
   };
 
-  const handleDeleteStaff = async () => {
+  const handleDeleteStaff = () => {
     if (!db || !staffToDelete) return;
-    try {
-      await deleteDoc(doc(db, 'users', staffToDelete.id));
-      toast({ title: "Removed staff" });
-    } catch (error: any) {
-      errorEmitter.emit('permission-error', new FirestorePermissionError({ path: `users/${staffToDelete.id}`, operation: 'delete' }));
-    } finally {
-      setShowDeleteDialog(false);
-      setStaffToDelete(null);
-    }
+    const staffRef = doc(db, 'users', staffToDelete.id);
+    deleteDoc(staffRef)
+      .then(() => {
+        toast({ title: "Removed staff" });
+      })
+      .catch(async (err) => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({ 
+          path: staffRef.path, 
+          operation: 'delete' 
+        } satisfies SecurityRuleContext));
+      })
+      .finally(() => {
+        setShowDeleteDialog(false);
+        setStaffToDelete(null);
+      });
   };
 
   return (
@@ -375,7 +414,7 @@ export default function StaffManagement() {
               </CardContent>
               <CardFooter className="border-t bg-muted/5 flex justify-end gap-3 pt-6">
                 <Button type="button" variant="outline" onClick={resetToListView}>Cancel</Button>
-                <Button disabled={loading} className="px-10 font-bold shadow-lg">
+                <Button disabled={loading} className="px-10 font-bold shadow-lg" type="submit">
                   {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Shield className="w-4 h-4 mr-2" />}
                   {editMode ? 'Update Profile' : 'Register Staff'}
                 </Button>
@@ -496,3 +535,4 @@ export default function StaffManagement() {
     </div>
   );
 }
+
