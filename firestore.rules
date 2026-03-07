@@ -3,7 +3,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Helper functions for common permission checks
+    // Helper functions
     function isSignedIn() {
       return request.auth != null;
     }
@@ -16,63 +16,61 @@ service cloud.firestore {
       return isSignedIn() && getUserData().role == 'super_admin';
     }
 
-    function isShopOwner(shopId) {
+    function isOwnerOfShop(shopId) {
       return isSignedIn() && getUserData().role == 'admin' && getUserData().shopId == shopId;
     }
 
-    function isShopMember(shopId) {
+    function isStaffOfShop(shopId) {
       return isSignedIn() && getUserData().shopId == shopId;
     }
 
     // Rules for Shops
     match /shops/{shopId} {
-      // Super Admin can read all shops, Shop Owner can manage their own
-      allow read: if isSuperAdmin() || true; // Public catalog access
-      allow write: if isSuperAdmin() || isShopOwner(shopId);
+      allow read: if isSuperAdmin() || isOwnerOfShop(shopId) || true; // Public access for catalog
+      allow create: if isSignedIn();
+      allow update, delete: if isSuperAdmin() || isOwnerOfShop(shopId);
     }
 
-    // Rules for Users (Staff/Admins/Customers)
+    // Rules for Users
     match /users/{userId} {
-      // Super Admin can read all users, Shop Owner can manage their shop's staff
-      allow read: if isSuperAdmin() || (isSignedIn() && (request.auth.uid == userId || isShopMember(resource.data.shopId)));
-      // Note: Super Admins cannot create/delete staff per requirements
-      allow create, update: if (isSignedIn() && (request.auth.uid == userId || isShopOwner(request.resource.data.shopId)));
-      allow delete: if isShopOwner(resource.data.shopId);
+      allow read: if isSuperAdmin() || (isSignedIn() && (request.auth.uid == userId || getUserData().shopId == resource.data.shopId));
+      allow create: if isSignedIn();
+      allow update: if isSuperAdmin() || (isSignedIn() && (request.auth.uid == userId || isOwnerOfShop(request.resource.data.shopId)));
+      allow delete: if isSuperAdmin() || (isSignedIn() && isOwnerOfShop(resource.data.shopId));
     }
 
     // Rules for Orders
     match /orders/{orderId} {
-      // Shop Members can read/write their shop's orders
-      allow read: if isSuperAdmin() || (isSignedIn() && isShopMember(resource.data.shopId));
-      allow create: if isSignedIn() && isShopMember(request.resource.data.shopId);
-      allow update: if isSignedIn() && isShopMember(resource.data.shopId);
-      allow delete: if isShopOwner(resource.data.shopId);
+      allow read: if isSuperAdmin() || (isSignedIn() && isStaffOfShop(resource.data.shopId));
+      allow create: if isSignedIn() && isStaffOfShop(request.resource.data.shopId);
+      allow update: if isSignedIn() && isStaffOfShop(resource.data.shopId);
+      allow delete: if isSuperAdmin() || isOwnerOfShop(resource.data.shopId);
     }
 
-    // Rules for Categories/Catalog
+    // Rules for Catalog/Categories
     match /categories/{categoryId} {
-      allow read: if true; // Public access
-      allow write: if isShopOwner(request.resource.data.shopId);
+      allow read: if true;
+      allow write: if isSignedIn() && isStaffOfShop(request.resource.data.shopId);
       
-      match /subcategories/{subcategoryId} {
+      match /subcategories/{subId} {
         allow read: if true;
-        allow write: if isSignedIn() && isShopMember(get(/databases/$(database)/documents/categories/$(categoryId)).data.shopId);
+        allow write: if isSignedIn();
       }
     }
 
     match /catalog/{itemId} {
       allow read: if true;
-      allow write: if isShopOwner(request.resource.data.shopId);
+      allow write: if isSignedIn() && isStaffOfShop(request.resource.data.shopId);
     }
 
     // Rules for Attendance
     match /attendance/{attendanceId} {
-      allow read: if isSuperAdmin() || (isSignedIn() && isShopMember(resource.data.shopId));
-      allow create: if isSignedIn() && isShopMember(request.resource.data.shopId);
-      allow update: if isSignedIn() && isShopOwner(resource.data.shopId);
+      allow read: if isSuperAdmin() || (isSignedIn() && isStaffOfShop(resource.data.shopId));
+      allow create: if isSignedIn() && isStaffOfShop(request.resource.data.shopId);
+      allow update: if isSuperAdmin() || isOwnerOfShop(resource.data.shopId);
     }
 
-    // Default catch-all
+    // Global catch-all
     match /{document=**} {
       allow read, write: if isSuperAdmin();
     }

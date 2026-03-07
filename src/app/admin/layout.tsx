@@ -2,7 +2,7 @@
 "use client"
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { 
   LayoutDashboard, 
   ClipboardList, 
@@ -23,13 +23,15 @@ import {
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useUser, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
+import { useUser, useDoc, useFirestore, useMemoFirebase, useAuth } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const db = useFirestore();
+  const auth = useAuth();
   const { user } = useUser();
 
   const userRef = useMemoFirebase(() => 
@@ -52,6 +54,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { name: 'QR Catalog', icon: QrCode, href: '/admin/qr', show: isAdmin },
     { name: 'Settings', icon: Settings, href: '/admin/settings', show: isAdmin },
   ];
+
+  const handleSignOut = async () => {
+    await auth.signOut();
+    router.push('/login');
+  };
 
   const filteredNavItems = navItems.filter(item => item.show);
 
@@ -102,11 +109,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </ScrollArea>
 
         <div className="p-4 border-t bg-muted/10">
-          <Link href="/" className="block w-full">
-            <Button variant="ghost" className="w-full justify-start gap-2 text-destructive hover:text-white hover:bg-destructive font-bold transition-colors">
-              <LogOut className="w-4 h-4" /> Sign Out
-            </Button>
-          </Link>
+          <Button variant="ghost" className="w-full justify-start gap-2 text-destructive hover:text-white hover:bg-destructive font-bold transition-colors" onClick={handleSignOut}>
+            <LogOut className="w-4 h-4" /> Sign Out
+          </Button>
         </div>
       </aside>
 
