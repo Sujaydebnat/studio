@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,13 +23,15 @@ import {
   ArrowLeft, 
   Lock,
   Eye,
-  EyeOff,
   Mail,
   Fingerprint,
-  Key
+  Settings,
+  X,
+  Plus,
+  LayoutGrid
 } from 'lucide-react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, doc, setDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
+import { collection, doc, setDoc, serverTimestamp, deleteDoc, addDoc, query, orderBy } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -48,53 +50,80 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import Link from 'next/link';
 
 export default function StaffManagement() {
   const db = useFirestore();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [loading, setLoading] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [staffToDelete, setStaffToDelete] = useState<{id: string, name: string} | null>(null);
-  const [showPasswordInProfile, setShowPasswordInProfile] = useState(false);
   
-  // UI Modes
-  const [viewMode, setViewMode] = useState<'list' | 'form' | 'profile'>('list');
+  const [loading, setLoading] = useState(false);
+  const [viewMode, setViewMode] = useState<'list' | 'form'>('list');
   const [editMode, setEditMode] = useState(false);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
-  const [selectedUser, setSelectedUser] = useState<any | null>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [staffToDelete, setStaffToDelete] = useState<{id: string, name: string} | null>(null);
+  const [isFieldManagerOpen, setIsFieldManagerOpen] = useState(false);
   
+  // Custom Field Management
+  const [newFieldName, setNewFieldName] = useState('');
+  const [newFieldType, setNewFieldType] = useState('text');
+  const [fieldLoading, setFieldLoading] = useState(false);
+
   const [formData, setFormData] = useState({
     name: '',
-    username: '', // This is the Employee ID
+    username: '', 
     email: '',
     phone: '',
     photoUrl: '',
     password: '',
-    role: 'staff'
+    role: 'staff',
+    department: '',
+    address: '',
+    joiningDate: '',
+    salary: '',
+    status: 'Active',
+    customFields: {} as Record<string, any>
   });
 
-  const usersQuery = useMemoFirebase(() => {
-    if (!db) return null;
-    return collection(db, 'users');
-  }, [db]);
+  const usersQuery = useMemoFirebase(() => db ? collection(db, 'users') : null, [db]);
+  const fieldsQuery = useMemoFirebase(() => db ? query(collection(db, 'staff_fields'), orderBy('createdAt', 'asc')) : null, [db]);
 
   const { data: users, isLoading: loadingUsers } = useCollection(usersQuery);
+  const { data: customFields, isLoading: loadingFields } = useCollection(fieldsQuery);
 
-  const generateEmployeeId = () => {
-    return `EMP-${Math.floor(1000 + Math.random() * 9000)}`;
-  };
+  const generateEmployeeId = () => `EMP-${Math.floor(1000 + Math.random() * 9000)}`;
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData(prev => ({ ...prev, photoUrl: reader.result as string }));
-      };
+      reader.onloadend = () => setFormData(prev => ({ ...prev, photoUrl: reader.result as string }));
       reader.readAsDataURL(file);
     }
+  };
+
+  const handleAddField = async () => {
+    if (!db || !newFieldName.trim()) return;
+    setFieldLoading(true);
+    try {
+      await addDoc(collection(db, 'staff_fields'), {
+        fieldName: newFieldName.trim(),
+        fieldType: newFieldType,
+        createdAt: serverTimestamp()
+      });
+      setNewFieldName('');
+      toast({ title: "Custom field added" });
+    } finally {
+      setFieldLoading(false);
+    }
+  };
+
+  const handleDeleteField = async (id: string) => {
+    if (!db) return;
+    await deleteDoc(doc(db, 'staff_fields', id));
+    toast({ title: "Custom field removed" });
   };
 
   const handleCreateOrUpdateStaff = async (e: React.FormEvent) => {
@@ -107,29 +136,19 @@ export default function StaffManagement() {
       const userRef = doc(db, 'users', targetId);
       
       const userData = {
+        ...formData,
         id: targetId,
-        name: formData.name,
         username: formData.username.toLowerCase().trim(),
         email: formData.email.toLowerCase().trim(),
-        phone: formData.phone.trim(),
-        photoUrl: formData.photoUrl.trim(),
-        password: formData.password || '123456',
-        role: formData.role,
         updatedAt: serverTimestamp(),
         ...(editMode ? {} : { createdAt: serverTimestamp() })
       };
 
       await setDoc(userRef, userData, { merge: true });
-
-      toast({ 
-        title: editMode ? "Staff Updated" : "Staff Added", 
-        description: `${formData.name} account is now active.` 
-      });
-      
+      toast({ title: editMode ? "Staff Updated" : "Staff Added" });
       resetToListView();
     } catch (error: any) {
-      console.error(error);
-      toast({ variant: "destructive", title: "Operation Failed", description: "Check permissions or network." });
+      toast({ variant: "destructive", title: "Error", description: error.message });
     } finally {
       setLoading(false);
     }
@@ -140,27 +159,25 @@ export default function StaffManagement() {
     setEditingUserId(user.id);
     setViewMode('form');
     setFormData({
-      name: user.name,
+      name: user.name || '',
       username: user.username || '',
-      email: user.email,
+      email: user.email || '',
       phone: user.phone || '',
       photoUrl: user.photoUrl || '',
       password: user.password || '',
-      role: user.role || 'staff'
+      role: user.role || 'staff',
+      department: user.department || '',
+      address: user.address || '',
+      joiningDate: user.joiningDate || '',
+      salary: user.salary || '',
+      status: user.status || 'Active',
+      customFields: user.customFields || {}
     });
-  };
-
-  const handleViewProfile = (user: any) => {
-    setSelectedUser(user);
-    setShowPasswordInProfile(false);
-    setViewMode('profile');
   };
 
   const openAddForm = () => {
     setEditMode(false);
     setEditingUserId(null);
-    setSelectedUser(null);
-    setShowPasswordInProfile(false);
     setFormData({ 
       name: '', 
       username: generateEmployeeId(), 
@@ -168,43 +185,31 @@ export default function StaffManagement() {
       phone: '', 
       photoUrl: '', 
       password: '', 
-      role: 'staff' 
+      role: 'staff',
+      department: '',
+      address: '',
+      joiningDate: '',
+      salary: '',
+      status: 'Active',
+      customFields: {}
     });
     setViewMode('form');
   };
 
   const resetToListView = () => {
+    setViewMode('list');
     setEditMode(false);
     setEditingUserId(null);
-    setSelectedUser(null);
-    setShowPasswordInProfile(false);
-    setFormData({ name: '', username: '', email: '', phone: '', photoUrl: '', password: '', role: 'staff' });
-    setViewMode('list');
   };
 
-  const confirmDelete = (id: string, name: string) => {
-    setStaffToDelete({ id, name });
-    setShowDeleteDialog(true);
-  };
-
-  const handleDelete = async () => {
+  const handleDeleteStaff = async () => {
     if (!db || !staffToDelete) return;
-    
-    setDeletingId(staffToDelete.id);
-    const userRef = doc(db, 'users', staffToDelete.id);
-    
     try {
-      await deleteDoc(userRef);
-      toast({ title: "Removed", description: `${staffToDelete.name} has been deleted.` });
-      if (editingUserId === staffToDelete.id || selectedUser?.id === staffToDelete.id) resetToListView();
+      await deleteDoc(doc(db, 'users', staffToDelete.id));
+      toast({ title: "Removed staff" });
     } catch (error: any) {
-      const permissionError = new FirestorePermissionError({
-        path: userRef.path,
-        operation: 'delete',
-      });
-      errorEmitter.emit('permission-error', permissionError);
+      errorEmitter.emit('permission-error', new FirestorePermissionError({ path: `users/${staffToDelete.id}`, operation: 'delete' }));
     } finally {
-      setDeletingId(null);
       setShowDeleteDialog(false);
       setStaffToDelete(null);
     }
@@ -212,308 +217,259 @@ export default function StaffManagement() {
 
   return (
     <div className="space-y-8">
-      {viewMode === 'list' && (
+      {viewMode === 'list' ? (
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 animate-in fade-in duration-500">
           <div>
-            <h2 className="text-3xl font-bold font-headline text-primary">Staff Management</h2>
-            <p className="text-muted-foreground">Manage internal team access and roles.</p>
+            <h2 className="text-3xl font-bold font-headline text-primary">Personnel Management</h2>
+            <p className="text-muted-foreground">Manage your team and define custom dynamic columns.</p>
           </div>
-          <Button onClick={openAddForm} className="gap-2 h-11 px-6 font-bold shadow-md">
-            <PlusCircle className="w-5 h-5" />
-            Add New Staff
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setIsFieldManagerOpen(true)} className="gap-2 h-11 border-2">
+              <Settings className="w-5 h-5" /> Manage Fields
+            </Button>
+            <Button onClick={openAddForm} className="gap-2 h-11 px-6 font-bold shadow-md">
+              <PlusCircle className="w-5 h-5" /> Add Staff
+            </Button>
+          </div>
         </div>
+      ) : null}
+
+      {viewMode === 'form' ? (
+        <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4">
+          <Card className="shadow-lg border-2">
+            <CardHeader className="border-b bg-muted/5">
+              <div className="flex items-center gap-3">
+                <Button variant="ghost" size="icon" onClick={resetToListView}><ArrowLeft className="w-5 h-5" /></Button>
+                <CardTitle>{editMode ? 'Edit Staff Profile' : 'New Staff Registration'}</CardTitle>
+              </div>
+            </CardHeader>
+            <form onSubmit={handleCreateOrUpdateStaff}>
+              <CardContent className="pt-8 space-y-8">
+                <div className="flex justify-center">
+                  <div className="relative">
+                    <Avatar className="w-32 h-32 border-4 border-primary/20">
+                      <AvatarImage src={formData.photoUrl} />
+                      <AvatarFallback className="text-4xl font-bold bg-primary/10 text-primary">{formData.name?.charAt(0) || '?'}</AvatarFallback>
+                    </Avatar>
+                    <div className="absolute -bottom-2 -right-2 flex gap-1">
+                      <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
+                      <Button type="button" size="icon" variant="secondary" className="rounded-full shadow h-10 w-10" onClick={() => fileInputRef.current?.click()}><Upload className="w-4 h-4" /></Button>
+                      <CameraCapture onCapture={(img) => setFormData({...formData, photoUrl: img})} trigger={<Button type="button" size="icon" className="rounded-full shadow h-10 w-10 border border-primary"><Camera className="w-4 h-4" /></Button>} />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label>Full Name</Label>
+                    <Input required value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Employee ID</Label>
+                    <Input readOnly value={formData.username} className="bg-muted" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Email</Label>
+                    <Input required type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Phone</Label>
+                    <Input required value={formData.phone} onChange={(e) => setFormData({...formData, phone: e.target.value})} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Role</Label>
+                    <Select value={formData.role} onValueChange={(v) => setFormData({...formData, role: v})}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="admin">Admin</SelectItem>
+                        <SelectItem value="staff">Staff</SelectItem>
+                        <SelectItem value="Designer">Designer</SelectItem>
+                        <SelectItem value="Manager">Manager</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Department</Label>
+                    <Input value={formData.department} onChange={(e) => setFormData({...formData, department: e.target.value})} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Joining Date</Label>
+                    <Input type="date" value={formData.joiningDate} onChange={(e) => setFormData({...formData, joiningDate: e.target.value})} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Salary (Monthly)</Label>
+                    <Input value={formData.salary} onChange={(e) => setFormData({...formData, salary: e.target.value})} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Account Password</Label>
+                    <Input required type="text" value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Status</Label>
+                    <Select value={formData.status} onValueChange={(v) => setFormData({...formData, status: v})}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Active">Active</SelectItem>
+                        <SelectItem value="Inactive">Inactive</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Address</Label>
+                  <Input value={formData.address} onChange={(e) => setFormData({...formData, address: e.target.value})} />
+                </div>
+
+                {customFields && customFields.length > 0 && (
+                  <>
+                    <Separator />
+                    <div className="space-y-4">
+                      <h4 className="font-bold text-sm text-primary flex items-center gap-2">
+                        <Plus className="w-4 h-4" /> Custom Field Information
+                      </h4>
+                      <div className="grid md:grid-cols-2 gap-6">
+                        {customFields.map((field) => (
+                          <div key={field.id} className="space-y-2">
+                            <Label>{field.fieldName}</Label>
+                            {field.fieldType === 'text' && (
+                              <Input value={formData.customFields[field.fieldName] || ''} onChange={(e) => setFormData({...formData, customFields: {...formData.customFields, [field.fieldName]: e.target.value}})} />
+                            )}
+                            {field.fieldType === 'number' && (
+                              <Input type="number" value={formData.customFields[field.fieldName] || ''} onChange={(e) => setFormData({...formData, customFields: {...formData.customFields, [field.fieldName]: e.target.value}})} />
+                            )}
+                            {field.fieldType === 'date' && (
+                              <Input type="date" value={formData.customFields[field.fieldName] || ''} onChange={(e) => setFormData({...formData, customFields: {...formData.customFields, [field.fieldName]: e.target.value}})} />
+                            )}
+                            {field.fieldType === 'dropdown' && (
+                              <Select value={formData.customFields[field.fieldName] || ''} onValueChange={(v) => setFormData({...formData, customFields: {...formData.customFields, [field.fieldName]: v}})}>
+                                <SelectTrigger><SelectValue placeholder="Select Option" /></SelectTrigger>
+                                <SelectContent>
+                                  {(field.options || []).map((opt: string) => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </CardContent>
+              <CardFooter className="border-t bg-muted/5 flex justify-end gap-3 pt-6">
+                <Button type="button" variant="outline" onClick={resetToListView}>Cancel</Button>
+                <Button disabled={loading} className="px-8 font-bold shadow-lg">
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Shield className="w-4 h-4 mr-2" />}
+                  {editMode ? 'Update Profile' : 'Create Staff Profile'}
+                </Button>
+              </CardFooter>
+            </form>
+          </Card>
+        </div>
+      ) : (
+        <Card className="shadow-md animate-in fade-in">
+          <CardHeader className="border-b bg-muted/5 flex flex-row items-center justify-between">
+            <CardTitle>Staff List</CardTitle>
+            <Badge variant="outline">{users?.length || 0} Registered</Badge>
+          </CardHeader>
+          <CardContent className="p-0 overflow-hidden">
+            {loadingUsers ? (
+              <div className="p-20 flex justify-center"><Loader2 className="w-10 h-10 animate-spin text-primary" /></div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/50">
+                    <TableHead className="pl-6">Name</TableHead>
+                    <TableHead>Employee ID</TableHead>
+                    <TableHead>Department</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right pr-6">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {users?.map((u) => (
+                    <TableRow key={u.id} className="hover:bg-primary/5 transition-colors">
+                      <TableCell className="pl-6">
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-9 w-9 border shadow-sm">
+                            <AvatarImage src={u.photoUrl} />
+                            <AvatarFallback>{u.name?.charAt(0)}</AvatarFallback>
+                          </Avatar>
+                          <span className="font-bold text-sm">{u.name}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground">{u.username}</TableCell>
+                      <TableCell className="text-sm">{u.department || 'N/A'}</TableCell>
+                      <TableCell>
+                        <Badge variant="secondary" className="text-[10px] font-bold uppercase">{u.role}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={u.status === 'Active' ? 'bg-green-500' : 'bg-destructive'}>{u.status}</Badge>
+                      </TableCell>
+                      <TableCell className="text-right pr-6 space-x-2">
+                        <Link href={`/admin/staff/${u.id}`}><Button variant="outline" size="icon" className="h-8 w-8"><Eye className="w-4 h-4" /></Button></Link>
+                        <Button variant="outline" size="icon" className="h-8 w-8 text-primary" onClick={() => handleEdit(u)}><Pencil className="w-4 h-4" /></Button>
+                        <Button variant="outline" size="icon" className="h-8 w-8 text-destructive" onClick={() => {setStaffToDelete({id: u.id, name: u.name}); setShowDeleteDialog(true)}}><Trash2 className="w-4 h-4" /></Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
       )}
 
-      <div className="max-w-7xl mx-auto">
-        {/* FORM VIEW (ADD/EDIT) */}
-        {viewMode === 'form' && (
-          <div className="max-w-2xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-300">
-            <Card className={cn(
-              "shadow-lg border-2",
-              editMode ? 'border-primary ring-2 ring-primary/20' : 'border-border'
-            )}>
-              <CardHeader className="border-b bg-muted/5">
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-3">
-                    <Button variant="ghost" size="icon" onClick={resetToListView} className="h-8 w-8">
-                      <ArrowLeft className="w-5 h-5" />
-                    </Button>
-                    <div>
-                      <CardTitle className="text-xl flex items-center gap-2">
-                        {editMode ? <Pencil className="w-5 h-5" /> : <UserPlus className="w-5 h-5" />}
-                        {editMode ? 'Edit Staff Profile' : 'New Staff Access'}
-                      </CardTitle>
+      {/* Field Manager Dialog */}
+      <Dialog open={isFieldManagerOpen} onOpenChange={setIsFieldManagerOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Manage Dynamic Staff Columns</DialogTitle>
+            <DialogDescription>Add or remove custom fields for all staff profiles.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-4">
+            <div className="flex gap-2">
+              <Input placeholder="Field Name" value={newFieldName} onChange={(e) => setNewFieldName(e.target.value)} />
+              <Select value={newFieldType} onValueChange={setNewFieldType}>
+                <SelectTrigger className="w-[120px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="text">Text</SelectItem>
+                  <SelectItem value="number">Number</SelectItem>
+                  <SelectItem value="date">Date</SelectItem>
+                  <SelectItem value="dropdown">Dropdown</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button size="icon" onClick={handleAddField} disabled={fieldLoading}><Plus className="w-4 h-4" /></Button>
+            </div>
+            <Separator />
+            <div className="max-h-[300px] overflow-auto space-y-2">
+              {loadingFields ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 
+                customFields?.map(field => (
+                  <div key={field.id} className="flex justify-between items-center p-2 rounded bg-muted border">
+                    <div className="flex flex-col">
+                      <span className="text-sm font-bold">{field.fieldName}</span>
+                      <span className="text-[10px] uppercase text-muted-foreground">{field.fieldType}</span>
                     </div>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDeleteField(field.id)}><X className="w-4 h-4" /></Button>
                   </div>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-8">
-                <form onSubmit={handleCreateOrUpdateStaff} className="space-y-6">
-                  <div className="flex justify-center mb-8">
-                    <div className="relative">
-                      <Avatar className="w-32 h-32 border-4 border-primary/20 shadow-xl">
-                        <AvatarImage src={formData.photoUrl} alt="Preview" />
-                        <AvatarFallback className="text-4xl font-bold bg-primary/10 text-primary">
-                          {formData.name?.charAt(0) || <UserIcon className="w-12 h-12" />}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="absolute -bottom-2 -right-2 flex gap-1">
-                        <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
-                        <Button type="button" size="icon" variant="secondary" className="rounded-full shadow-lg h-10 w-10 border border-border" onClick={() => fileInputRef.current?.click()}><Upload className="w-4 h-4" /></Button>
-                        <CameraCapture onCapture={(img) => setFormData({...formData, photoUrl: img})} trigger={<Button type="button" size="icon" className="rounded-full shadow-lg h-10 w-10 border border-primary"><Camera className="w-5 h-5" /></Button>} />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <Label>Full Name</Label>
-                      <Input required value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} placeholder="e.g. Rahul Dev" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Employee ID (Auto-Generated)</Label>
-                      <div className="relative">
-                        <Input readOnly value={formData.username} className="pl-9 bg-muted/50 cursor-not-allowed" placeholder="EMP-1000" />
-                        <Fingerprint className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <Label>Work Email</Label>
-                      <Input required type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} placeholder="staff@printflow.com" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Phone Number</Label>
-                      <div className="relative">
-                        <Input required value={formData.phone} onChange={(e) => setFormData({...formData, phone: e.target.value})} className="pl-9" placeholder="017XXX..." />
-                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <Label>Login Password</Label>
-                      <div className="relative">
-                        <Input required type="text" value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})} className="pl-9" placeholder="••••••••" />
-                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Access Role</Label>
-                      <Select value={formData.role} onValueChange={(val) => setFormData({...formData, role: val})}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="admin">Admin (Full Control)</SelectItem>
-                          <SelectItem value="staff">Staff (Production Only)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  <div className="pt-4 flex gap-3">
-                    <Button type="button" variant="outline" className="flex-1 h-12" onClick={resetToListView}>Cancel</Button>
-                    <Button className="flex-[2] gap-2 font-bold h-12 shadow-md" disabled={loading}>
-                      {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Shield className="w-5 h-5" />}
-                      {editMode ? 'Save Profile' : 'Authorize Staff'}
-                    </Button>
-                  </div>
-                </form>
-              </CardContent>
-            </Card>
+                ))
+              }
+            </div>
           </div>
-        )}
-
-        {/* PROFILE VIEW MODE */}
-        {viewMode === 'profile' && selectedUser && (
-          <div className="max-w-2xl mx-auto animate-in fade-in zoom-in-95 duration-300">
-            <Card className="shadow-xl border-2 overflow-hidden">
-              <div className="h-32 bg-primary/10 relative">
-                <Button variant="ghost" size="icon" onClick={resetToListView} className="absolute top-4 left-4 bg-white/80 hover:bg-white">
-                  <ArrowLeft className="w-5 h-5 text-primary" />
-                </Button>
-                <div className="absolute top-4 right-4 flex gap-2">
-                   <Button variant="outline" size="sm" onClick={() => handleEdit(selectedUser)} className="bg-white/80">
-                     <Pencil className="w-4 h-4 mr-2" /> Edit
-                   </Button>
-                </div>
-              </div>
-              <CardContent className="relative pt-0 px-8 pb-10">
-                <div className="flex flex-col items-center -translate-y-16">
-                  <Avatar className="w-32 h-32 border-4 border-white shadow-2xl">
-                    <AvatarImage src={selectedUser.photoUrl} alt={selectedUser.name} />
-                    <AvatarFallback className="text-4xl font-bold bg-primary text-primary-foreground">{selectedUser.name.charAt(0)}</AvatarFallback>
-                  </Avatar>
-                  <div className="text-center mt-4">
-                    <h3 className="text-2xl font-bold text-foreground">{selectedUser.name}</h3>
-                    <Badge variant={selectedUser.role === 'admin' ? 'default' : 'secondary'} className="mt-2 uppercase tracking-widest text-[10px] font-bold">
-                      {selectedUser.role} Level
-                    </Badge>
-                  </div>
-                </div>
-
-                <div className="grid gap-6 -mt-8">
-                  <div className="space-y-4">
-                    <h4 className="text-xs font-bold uppercase text-muted-foreground tracking-tighter">System Access</h4>
-                    <div className="grid gap-4">
-                       <div className="grid grid-cols-2 gap-4">
-                         <div className="p-4 rounded-xl bg-muted/50 border flex items-center gap-3">
-                           <Fingerprint className="w-5 h-5 text-primary" />
-                           <div>
-                              <p className="text-[10px] uppercase font-bold text-muted-foreground">Employee ID</p>
-                              <p className="font-mono text-sm">@{selectedUser.username}</p>
-                           </div>
-                         </div>
-                         <div className="p-4 rounded-xl bg-muted/50 border flex items-center gap-3">
-                           <Shield className="w-5 h-5 text-primary" />
-                           <div>
-                              <p className="text-[10px] uppercase font-bold text-muted-foreground">Account Status</p>
-                              <p className="text-sm font-bold text-green-600">Active</p>
-                           </div>
-                         </div>
-                       </div>
-                       
-                       <div className="p-4 rounded-xl bg-muted/50 border flex items-center justify-between">
-                         <div className="flex items-center gap-3">
-                           <Key className="w-5 h-5 text-primary" />
-                           <div>
-                              <p className="text-[10px] uppercase font-bold text-muted-foreground">Access Password</p>
-                              <p className="font-mono text-sm">
-                                {showPasswordInProfile ? selectedUser.password : '••••••••'}
-                              </p>
-                           </div>
-                         </div>
-                         <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-8 w-8 text-muted-foreground hover:text-primary"
-                            onClick={() => setShowPasswordInProfile(!showPasswordInProfile)}
-                         >
-                            {showPasswordInProfile ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                         </Button>
-                       </div>
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  <div className="space-y-4">
-                    <h4 className="text-xs font-bold uppercase text-muted-foreground tracking-tighter">Contact Information</h4>
-                    <div className="space-y-3">
-                       <div className="flex items-center gap-3 p-1">
-                         <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary"><Mail className="w-4 h-4" /></div>
-                         <div>
-                            <p className="text-[10px] uppercase font-bold text-muted-foreground">Email Address</p>
-                            <p className="text-sm font-medium">{selectedUser.email}</p>
-                         </div>
-                       </div>
-                       <div className="flex items-center gap-3 p-1">
-                         <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary"><Phone className="w-4 h-4" /></div>
-                         <div>
-                            <p className="text-[10px] uppercase font-bold text-muted-foreground">Phone Number</p>
-                            <p className="text-sm font-medium">{selectedUser.phone || 'N/A'}</p>
-                         </div>
-                       </div>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {/* LIST VIEW MODE */}
-        {viewMode === 'list' && (
-          <Card className="shadow-md animate-in fade-in duration-300">
-            <CardHeader className="border-b bg-muted/5">
-              <CardTitle className="text-xl">Authorized Staff Members</CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              {loadingUsers ? (
-                <div className="flex justify-center p-20"><Loader2 className="w-10 h-10 animate-spin text-primary" /></div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-muted/50">
-                      <TableHead className="pl-6">Profile</TableHead>
-                      <TableHead>Employee ID</TableHead>
-                      <TableHead>Access Level</TableHead>
-                      <TableHead className="text-right pr-6">Management</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {users?.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={4} className="text-center py-20 text-muted-foreground italic">
-                          No staff found. Click "Add New Staff" to begin.
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      users?.map((u) => (
-                        <TableRow key={u.id} className="hover:bg-primary/5 transition-colors">
-                          <TableCell className="pl-6">
-                            <div className="flex items-center gap-3">
-                              <Avatar className="w-10 h-10 border shadow-sm">
-                                <AvatarImage src={u.photoUrl} alt={u.name} />
-                                <AvatarFallback className="font-bold">{u.name.charAt(0)}</AvatarFallback>
-                              </Avatar>
-                              <div>
-                                <p className="font-bold text-sm">{u.name}</p>
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-xs font-mono">
-                            <Badge variant="outline" className="font-mono bg-white">@{u.username}</Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={u.role === 'admin' ? 'default' : 'secondary'} className="text-[10px] uppercase font-bold tracking-wider">
-                              {u.role}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-right pr-6">
-                            <div className="flex justify-end gap-2">
-                              <Button variant="outline" size="sm" onClick={() => handleViewProfile(u)} className="h-8 gap-1 hover:border-accent hover:text-accent">
-                                <Eye className="w-3 h-3" /> View
-                              </Button>
-                              <Button variant="outline" size="sm" onClick={() => handleEdit(u)} className="h-8 gap-1 hover:border-primary hover:text-primary" disabled={deletingId === u.id}>
-                                <Pencil className="w-3 h-3" /> Edit
-                              </Button>
-                              <Button variant="destructive" size="icon" onClick={() => confirmDelete(u.id, u.name)} className="h-8 w-8 shadow-sm" disabled={deletingId === u.id}>
-                                {deletingId === u.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        )}
-      </div>
+          <DialogFooter><Button onClick={() => setIsFieldManagerOpen(false)}>Done</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <div className="flex items-center gap-3 text-destructive mb-2">
-              <AlertTriangle className="w-6 h-6" />
-              <AlertDialogTitle>Confirm Removal</AlertDialogTitle>
-            </div>
-            <AlertDialogDescription>
-              Are you sure you want to delete <strong>{staffToDelete?.name}</strong>? 
-              This will revoke tader access to the portal permanent bhabe.
-            </AlertDialogDescription>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>This will permanently remove <b>{staffToDelete?.name}</b> from the system.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={!!deletingId}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-bold" disabled={!!deletingId}>
-              Confirm Delete
-            </AlertDialogAction>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteStaff} className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

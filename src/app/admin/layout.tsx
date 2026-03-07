@@ -68,7 +68,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 href={item.href}
                 className={cn(
                   "flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
-                  pathname === item.href 
+                  pathname.startsWith(item.href) 
                     ? "bg-primary/10 text-primary" 
                     : "text-muted-foreground hover:bg-muted"
                 )}
@@ -77,7 +77,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <item.icon className="w-4 h-4" />
                   {item.name}
                 </div>
-                {pathname === item.href && <ChevronRight className="w-4 h-4" />}
+                {pathname.startsWith(item.href) && <ChevronRight className="w-4 h-4" />}
               </Link>
             ))}
           </nav>

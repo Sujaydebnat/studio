@@ -13,10 +13,29 @@
         "phone": { "type": "string" },
         "photoUrl": { "type": "string" },
         "role": { "type": "string", "enum": ["admin", "staff"] },
+        "department": { "type": "string" },
+        "address": { "type": "string" },
+        "joiningDate": { "type": "string", "format": "date" },
+        "salary": { "type": "string" },
+        "status": { "type": "string", "enum": ["Active", "Inactive"] },
         "password": { "type": "string" },
+        "customFields": { "type": "object" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "name", "username", "email", "role"]
+    },
+    "StaffField": {
+      "title": "StaffField",
+      "type": "object",
+      "description": "Definition for a custom staff column.",
+      "properties": {
+        "id": { "type": "string" },
+        "fieldName": { "type": "string" },
+        "fieldType": { "type": "string", "enum": ["text", "number", "date", "dropdown"] },
+        "options": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "fieldName", "fieldType"]
     },
     "Order": {
       "title": "Order",
@@ -111,7 +130,8 @@
     "providers": ["password", "google"]
   },
   "firestore": {
-    "/users/{userId}": { "schema": "#/backend/entities/User", "description": "User profiles." },
+    "/users/{userId}": { "schema": "#/backend/entities/User", "description": "Staff profiles." },
+    "/staff_fields/{fieldId}": { "schema": "#/backend/entities/StaffField", "description": "Custom staff columns." },
     "/orders/{orderId}": { "schema": "#/backend/entities/Order", "description": "Print orders." },
     "/orders/{orderId}/updates/{updateId}": { "schema": "#/backend/entities/OrderUpdate", "description": "Messages for an order." },
     "/catalog/{itemId}": { "schema": "#/backend/entities/CatalogItem", "description": "Products in the catalog." },
