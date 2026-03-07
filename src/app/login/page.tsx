@@ -1,23 +1,7 @@
 
 "use client"
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { Printer, Loader2, LogIn, UserCheck, User as UserIcon, Lock, ShieldCheck, Store, UserPlus, ShieldAlert, ArrowLeft } from 'lucide-react';
-import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { useAuth, useFirestore } from '@/firebase';
-import { collection, query, where, getDocs, or, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { useToast } from '@/hooks/use-toast';
-import { Separator } from '@/components/ui/separator';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
-import Link from 'next/link';
-
-export default function LoginPage() {
+import { useState } from 'export default function LoginPage() {
   const router = useRouter();
   const auth = useAuth();
   const db = useFirestore();
@@ -81,7 +65,7 @@ export default function LoginPage() {
         // Handle Super Admin Bypass/Provisioning
         if (superAdminUIDs.includes(user.uid)) {
           if (!userSnap.exists()) {
-            await setDoc(userRef, {
+            setDoc(userRef, {
               id: user.uid,
               name: 'Super Admin',
               email: user.email || targetEmail,
@@ -97,7 +81,7 @@ export default function LoginPage() {
               }));
             });
           } else if (userSnap.data()?.role !== 'super_admin') {
-            await setDoc(userRef, { 
+            setDoc(userRef, { 
               role: 'super_admin', 
               updatedAt: serverTimestamp() 
             }, { merge: true }).catch(async () => {
@@ -140,7 +124,7 @@ export default function LoginPage() {
         }
 
       } catch (error: any) {
-        console.error(`Login Attempt ${attempt + 1} Failed:`, error);
+        console.warn(`Login Attempt ${attempt + 1} Failed:`, error.code);
 
         if (error.code === 'auth/network-request-failed' && attempt < maxRetries) {
           attempt++;
@@ -153,7 +137,9 @@ export default function LoginPage() {
 
         if (error.code === 'auth/network-request-failed') {
           errorTitle = "Network Error";
-          errorMessage = "Could not connect to verification services. Please check your internet or restart the workstation session.";
+          errorMessage = "Could not connect to verification services. Please check your internet connection.";
+        } else if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+          errorMessage = "The email or password you entered is incorrect.";
         }
 
         toast({ variant: "destructive", title: errorTitle, description: errorMessage });
@@ -257,3 +243,19 @@ export default function LoginPage() {
     </div>
   );
 }
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { Printer, Loader2, LogIn, UserCheck, User as UserIcon, Lock, ShieldCheck, Store, UserPlus, ShieldAlert, ArrowLeft } from 'lucide-react';
+import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { useAuth, useFirestore } from '@/firebase';
+import { collection, query, where, getDocs, or, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { useToast } from '@/hooks/use-toast';
+import { Separator } from '@/components/ui/separator';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
+import Link from 'next/link';

@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { ShieldCheck, Loader2, LogIn, Lock, Mail, ArrowLeft, ShieldAlert, WifiOff } from 'lucide-react';
+import { ShieldCheck, Loader2, LogIn, Lock, Mail, ArrowLeft, ShieldAlert } from 'lucide-react';
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { useAuth, useFirestore } from '@/firebase';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
@@ -62,7 +62,7 @@ export default function AdminLoginPage() {
         // Handle Super Admin Logic & Auto-provisioning
         if (superAdminUIDs.includes(user.uid)) {
           if (!userSnap.exists()) {
-            await setDoc(userRef, {
+            setDoc(userRef, {
               id: user.uid,
               name: 'Super Admin',
               email: user.email || cleanEmail,
@@ -78,7 +78,7 @@ export default function AdminLoginPage() {
               }));
             });
           } else if (userSnap.data()?.role !== 'super_admin') {
-            await setDoc(userRef, { 
+            setDoc(userRef, { 
               role: 'super_admin', 
               updatedAt: serverTimestamp() 
             }, { merge: true }).catch(async () => {
@@ -122,7 +122,8 @@ export default function AdminLoginPage() {
         router.push('/admin/dashboard');
 
       } catch (error: any) {
-        console.error(`Login Attempt ${attempt + 1} Failed:`, error);
+        // Log to console for debugging but handle gracefully for UI
+        console.warn(`Login attempt ${attempt + 1} failed:`, error.code);
 
         if (error.code === 'auth/network-request-failed' && attempt < maxRetries) {
           attempt++;
@@ -131,13 +132,13 @@ export default function AdminLoginPage() {
           continue;
         }
 
-        let errorMessage = "Invalid admin credentials or network issue.";
         let errorTitle = "Authentication Failed";
+        let errorMessage = "Invalid admin credentials or network issue.";
 
         if (error.code === 'auth/network-request-failed') {
           errorTitle = "Network Error";
-          errorMessage = "Could not connect to authentication services. Please check your internet connection or restart your workspace session.";
-        } else if (error.code === 'auth/invalid-credential') {
+          errorMessage = "Could not connect to authentication services. Please check your internet connection.";
+        } else if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
           errorMessage = "The email or password you entered is incorrect.";
         }
 
