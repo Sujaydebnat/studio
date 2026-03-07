@@ -1,10 +1,9 @@
-
 'use client';
 
 import React, { DependencyList, createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
 import { FirebaseApp } from 'firebase/app';
 import { Firestore } from 'firebase/firestore';
-import { Auth, User, onAuthStateChanged } from 'firebase/auth';
+import { Auth, User, onAuthStateChanged, onIdTokenChanged } from 'firebase/auth';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener'
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -67,7 +66,8 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
       return;
     }
 
-    const unsubscribe = onAuthStateChanged(
+    // Standard Auth State Listener
+    const unsubscribeAuth = onAuthStateChanged(
       auth,
       (firebaseUser) => {
         setUserAuthState({ user: firebaseUser, isUserLoading: false, userError: null });
@@ -76,8 +76,8 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
         console.error("FirebaseProvider: onAuthStateChanged error:", error);
         setUserAuthState({ user: null, isUserLoading: false, userError: error });
         
-        // Emit as permission error if it looks like a workstation/auth failure
-        if (error.message.includes('permission-denied') || error.message.includes('auth')) {
+        // Detect workspace session expiry via auth errors
+        if (error.message.includes('permission-denied') || error.message.includes('auth/network-request-failed')) {
           errorEmitter.emit('permission-error', new FirestorePermissionError({
             path: 'auth/session',
             operation: 'get'
@@ -85,7 +85,26 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
         }
       }
     );
-    return () => unsubscribe();
+
+    // ID Token Change Listener (detects token refresh failures)
+    const unsubscribeToken = onIdTokenChanged(auth, async (user) => {
+      if (user) {
+        try {
+          await user.getIdToken();
+        } catch (e: any) {
+          // If token refresh fails, the workspace session is likely dead
+          errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: 'auth/token-refresh',
+            operation: 'get'
+          }));
+        }
+      }
+    });
+
+    return () => {
+      unsubscribeAuth();
+      unsubscribeToken();
+    };
   }, [auth]);
 
   const contextValue = useMemo((): FirebaseContextState => {

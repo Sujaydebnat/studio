@@ -3,7 +3,7 @@
 import { firebaseConfig } from '@/firebase/config';
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth, Auth } from 'firebase/auth';
-import { getFirestore, Firestore, initializeFirestore, CACHE_SIZE_UNLIMITED } from 'firebase/firestore';
+import { getFirestore, Firestore, initializeFirestore, CACHE_SIZE_UNLIMITED, enableIndexedDbPersistence, terminate } from 'firebase/firestore';
 
 let app: FirebaseApp;
 let firestore: Firestore;
@@ -21,17 +21,18 @@ export function initializeFirebase() {
   // Ensure we only initialize once
   if (!getApps().length) {
     app = initializeApp(firebaseConfig);
-    // Force Long Polling to bypass potential WebSocket blocks in cloud IDEs/Proxies
+    
+    // Stability for Cloud IDEs: Force Long Polling to bypass potential WebSocket blocks
     // and use unlimited cache for offline resilience.
     firestore = initializeFirestore(app, {
       experimentalForceLongPolling: true,
       cacheSizeBytes: CACHE_SIZE_UNLIMITED,
     });
+    
     auth = getAuth(app);
   } else {
     app = getApp();
     auth = getAuth(app);
-    // Safety check to get or initialize firestore instance with correct settings
     try {
       firestore = getFirestore(app);
     } catch (e) {
@@ -43,6 +44,21 @@ export function initializeFirebase() {
   }
 
   return { firebaseApp: app, firestore, auth };
+}
+
+/**
+ * Safely terminates and re-initializes Firebase services.
+ * Useful for recovering from deep workspace connection failures.
+ */
+export async function reconnectFirebase() {
+  if (firestore) {
+    try {
+      await terminate(firestore);
+    } catch (e) {
+      // Ignore termination errors during forced reconnect
+    }
+  }
+  return initializeFirebase();
 }
 
 export * from './provider';
