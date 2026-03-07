@@ -28,7 +28,8 @@ import {
   Settings,
   X,
   Plus,
-  LayoutGrid
+  LayoutGrid,
+  CheckCircle2
 } from 'lucide-react';
 import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc } from '@/firebase';
 import { collection, doc, setDoc, serverTimestamp, deleteDoc, addDoc, query, orderBy, where } from 'firebase/firestore';
@@ -52,6 +53,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import Link from 'next/link';
+import { Checkbox } from '@/components/ui/checkbox';
 
 export default function StaffManagement() {
   const db = useFirestore();
@@ -73,6 +75,8 @@ export default function StaffManagement() {
   // Custom Field Management
   const [newFieldName, setNewFieldName] = useState('');
   const [newFieldType, setNewFieldType] = useState('text');
+  const [newFieldRequired, setNewFieldRequired] = useState(false);
+  const [newFieldOptions, setNewFieldOptions] = useState(''); // Comma separated
   const [fieldLoading, setFieldLoading] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -124,23 +128,24 @@ export default function StaffManagement() {
       toast({ variant: "destructive", title: "Field name required" });
       return;
     }
-    if (!userData?.shopId) {
-      toast({ variant: "destructive", title: "Shop ID not found", description: "Please wait for user data to load." });
-      return;
-    }
+    if (!userData?.shopId) return;
 
     setFieldLoading(true);
     const fieldData = {
       shopId: userData.shopId,
       fieldName: newFieldName.trim(),
       fieldType: newFieldType,
+      required: newFieldRequired,
+      options: newFieldType === 'dropdown' ? newFieldOptions.split(',').map(o => o.trim()).filter(Boolean) : [],
       createdAt: serverTimestamp()
     };
 
     addDoc(collection(db, 'staff_fields'), fieldData)
       .then(() => {
         setNewFieldName('');
-        toast({ title: "Custom field added" });
+        setNewFieldOptions('');
+        setNewFieldRequired(false);
+        toast({ title: "Custom field added successfully" });
       })
       .catch(async (err) => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -189,7 +194,7 @@ export default function StaffManagement() {
 
     setDoc(staffRef, updatedStaffData, { merge: true })
       .then(() => {
-        toast({ title: editMode ? "Staff Updated" : "Staff Added" });
+        toast({ title: editMode ? "Staff member profile updated" : "Staff member registered successfully" });
         resetToListView();
       })
       .catch(async (err) => {
@@ -257,7 +262,7 @@ export default function StaffManagement() {
     const staffRef = doc(db, 'users', staffToDelete.id);
     deleteDoc(staffRef)
       .then(() => {
-        toast({ title: "Removed staff" });
+        toast({ title: "Removed staff member permanently" });
       })
       .catch(async (err) => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({ 
@@ -281,10 +286,10 @@ export default function StaffManagement() {
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => setIsFieldManagerOpen(true)} className="gap-2 h-11 border-2">
-              <Settings className="w-5 h-5" /> Manage Fields
+              <Settings className="w-5 h-5" /> Define Columns
             </Button>
             <Button onClick={openAddForm} className="gap-2 h-11 px-6 font-bold shadow-md">
-              <PlusCircle className="w-5 h-5" /> Add Staff
+              <PlusCircle className="w-5 h-5" /> Add New Staff
             </Button>
           </div>
         </div>
@@ -325,11 +330,11 @@ export default function StaffManagement() {
                     <Input readOnly value={formData.username} className="bg-muted" />
                   </div>
                   <div className="space-y-2">
-                    <Label>Email</Label>
+                    <Label>Email Address</Label>
                     <Input required type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} />
                   </div>
                   <div className="space-y-2">
-                    <Label>Phone</Label>
+                    <Label>Phone Number</Label>
                     <Input required value={formData.phone} onChange={(e) => setFormData({...formData, phone: e.target.value})} />
                   </div>
                   <div className="space-y-2">
@@ -353,15 +358,15 @@ export default function StaffManagement() {
                     <Input type="date" value={formData.joiningDate} onChange={(e) => setFormData({...formData, joiningDate: e.target.value})} />
                   </div>
                   <div className="space-y-2">
-                    <Label>Salary (Monthly)</Label>
+                    <Label>Monthly Salary</Label>
                     <Input value={formData.salary} onChange={(e) => setFormData({...formData, salary: e.target.value})} />
                   </div>
                   <div className="space-y-2">
-                    <Label>Account Password</Label>
+                    <Label>Portal Password</Label>
                     <Input required type="text" value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})} />
                   </div>
                   <div className="space-y-2">
-                    <Label>Status</Label>
+                    <Label>Account Status</Label>
                     <Select value={formData.status} onValueChange={(v) => setFormData({...formData, status: v})}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -373,35 +378,76 @@ export default function StaffManagement() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Address</Label>
+                  <Label>Current Address</Label>
                   <Input value={formData.address} onChange={(e) => setFormData({...formData, address: e.target.value})} />
                 </div>
 
                 {customFields && customFields.length > 0 && (
                   <>
                     <Separator />
-                    <div className="space-y-4">
-                      <h4 className="font-bold text-sm text-primary flex items-center gap-2">
-                        <Plus className="w-4 h-4" /> Custom Field Information
-                      </h4>
+                    <div className="space-y-6">
+                      <div className="flex items-center gap-2">
+                        <LayoutGrid className="w-5 h-5 text-primary" />
+                        <h4 className="font-black text-sm uppercase tracking-widest text-primary">Shop Specific Fields</h4>
+                      </div>
                       <div className="grid md:grid-cols-2 gap-6">
                         {customFields.map((field) => (
                           <div key={field.id} className="space-y-2">
-                            <Label>{field.fieldName}</Label>
+                            <Label className="flex items-center gap-1">
+                              {field.fieldName}
+                              {field.required && <span className="text-destructive">*</span>}
+                            </Label>
+                            
                             {field.fieldType === 'text' && (
-                              <Input value={formData.customFields[field.fieldName] || ''} onChange={(e) => setFormData({...formData, customFields: {...formData.customFields, [field.fieldName]: e.target.value}})} />
+                              <Input 
+                                required={field.required}
+                                value={formData.customFields[field.fieldName] || ''} 
+                                onChange={(e) => setFormData({
+                                  ...formData, 
+                                  customFields: {...formData.customFields, [field.fieldName]: e.target.value}
+                                })} 
+                              />
                             )}
+
                             {field.fieldType === 'number' && (
-                              <Input type="number" value={formData.customFields[field.fieldName] || ''} onChange={(e) => setFormData({...formData, customFields: {...formData.customFields, [field.fieldName]: e.target.value}})} />
+                              <Input 
+                                type="number"
+                                required={field.required}
+                                value={formData.customFields[field.fieldName] || ''} 
+                                onChange={(e) => setFormData({
+                                  ...formData, 
+                                  customFields: {...formData.customFields, [field.fieldName]: e.target.value}
+                                })} 
+                              />
                             )}
+
                             {field.fieldType === 'date' && (
-                              <Input type="date" value={formData.customFields[field.fieldName] || ''} onChange={(e) => setFormData({...formData, customFields: {...formData.customFields, [field.fieldName]: e.target.value}})} />
+                              <Input 
+                                type="date"
+                                required={field.required}
+                                value={formData.customFields[field.fieldName] || ''} 
+                                onChange={(e) => setFormData({
+                                  ...formData, 
+                                  customFields: {...formData.customFields, [field.fieldName]: e.target.value}
+                                })} 
+                              />
                             )}
+
                             {field.fieldType === 'dropdown' && (
-                              <Select value={formData.customFields[field.fieldName] || ''} onValueChange={(v) => setFormData({...formData, customFields: {...formData.customFields, [field.fieldName]: v}})}>
-                                <SelectTrigger><SelectValue placeholder="Select Option" /></SelectTrigger>
+                              <Select 
+                                value={formData.customFields[field.fieldName] || ''} 
+                                onValueChange={(v) => setFormData({
+                                  ...formData, 
+                                  customFields: {...formData.customFields, [field.fieldName]: v}
+                                })}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder={`Select ${field.fieldName}`} />
+                                </SelectTrigger>
                                 <SelectContent>
-                                  {(field.options || []).map((opt: string) => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+                                  {(field.options || []).map((opt: string) => (
+                                    <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                                  ))}
                                 </SelectContent>
                               </Select>
                             )}
@@ -416,7 +462,7 @@ export default function StaffManagement() {
                 <Button type="button" variant="outline" onClick={resetToListView}>Cancel</Button>
                 <Button disabled={loading} className="px-10 font-bold shadow-lg" type="submit">
                   {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Shield className="w-4 h-4 mr-2" />}
-                  {editMode ? 'Update Profile' : 'Register Staff'}
+                  {editMode ? 'Update Staff Member' : 'Register Staff Member'}
                 </Button>
               </CardFooter>
             </form>
@@ -426,7 +472,7 @@ export default function StaffManagement() {
         <Card className="shadow-md animate-in fade-in">
           <CardHeader className="border-b bg-muted/5 flex flex-row items-center justify-between">
             <CardTitle>Staff Directory</CardTitle>
-            <Badge variant="outline">{users?.length || 0} Members</Badge>
+            <Badge variant="outline" className="font-bold border-primary text-primary">{users?.length || 0} Members</Badge>
           </CardHeader>
           <CardContent className="p-0 overflow-hidden">
             {loadingUsers ? (
@@ -446,27 +492,30 @@ export default function StaffManagement() {
                 <TableBody>
                   {users?.map((u) => (
                     <TableRow key={u.id} className="hover:bg-primary/5 transition-colors">
-                      <TableCell className="pl-6">
+                      <TableCell className="pl-6 py-4">
                         <div className="flex items-center gap-3">
-                          <Avatar className="h-9 w-9 border shadow-sm">
+                          <Avatar className="h-10 w-10 border shadow-sm">
                             <AvatarImage src={u.photoUrl} />
-                            <AvatarFallback>{u.name?.charAt(0)}</AvatarFallback>
+                            <AvatarFallback className="font-bold bg-primary/10 text-primary">{u.name?.charAt(0)}</AvatarFallback>
                           </Avatar>
-                          <span className="font-bold text-sm">{u.name}</span>
+                          <div className="flex flex-col">
+                            <span className="font-bold text-sm">{u.name}</span>
+                            <span className="text-[10px] text-muted-foreground">{u.email}</span>
+                          </div>
                         </div>
                       </TableCell>
                       <TableCell className="font-mono text-xs text-muted-foreground">{u.username}</TableCell>
-                      <TableCell className="text-sm">{u.department || 'N/A'}</TableCell>
+                      <TableCell className="text-sm font-medium">{u.department || 'N/A'}</TableCell>
                       <TableCell>
                         <Badge variant="secondary" className="text-[10px] font-bold uppercase">{u.role}</Badge>
                       </TableCell>
                       <TableCell>
                         <Badge className={u.status === 'Active' ? 'bg-green-500' : 'bg-destructive'}>{u.status}</Badge>
                       </TableCell>
-                      <TableCell className="text-right pr-6 space-x-2">
-                        <Link href={`/admin/staff/${u.id}`}><Button variant="outline" size="icon" className="h-8 w-8"><Eye className="w-4 h-4" /></Button></Link>
-                        <Button variant="outline" size="icon" className="h-8 w-8 text-primary" onClick={() => handleEdit(u)}><Pencil className="w-4 h-4" /></Button>
-                        <Button variant="outline" size="icon" className="h-8 w-8 text-destructive" onClick={() => {setStaffToDelete({id: u.id, name: u.name}); setShowDeleteDialog(true)}}><Trash2 className="w-4 h-4" /></Button>
+                      <TableCell className="text-right pr-6 space-x-1">
+                        <Link href={`/admin/staff/${u.id}`}><Button variant="ghost" size="icon" className="h-8 w-8 text-primary hover:bg-primary/10"><Eye className="w-4 h-4" /></Button></Link>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-primary hover:bg-primary/10" onClick={() => handleEdit(u)}><Pencil className="w-4 h-4" /></Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={() => {setStaffToDelete({id: u.id, name: u.name}); setShowDeleteDialog(true)}}><Trash2 className="w-4 h-4" /></Button>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -475,64 +524,117 @@ export default function StaffManagement() {
             )}
           </CardContent>
           <CardFooter className="border-t bg-muted/5 flex justify-center py-4">
-             <p className="text-xs text-muted-foreground italic">Your data is isolated to this shop.</p>
+             <p className="text-[10px] text-muted-foreground italic uppercase tracking-tighter">Multi-Tenant Isolation Enabled: Shop #{userData?.shopId?.slice(0, 8)}</p>
           </CardFooter>
         </Card>
       )}
 
       {/* Field Manager Dialog */}
       <Dialog open={isFieldManagerOpen} onOpenChange={setIsFieldManagerOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Custom Staff Fields</DialogTitle>
-            <DialogDescription>Define shop-specific dynamic columns for your team.</DialogDescription>
+            <DialogTitle>Define Shop Data Columns</DialogTitle>
+            <DialogDescription>Create custom fields that are unique to your shop's staff directory.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 pt-4">
-            <div className="flex gap-2">
-              <Input placeholder="Field Name" value={newFieldName} onChange={(e) => setNewFieldName(e.target.value)} />
-              <Select value={newFieldType} onValueChange={setNewFieldType}>
-                <SelectTrigger className="w-[120px]"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="text">Text</SelectItem>
-                  <SelectItem value="number">Number</SelectItem>
-                  <SelectItem value="date">Date</SelectItem>
-                  <SelectItem value="dropdown">Dropdown</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button size="icon" onClick={handleAddField} disabled={fieldLoading}><Plus className="w-4 h-4" /></Button>
+          <div className="space-y-6 pt-4">
+            <div className="grid gap-4 bg-muted/30 p-4 rounded-xl border-2">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Column Name</Label>
+                  <Input placeholder="e.g. Expertise" value={newFieldName} onChange={(e) => setNewFieldName(e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Data Type</Label>
+                  <Select value={newFieldType} onValueChange={setNewFieldType}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="text">Text</SelectItem>
+                      <SelectItem value="number">Number</SelectItem>
+                      <SelectItem value="date">Date</SelectItem>
+                      <SelectItem value="dropdown">Dropdown</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {newFieldType === 'dropdown' && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Dropdown Options (Comma separated)</Label>
+                  <Input 
+                    placeholder="Junior, Senior, Lead" 
+                    value={newFieldOptions} 
+                    onChange={(e) => setNewFieldOptions(e.target.value)} 
+                  />
+                </div>
+              )}
+
+              <div className="flex items-center space-x-2 bg-card p-2 rounded-lg border">
+                <Checkbox 
+                  id="required" 
+                  checked={newFieldRequired} 
+                  onCheckedChange={(checked) => setNewFieldRequired(!!checked)} 
+                />
+                <label htmlFor="required" className="text-xs font-bold cursor-pointer">Mark as Mandatory Field</label>
+              </div>
+
+              <Button onClick={handleAddField} disabled={fieldLoading} className="w-full gap-2 font-bold shadow-sm">
+                {fieldLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                Add Column to Shop
+              </Button>
             </div>
+
             <Separator />
-            <div className="max-h-[300px] overflow-auto space-y-2">
-              {loadingFields ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 
-                customFields?.map(field => (
-                  <div key={field.id} className="flex justify-between items-center p-2 rounded bg-muted border">
-                    <div className="flex flex-col">
-                      <span className="text-sm font-bold">{field.fieldName}</span>
-                      <span className="text-[10px] uppercase text-muted-foreground">{field.fieldType}</span>
-                    </div>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDeleteField(field.id)}><X className="w-4 h-4" /></Button>
-                  </div>
-                ))
-              }
+            
+            <div className="space-y-2">
+              <h5 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Active Custom Columns</h5>
+              <div className="max-h-[250px] overflow-auto pr-2 space-y-2">
+                {loadingFields ? <div className="flex justify-center p-4"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div> : 
+                  customFields?.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground italic text-xs">No custom columns defined.</div>
+                  ) : (
+                    customFields?.map(field => (
+                      <div key={field.id} className="flex justify-between items-center p-3 rounded-xl bg-card border-2 shadow-sm group">
+                        <div className="flex flex-col">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-bold text-primary">{field.fieldName}</span>
+                            {field.required && <Badge variant="destructive" className="text-[8px] h-3 px-1">REQ</Badge>}
+                          </div>
+                          <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-tighter">{field.fieldType} {field.fieldType === 'dropdown' && `(${field.options?.length} opts)`}</span>
+                        </div>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => handleDeleteField(field.id)}><Trash2 className="w-4 h-4" /></Button>
+                      </div>
+                    ))
+                  )
+                }
+              </div>
             </div>
           </div>
-          <DialogFooter><Button onClick={() => setIsFieldManagerOpen(false)}>Done</Button></DialogFooter>
+          <DialogFooter>
+            <Button onClick={() => setIsFieldManagerOpen(false)} className="w-full">Done</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove Personnel?</AlertDialogTitle>
-            <AlertDialogDescription>This will permanently remove <b>{staffToDelete?.name}</b> from your shop's system.</AlertDialogDescription>
+            <div className="flex items-center gap-3 text-destructive mb-2">
+              <AlertTriangle className="w-6 h-6" />
+              <AlertDialogTitle>Remove Personnel?</AlertDialogTitle>
+            </div>
+            <AlertDialogDescription>
+              This will permanently remove <b>{staffToDelete?.name}</b> from your shop's database. 
+              This action cannot be undone.
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteStaff} className="bg-destructive text-destructive-foreground">Confirm Removal</AlertDialogAction>
+            <AlertDialogAction onClick={handleDeleteStaff} className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-bold">
+              Confirm Removal
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </div>
   );
 }
-
