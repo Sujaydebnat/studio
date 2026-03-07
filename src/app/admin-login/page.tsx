@@ -10,8 +10,10 @@ import { Label } from '@/components/ui/label';
 import { ShieldCheck, Loader2, LogIn, Lock, Mail, ArrowLeft, ShieldAlert } from 'lucide-react';
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { useAuth, useFirestore } from '@/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 import Link from 'next/link';
 
 export default function AdminLoginPage() {
@@ -40,10 +42,56 @@ export default function AdminLoginPage() {
       const userCredential = await signInWithEmailAndPassword(auth, cleanEmail, password);
       const user = userCredential.user;
 
-      // 2. Fetch user profile from Firestore by UID
-      const userRef = doc(db, 'users', user.uid);
-      const userSnap = await getDoc(userRef);
+      // 2. Recognized Super Admin UIDs for auto-provisioning
+      const superAdminUIDs = [
+        'GBknAJHg5lRKims8hdy6AC6q3qO2', 
+        'NWLuwbVTGYcpeeOu2l8zcFLOZSI3',
+        'uyNwlQz5VucqI6QXNWn9sIC89k83'
+      ];
 
+      // 3. Fetch user profile from Firestore by UID
+      const userRef = doc(db, 'users', user.uid);
+      let userSnap = await getDoc(userRef);
+
+      // Handle Super Admin Logic & Auto-provisioning
+      if (superAdminUIDs.includes(user.uid)) {
+        if (!userSnap.exists()) {
+          // Task: Create a Firestore document in the "users" collection with document ID equal to the UID
+          setDoc(userRef, {
+            id: user.uid,
+            name: 'Super Admin',
+            email: user.email || cleanEmail,
+            role: 'super_admin',
+            status: 'Active',
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          }).catch(async () => {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+              path: userRef.path,
+              operation: 'create',
+              requestResourceData: { role: 'super_admin' }
+            }));
+          });
+        } else if (userSnap.data()?.role !== 'super_admin') {
+          // Ensure role is correct if profile exists but role is wrong
+          setDoc(userRef, { 
+            role: 'super_admin', 
+            updatedAt: serverTimestamp() 
+          }, { merge: true }).catch(async () => {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+              path: userRef.path,
+              operation: 'update',
+              requestResourceData: { role: 'super_admin' }
+            }));
+          });
+        }
+
+        toast({ title: "System Unlock", description: "Super Admin authorized. Entering global command center." });
+        router.push('/admin/dashboard');
+        return;
+      }
+
+      // Normal verification for non-bypass UIDs
       if (!userSnap.exists()) {
         await signOut(auth);
         toast({ 
@@ -57,7 +105,7 @@ export default function AdminLoginPage() {
 
       const userData = userSnap.data();
 
-      // 3. Verify role integrity - allow super_admin
+      // 4. Verify role integrity
       if (userData.role !== 'super_admin') {
         await signOut(auth);
         toast({ 
@@ -69,24 +117,14 @@ export default function AdminLoginPage() {
         return;
       }
 
-      // 4. Authorized
-      toast({ title: "System Unlock", description: "Super Admin authorized. Entering global command center." });
+      // 5. Authorized
+      toast({ title: "System Unlock", description: "Super Admin verified. Entering global command center." });
       router.push('/admin/dashboard');
     } catch (error: any) {
-      // Handle specific Firebase Auth errors
+      console.error("Auth Error:", error);
       let errorMessage = "Invalid admin credentials or network issue.";
-      
-      if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
-        errorMessage = "The email or password you entered is incorrect.";
-      } else if (error.code === 'auth/too-many-requests') {
-        errorMessage = "Too many failed attempts. Please try again later.";
-      }
-
-      toast({ 
-        variant: "destructive", 
-        title: "Authentication Failed", 
-        description: errorMessage 
-      });
+      if (error.code === 'auth/invalid-credential') errorMessage = "The email or password you entered is incorrect.";
+      toast({ variant: "destructive", title: "Authentication Failed", description: errorMessage });
     } finally {
       setLoading(false);
     }

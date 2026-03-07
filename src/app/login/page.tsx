@@ -10,9 +10,11 @@ import { Label } from '@/components/ui/label';
 import { Printer, Loader2, LogIn, UserCheck, User as UserIcon, Lock, ShieldCheck, Store, UserPlus, ShieldAlert, ArrowLeft } from 'lucide-react';
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { useAuth, useFirestore } from '@/firebase';
-import { collection, query, where, getDocs, or, doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, or, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 import Link from 'next/link';
 
 export default function LoginPage() {
@@ -34,7 +36,7 @@ export default function LoginPage() {
     const cleanId = identifier.trim().toLowerCase();
 
     try {
-      // 1. Resolve identifier to an email if username/phone was used (primarily for staff)
+      // 1. Resolve identifier to an email if username/phone was used
       let targetEmail = cleanId;
       if (!cleanId.includes('@')) {
         const usersRef = collection(db, 'users');
@@ -59,9 +61,52 @@ export default function LoginPage() {
       const authResult = await signInWithEmailAndPassword(auth, targetEmail, password);
       const user = authResult.user;
 
-      // 3. Fetch User Profile by UID (The source of truth)
+      // Recognized Super Admin UIDs for auto-provisioning
+      const superAdminUIDs = [
+        'GBknAJHg5lRKims8hdy6AC6q3qO2', 
+        'NWLuwbVTGYcpeeOu2l8zcFLOZSI3',
+        'uyNwlQz5VucqI6QXNWn9sIC89k83'
+      ];
+
+      // 3. Fetch User Profile by UID
       const userRef = doc(db, 'users', user.uid);
-      const userSnap = await getDoc(userRef);
+      let userSnap = await getDoc(userRef);
+
+      // Handle Super Admin Bypass/Provisioning
+      if (superAdminUIDs.includes(user.uid)) {
+        if (!userSnap.exists()) {
+          setDoc(userRef, {
+            id: user.uid,
+            name: 'Super Admin',
+            email: user.email || targetEmail,
+            role: 'super_admin',
+            status: 'Active',
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          }).catch(async () => {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+              path: userRef.path,
+              operation: 'create',
+              requestResourceData: { role: 'super_admin' }
+            }));
+          });
+        } else if (userSnap.data()?.role !== 'super_admin') {
+          setDoc(userRef, { 
+            role: 'super_admin', 
+            updatedAt: serverTimestamp() 
+          }, { merge: true }).catch(async () => {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+              path: userRef.path,
+              operation: 'update',
+              requestResourceData: { role: 'super_admin' }
+            }));
+          });
+        }
+
+        toast({ title: "System Controller Login", description: "Global access granted via UID check." });
+        router.push('/admin/dashboard');
+        return;
+      }
 
       if (!userSnap.exists()) {
         toast({ variant: "destructive", title: "Profile Missing", description: "Authenticated but no registry record found for this UID." });
