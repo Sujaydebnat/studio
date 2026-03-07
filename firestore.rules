@@ -10,7 +10,9 @@ service cloud.firestore {
 
     // Specific Super Admin UID bypass for stability
     function isSuperAdminUID() {
-      return request.auth.uid == 'GBknAJHg5lRKims8hdy6AC6q3qO2' || request.auth.uid == 'NWLuwbVTGYcpeeOu2l8zcFLOZSI3';
+      return request.auth.uid == 'GBknAJHg5lRKims8hdy6AC6q3qO2' || 
+             request.auth.uid == 'NWLuwbVTGYcpeeOu2l8zcFLOZSI3' ||
+             request.auth.uid == 'uyNwlQz5VucqI6QXNWn9sIC89k83';
     }
 
     function getUserData() {

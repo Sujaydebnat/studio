@@ -57,7 +57,7 @@ export default function AdminLoginPage() {
 
       const userData = userSnap.data();
 
-      // 3. Verify role integrity
+      // 3. Verify role integrity - allow super_admin
       if (userData.role !== 'super_admin') {
         await signOut(auth);
         toast({ 
