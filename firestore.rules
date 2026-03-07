@@ -3,28 +3,33 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
+    // Allow public access to all major collections for development
+    // WARNING: Switch back to auth-based rules before production!
+    
     match /catalog/{itemId} {
-      allow read: if true;
-      allow write: if request.auth != null;
+      allow read, write: if true;
     }
 
     match /categories/{categoryId} {
-      allow read: if true;
-      allow write: if request.auth != null;
+      allow read, write: if true;
     }
 
     match /orders/{orderId} {
-      allow read, list: if request.auth != null;
-      allow write: if request.auth != null;
-      allow get: if true;
+      allow read, write: if true;
+      
+      // Allow updates sub-collection
+      match /updates/{updateId} {
+        allow read, write: if true;
+      }
     }
 
     match /users/{userId} {
-      allow read, write: if request.auth != null;
+      allow read, write: if true;
     }
 
+    // Global fallback for any other path
     match /{document=**} {
-      allow read, write: if request.auth != null;
+      allow read, write: if true;
     }
   }
 }

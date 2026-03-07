@@ -15,7 +15,7 @@ import {
   TableHeader, 
   TableRow 
 } from '@/components/ui/table';
-import { Search, Filter, MoreVertical, Eye, Trash2, Download, Loader2, PlusCircle, AlertTriangle } from 'lucide-react';
+import { Search, Filter, MoreVertical, Eye, Trash2, Download, Loader2, PlusCircle, AlertTriangle, ShieldAlert } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, deleteDoc, doc, query, orderBy } from 'firebase/firestore';
@@ -33,6 +33,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export default function OrdersPage() {
   const db = useFirestore();
@@ -47,7 +48,7 @@ export default function OrdersPage() {
     return query(collection(db, 'orders'), orderBy('createdAt', 'desc'));
   }, [db]);
 
-  const { data: orders, loading } = useCollection(ordersQuery);
+  const { data: orders, loading, error } = useCollection(ordersQuery);
 
   const filteredOrders = useMemo(() => {
     if (!orders) return [];
@@ -118,6 +119,16 @@ export default function OrdersPage() {
         </div>
       </div>
 
+      {error && (
+        <Alert variant="destructive" className="animate-in fade-in slide-in-from-top-4">
+          <ShieldAlert className="h-4 w-4" />
+          <AlertTitle>Permission Error</AlertTitle>
+          <AlertDescription>
+            You do not have permission to view the orders. Please check your Firestore Security Rules.
+          </AlertDescription>
+        </Alert>
+      )}
+
       <Card>
         <CardHeader className="pb-3 border-b">
           <div className="flex flex-col md:flex-row gap-4 items-center">
@@ -139,6 +150,11 @@ export default function OrdersPage() {
           {loading ? (
             <div className="flex items-center justify-center p-12">
               <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            </div>
+          ) : error ? (
+            <div className="text-center py-20 text-muted-foreground flex flex-col items-center gap-4">
+              <ShieldAlert className="w-12 h-12 opacity-20" />
+              <p>Access Denied. Check Firestore Rules.</p>
             </div>
           ) : (
             <Table>
@@ -226,10 +242,12 @@ export default function OrdersPage() {
               <AlertTriangle className="w-6 h-6" />
               <AlertDialogTitle>Delete Order Permanently?</AlertDialogTitle>
             </div>
-            <AlertDialogDescription>
-              Are you sure you want to delete order <strong>{deleteId?.slice(0, 8)}</strong>? 
-              This action cannot be undone and the data will be removed from your database.
-            </AlertDialogDescription>
+            <AlertDialogHeader>
+              <AlertDialogDescription>
+                Are you sure you want to delete order <strong>{deleteId?.slice(0, 8)}</strong>? 
+                This action cannot be undone and the data will be removed from your database.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
