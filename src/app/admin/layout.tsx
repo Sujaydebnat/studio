@@ -15,7 +15,10 @@ import {
   Loader2,
   BookOpen,
   QrCode,
-  Clock
+  Clock,
+  ShieldCheck,
+  TrendingUp,
+  Store
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -35,15 +38,22 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const { data: userData, isLoading: isDataLoading } = useDoc(userRef);
 
+  const isSuperAdmin = userData?.role === 'super_admin';
+  const isAdmin = userData?.role === 'admin';
+
   const navItems = [
-    { name: 'Dashboard', icon: LayoutDashboard, href: '/admin/dashboard' },
-    { name: 'Orders', icon: ClipboardList, href: '/admin/orders' },
-    { name: 'Staff Directory', icon: Users, href: '/admin/staff' },
-    { name: 'Attendance Log', icon: Clock, href: '/admin/attendance' },
-    { name: 'Catalog Editor', icon: BookOpen, href: '/admin/catalog' },
-    { name: 'QR Catalog', icon: QrCode, href: '/admin/qr' },
-    { name: 'Settings', icon: Settings, href: '/admin/settings' },
+    { name: 'Dashboard', icon: LayoutDashboard, href: '/admin/dashboard', show: true },
+    { name: 'Global Analytics', icon: TrendingUp, href: '/admin/analytics', show: isSuperAdmin },
+    { name: 'Shops Directory', icon: Store, href: '/admin/shops', show: isSuperAdmin },
+    { name: 'Orders', icon: ClipboardList, href: '/admin/orders', show: !isSuperAdmin },
+    { name: 'Staff Directory', icon: Users, href: '/admin/staff', show: isAdmin },
+    { name: 'Attendance Log', icon: Clock, href: '/admin/attendance', show: !isSuperAdmin },
+    { name: 'Catalog Editor', icon: BookOpen, href: '/admin/catalog', show: isAdmin },
+    { name: 'QR Catalog', icon: QrCode, href: '/admin/qr', show: isAdmin },
+    { name: 'Settings', icon: Settings, href: '/admin/settings', show: isAdmin },
   ];
+
+  const filteredNavItems = navItems.filter(item => item.show);
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
@@ -51,22 +61,26 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <aside className="w-64 border-r bg-card hidden md:flex flex-col shadow-sm">
         <div className="p-6 flex items-center gap-3">
           <div className="bg-primary p-2 rounded-lg shadow-lg">
-            <Printer className="w-6 h-6 text-white" />
+            {isSuperAdmin ? <ShieldCheck className="w-6 h-6 text-white" /> : <Printer className="w-6 h-6 text-white" />}
           </div>
-          <span className="font-bold text-xl text-primary font-headline tracking-tighter italic">PrintFlow</span>
+          <span className="font-bold text-xl text-primary font-headline tracking-tighter italic">
+            {isSuperAdmin ? 'MasterFlow' : 'PrintFlow'}
+          </span>
         </div>
         
-        <div className="px-4 mb-4">
-          <Link href="/admin/orders/new" className="block w-full">
-            <Button className="w-full bg-accent text-accent-foreground hover:bg-accent/90 justify-start gap-2 font-black shadow-lg">
-              <PlusCircle className="w-4 h-4" /> New Order
-            </Button>
-          </Link>
-        </div>
+        {isAdmin && (
+          <div className="px-4 mb-4">
+            <Link href="/admin/orders/new" className="block w-full">
+              <Button className="w-full bg-accent text-accent-foreground hover:bg-accent/90 justify-start gap-2 font-black shadow-lg">
+                <PlusCircle className="w-4 h-4" /> New Order
+              </Button>
+            </Link>
+          </div>
+        )}
 
         <ScrollArea className="flex-1 px-4">
           <nav className="space-y-1">
-            {navItems.map((item) => (
+            {filteredNavItems.map((item) => (
               <Link 
                 key={item.href} 
                 href={item.href}
@@ -99,14 +113,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* Main Content */}
       <main className="flex-1 overflow-auto relative bg-background/50">
         <header className="h-16 border-b bg-card/80 backdrop-blur-md flex items-center justify-between px-8 sticky top-0 z-10">
-          <h1 className="font-black text-lg font-headline text-primary uppercase tracking-widest">{userData?.role === 'admin' ? 'Master Admin' : 'Admin Portal'}</h1>
+          <div className="flex flex-col">
+            <h1 className="font-black text-lg font-headline text-primary uppercase tracking-widest">
+              {isSuperAdmin ? 'Master Controller' : isAdmin ? 'Shop Admin' : 'Staff Portal'}
+            </h1>
+            {isSuperAdmin && <span className="text-[10px] font-bold text-accent uppercase -mt-1">System Overlord Access</span>}
+          </div>
           <div className="flex items-center gap-4">
             <div className="flex flex-col items-end">
               <span className="text-sm font-black">
                 {isDataLoading ? '---' : (userData?.name || 'Admin')}
               </span>
               <span className="text-[9px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter">
-                Tenant: {userData?.shopId?.slice(0, 8)}
+                {isSuperAdmin ? 'Global Admin' : `Tenant: ${userData?.shopId?.slice(0, 8)}`}
               </span>
             </div>
             <Avatar className="w-10 h-10 border-2 border-primary/20 shadow-sm">

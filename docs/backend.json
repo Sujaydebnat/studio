@@ -42,7 +42,7 @@
         "email": { "type": "string", "format": "email" },
         "phone": { "type": "string" },
         "photoUrl": { "type": "string" },
-        "role": { "type": "string", "enum": ["admin", "staff", "Designer", "Manager"] },
+        "role": { "type": "string", "enum": ["super_admin", "admin", "staff", "Designer", "Manager"] },
         "department": { "type": "string" },
         "address": { "type": "string" },
         "joiningDate": { "type": "string", "format": "date" },
