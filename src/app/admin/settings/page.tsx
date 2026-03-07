@@ -19,7 +19,8 @@ import {
   Pencil,
   ArrowRight,
   LayoutGrid,
-  Database
+  Database,
+  Save
 } from 'lucide-react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, doc, setDoc, deleteDoc, serverTimestamp, query, orderBy } from 'firebase/firestore';
@@ -86,30 +87,34 @@ export default function SettingsPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!db || !categoryName.trim()) return;
+    if (!db || !categoryName.trim()) {
+      toast({ variant: "destructive", title: "Error", description: "Category Name is required." });
+      return;
+    }
 
     setLoading(true);
+    const targetId = editingId || doc(collection(db, 'categories')).id;
     const catData = {
+      id: targetId,
       name: categoryName.trim().toUpperCase(),
       description: categoryDesc.trim(),
       subCategories: subCategories,
       updatedAt: serverTimestamp(),
+      createdAt: editingId ? undefined : serverTimestamp()
     };
 
-    const targetId = editingId || doc(collection(db, 'categories')).id;
     const docRef = doc(db, 'categories', targetId);
-    const finalData = { ...catData, id: targetId, createdAt: editingId ? undefined : serverTimestamp() };
 
-    setDoc(docRef, finalData, { merge: true })
+    setDoc(docRef, catData, { merge: true })
       .then(() => {
-        toast({ title: "Data saved successfully", description: "Your changes are now live in the database." });
+        toast({ title: "Data saved successfully", description: "Your category information has been updated in Firestore." });
         resetForm();
       })
       .catch(async (serverError) => {
         const permissionError = new FirestorePermissionError({
           path: docRef.path,
           operation: editingId ? 'update' : 'create',
-          requestResourceData: finalData,
+          requestResourceData: catData,
         } satisfies SecurityRuleContext);
         errorEmitter.emit('permission-error', permissionError);
       })
@@ -125,12 +130,12 @@ export default function SettingsPage() {
   };
 
   const handleDelete = (id: string, name: string) => {
-    if (!db || !confirm(`Delete "${name}" category? All linked data will be affected.`)) return;
+    if (!db || !confirm(`Delete "${name}" category? This action cannot be undone.`)) return;
     
     const docRef = doc(db, 'categories', id);
     deleteDoc(docRef)
       .then(() => {
-        toast({ title: "Category Deleted", description: "The item was removed from the database." });
+        toast({ title: "Category Deleted", description: "Successfully removed from the database." });
       })
       .catch(async (serverError) => {
         const permissionError = new FirestorePermissionError({
@@ -157,13 +162,13 @@ export default function SettingsPage() {
         <div className="space-y-1">
           <h2 className="text-3xl font-bold font-headline text-primary flex items-center gap-2">
             <LayoutGrid className="w-8 h-8" />
-            Admin Dashboard
+            System Settings
           </h2>
-          <p className="text-muted-foreground">Manage work categories and hierarchical sub-categories.</p>
+          <p className="text-muted-foreground">Configure work categories and their respective sub-types.</p>
         </div>
         {!isFormOpen && (
           <Button onClick={() => setIsFormOpen(true)} className="gap-2 h-11 px-6 font-bold shadow-lg bg-primary hover:bg-primary/90">
-            <Plus className="w-5 h-5" /> Add Category
+            <Plus className="w-5 h-5" /> Add New Category
           </Button>
         )}
       </div>
@@ -172,8 +177,8 @@ export default function SettingsPage() {
         <Card className="max-w-2xl mx-auto shadow-2xl border-2 animate-in slide-in-from-bottom-4">
           <CardHeader className="border-b bg-muted/5 flex flex-row items-center justify-between">
             <div>
-              <CardTitle>{editingId ? 'Edit Category' : 'Add New Category'}</CardTitle>
-              <CardDescription>All fields will be stored permanently in Firestore.</CardDescription>
+              <CardTitle>{editingId ? 'Edit Category' : 'Create New Category'}</CardTitle>
+              <CardDescription>Changes will be saved permanently to your database.</CardDescription>
             </div>
             <Button variant="ghost" size="icon" onClick={resetForm}><X className="w-5 h-5" /></Button>
           </CardHeader>
@@ -184,7 +189,7 @@ export default function SettingsPage() {
                 <Input 
                   id="catName"
                   required 
-                  placeholder="e.g. DIGITAL PRINT, FLEX" 
+                  placeholder="e.g. DIGITAL PAPER, FLEX, GIFT" 
                   value={categoryName} 
                   onChange={(e) => setCategoryName(e.target.value)} 
                 />
@@ -194,7 +199,7 @@ export default function SettingsPage() {
                 <Label htmlFor="catDesc">Description (Optional)</Label>
                 <Textarea 
                   id="catDesc"
-                  placeholder="Brief purpose of this category..." 
+                  placeholder="Notes about this category's workflow..." 
                   value={categoryDesc} 
                   onChange={(e) => setCategoryDesc(e.target.value)} 
                   className="min-h-[80px]"
@@ -206,11 +211,11 @@ export default function SettingsPage() {
               <div className="space-y-4">
                 <Label className="flex items-center gap-2 text-primary font-bold">
                   <ListOrdered className="w-4 h-4" /> 
-                  Manage Subcategories
+                  Subcategories Management
                 </Label>
                 <div className="flex gap-2">
                   <Input 
-                    placeholder="Subcategory Name" 
+                    placeholder="e.g. VISITING CARD" 
                     value={newSubName} 
                     onChange={(e) => setNewSubName(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddOrUpdateSub())}
@@ -220,9 +225,12 @@ export default function SettingsPage() {
                   </Button>
                 </div>
                 
-                <div className="grid gap-2 p-4 bg-muted/20 rounded-lg border border-dashed">
+                <div className="grid gap-2 p-4 bg-muted/20 rounded-lg border border-dashed min-h-[100px]">
                   {subCategories.length === 0 ? (
-                    <p className="text-xs text-muted-foreground italic text-center py-2">No subcategories linked yet.</p>
+                    <div className="flex flex-col items-center justify-center h-full opacity-40">
+                      <Layers className="w-8 h-8 mb-1" />
+                      <p className="text-xs italic">No subcategories linked to this category yet.</p>
+                    </div>
                   ) : (
                     <div className="flex flex-wrap gap-2">
                       {subCategories.map((sub, i) => (
@@ -246,7 +254,7 @@ export default function SettingsPage() {
             <CardFooter className="border-t bg-muted/5 flex justify-end gap-3 pt-6">
               <Button type="button" variant="outline" onClick={resetForm}>Cancel</Button>
               <Button disabled={loading || !categoryName.trim()} className="gap-2 px-10 font-bold shadow-xl bg-primary">
-                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                 Save to Database
               </Button>
             </CardFooter>
@@ -257,14 +265,14 @@ export default function SettingsPage() {
           {loadingCats ? (
             <div className="col-span-full flex flex-col items-center justify-center p-20 gap-4">
               <Loader2 className="w-12 h-12 animate-spin text-primary" />
-              <p className="text-muted-foreground font-medium animate-pulse">Fetching from database...</p>
+              <p className="text-muted-foreground font-medium animate-pulse">Fetching categories...</p>
             </div>
           ) : categories?.length === 0 ? (
             <div className="col-span-full text-center py-24 border-4 border-dashed rounded-3xl space-y-4 bg-muted/10">
               <Settings className="w-16 h-16 mx-auto opacity-20" />
-              <h3 className="text-2xl font-bold text-muted-foreground">Empty Dashboard</h3>
-              <p className="text-muted-foreground max-w-xs mx-auto">Create your first category to start organizing your work.</p>
-              <Button onClick={() => setIsFormOpen(true)} className="mt-4">Add First Category</Button>
+              <h3 className="text-2xl font-bold text-muted-foreground">No Categories Found</h3>
+              <p className="text-muted-foreground max-w-xs mx-auto">Start by adding your first business category to manage orders efficiently.</p>
+              <Button onClick={() => setIsFormOpen(true)} className="mt-4">Add Category Now</Button>
             </div>
           ) : (
             categories?.map((cat) => (
@@ -305,14 +313,14 @@ export default function SettingsPage() {
                           </div>
                         ))
                       ) : (
-                        <span className="text-[10px] text-muted-foreground italic px-1">No linked subcategories</span>
+                        <span className="text-[10px] text-muted-foreground italic px-1">Open Manual Entry</span>
                       )}
                     </div>
                   </div>
                 </CardContent>
                 <CardFooter className="pt-2 border-t bg-muted/5 mt-auto flex justify-between">
                    <Button variant="ghost" size="sm" className="text-[10px] uppercase font-bold text-primary tracking-tighter" onClick={() => handleEdit(cat)}>
-                      Edit Hierarchy
+                      Manage
                    </Button>
                    <Button variant="ghost" size="sm" className="text-[10px] uppercase font-bold text-destructive" onClick={() => handleDelete(cat.id, cat.name)}>
                       Delete

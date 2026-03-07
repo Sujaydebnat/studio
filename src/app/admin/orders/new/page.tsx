@@ -68,7 +68,7 @@ export default function NewOrderPage() {
   const { data: staffList } = useCollection(staffQuery);
   const { data: categories } = useCollection(categoriesQuery);
 
-  const currentCategoryData = useMemo(() => {
+  const selectedCategoryData = useMemo(() => {
     return categories?.find(c => c.name === currentItem.type);
   }, [categories, currentItem.type]);
 
@@ -346,11 +346,11 @@ export default function NewOrderPage() {
                   </div>
                   <div className="col-span-4 space-y-1">
                     <Label className="text-[10px] font-bold">Sub-category</Label>
-                    {currentCategoryData?.subCategories?.length > 0 ? (
+                    {selectedCategoryData?.subCategories?.length > 0 ? (
                       <Select value={currentItem.subCategory} onValueChange={(v) => setCurrentItem({...currentItem, subCategory: v})}>
                         <SelectTrigger className="h-9"><SelectValue placeholder="Select Type" /></SelectTrigger>
                         <SelectContent>
-                          {currentCategoryData.subCategories.map((s: string) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                          {selectedCategoryData.subCategories.map((s: string) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     ) : (
