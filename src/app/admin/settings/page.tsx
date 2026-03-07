@@ -18,9 +18,11 @@ import {
   Pencil
 } from 'lucide-react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, addDoc, doc, setDoc, deleteDoc, serverTimestamp, query, orderBy } from 'firebase/firestore';
+import { collection, doc, setDoc, deleteDoc, serverTimestamp, query, orderBy } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 
 export default function SettingsPage() {
   const db = useFirestore();
@@ -42,11 +44,12 @@ export default function SettingsPage() {
 
   const handleAddSub = () => {
     if (!newSubName.trim()) return;
-    if (subCategories.includes(newSubName.trim())) {
+    const formattedSub = newSubName.trim().toUpperCase();
+    if (subCategories.includes(formattedSub)) {
       toast({ variant: "destructive", title: "Already exists" });
       return;
     }
-    setSubCategories([...subCategories, newSubName.trim().toUpperCase()]);
+    setSubCategories([...subCategories, formattedSub]);
     setNewSubName('');
   };
 
@@ -54,33 +57,56 @@ export default function SettingsPage() {
     setSubCategories(subCategories.filter((_, i) => i !== idx));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!db || !categoryName.trim()) return;
 
     setLoading(true);
-    try {
-      const catData = {
-        name: categoryName.trim().toUpperCase(),
-        subCategories: subCategories,
-        updatedAt: serverTimestamp(),
-        createdAt: editingId ? undefined : serverTimestamp()
+    const catData = {
+      name: categoryName.trim().toUpperCase(),
+      subCategories: subCategories,
+      updatedAt: serverTimestamp(),
+    };
+
+    if (editingId) {
+      const docRef = doc(db, 'categories', editingId);
+      setDoc(docRef, catData, { merge: true })
+        .then(() => {
+          toast({ title: "Category Updated" });
+          resetForm();
+        })
+        .catch(async (serverError) => {
+          const permissionError = new FirestorePermissionError({
+            path: docRef.path,
+            operation: 'update',
+            requestResourceData: catData,
+          } satisfies SecurityRuleContext);
+          errorEmitter.emit('permission-error', permissionError);
+        })
+        .finally(() => setLoading(false));
+    } else {
+      const colRef = collection(db, 'categories');
+      const newDocRef = doc(colRef);
+      const finalData = { 
+        ...catData, 
+        id: newDocRef.id,
+        createdAt: serverTimestamp() 
       };
-
-      if (editingId) {
-        await setDoc(doc(db, 'categories', editingId), catData, { merge: true });
-        toast({ title: "Category Updated" });
-      } else {
-        await addDoc(collection(db, 'categories'), { ...catData, createdAt: serverTimestamp() });
-        toast({ title: "Category Added" });
-      }
-
-      resetForm();
-    } catch (err) {
-      console.error(err);
-      toast({ variant: "destructive", title: "Error saving category" });
-    } finally {
-      setLoading(false);
+      
+      setDoc(newDocRef, finalData)
+        .then(() => {
+          toast({ title: "Category Added" });
+          resetForm();
+        })
+        .catch(async (serverError) => {
+          const permissionError = new FirestorePermissionError({
+            path: newDocRef.path,
+            operation: 'create',
+            requestResourceData: finalData,
+          } satisfies SecurityRuleContext);
+          errorEmitter.emit('permission-error', permissionError);
+        })
+        .finally(() => setLoading(false));
     }
   };
 
@@ -91,10 +117,21 @@ export default function SettingsPage() {
     setIsFormOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = (id: string) => {
     if (!db || !confirm("Are you sure? This will affect how orders and catalog items are categorized.")) return;
-    await deleteDoc(doc(db, 'categories', id));
-    toast({ title: "Category Deleted" });
+    
+    const docRef = doc(db, 'categories', id);
+    deleteDoc(docRef)
+      .then(() => {
+        toast({ title: "Category Deleted" });
+      })
+      .catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: docRef.path,
+          operation: 'delete',
+        } satisfies SecurityRuleContext);
+        errorEmitter.emit('permission-error', permissionError);
+      });
   };
 
   const resetForm = () => {
