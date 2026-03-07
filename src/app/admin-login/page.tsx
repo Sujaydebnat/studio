@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { ShieldCheck, Loader2, LogIn, Lock, Mail, ArrowLeft, ShieldAlert } from 'lucide-react';
+import { ShieldCheck, Loader2, LogIn, Lock, Mail, ArrowLeft, ShieldAlert, WifiOff } from 'lucide-react';
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { useAuth, useFirestore } from '@/firebase';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
@@ -37,96 +37,114 @@ export default function AdminLoginPage() {
 
     setLoading(true);
 
-    try {
-      // 1. Authenticate with Firebase Auth
-      const userCredential = await signInWithEmailAndPassword(auth, cleanEmail, password);
-      const user = userCredential.user;
+    const maxRetries = 2;
+    let attempt = 0;
+    let success = false;
 
-      // 2. Recognized Super Admin UIDs for auto-provisioning
-      const superAdminUIDs = [
-        'GBknAJHg5lRKims8hdy6AC6q3qO2', 
-        'NWLuwbVTGYcpeeOu2l8zcFLOZSI3',
-        'uyNwlQz5VucqI6QXNWn9sIC89k83'
-      ];
+    while (attempt <= maxRetries && !success) {
+      try {
+        // 1. Authenticate with Firebase Auth
+        const userCredential = await signInWithEmailAndPassword(auth, cleanEmail, password);
+        const user = userCredential.user;
+        success = true;
 
-      // 3. Fetch user profile from Firestore by UID
-      const userRef = doc(db, 'users', user.uid);
-      let userSnap = await getDoc(userRef);
+        // 2. Recognized Super Admin UIDs for auto-provisioning
+        const superAdminUIDs = [
+          'GBknAJHg5lRKims8hdy6AC6q3qO2', 
+          'NWLuwbVTGYcpeeOu2l8zcFLOZSI3',
+          'uyNwlQz5VucqI6QXNWn9sIC89k83'
+        ];
 
-      // Handle Super Admin Logic & Auto-provisioning
-      if (superAdminUIDs.includes(user.uid)) {
-        if (!userSnap.exists()) {
-          // Task: Create a Firestore document in the "users" collection with document ID equal to the UID
-          setDoc(userRef, {
-            id: user.uid,
-            name: 'Super Admin',
-            email: user.email || cleanEmail,
-            role: 'super_admin',
-            status: 'Active',
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp()
-          }).catch(async () => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({
-              path: userRef.path,
-              operation: 'create',
-              requestResourceData: { role: 'super_admin' }
-            }));
-          });
-        } else if (userSnap.data()?.role !== 'super_admin') {
-          // Ensure role is correct if profile exists but role is wrong
-          setDoc(userRef, { 
-            role: 'super_admin', 
-            updatedAt: serverTimestamp() 
-          }, { merge: true }).catch(async () => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({
-              path: userRef.path,
-              operation: 'update',
-              requestResourceData: { role: 'super_admin' }
-            }));
-          });
+        // 3. Fetch user profile from Firestore by UID
+        const userRef = doc(db, 'users', user.uid);
+        let userSnap = await getDoc(userRef);
+
+        // Handle Super Admin Logic & Auto-provisioning
+        if (superAdminUIDs.includes(user.uid)) {
+          if (!userSnap.exists()) {
+            await setDoc(userRef, {
+              id: user.uid,
+              name: 'Super Admin',
+              email: user.email || cleanEmail,
+              role: 'super_admin',
+              status: 'Active',
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp()
+            }).catch(async () => {
+              errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: userRef.path,
+                operation: 'create',
+                requestResourceData: { role: 'super_admin' }
+              }));
+            });
+          } else if (userSnap.data()?.role !== 'super_admin') {
+            await setDoc(userRef, { 
+              role: 'super_admin', 
+              updatedAt: serverTimestamp() 
+            }, { merge: true }).catch(async () => {
+              errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: userRef.path,
+                operation: 'update',
+                requestResourceData: { role: 'super_admin' }
+              }));
+            });
+          }
+
+          toast({ title: "System Unlock", description: "Super Admin authorized. Entering global command center." });
+          router.push('/admin/dashboard');
+          return;
         }
 
-        toast({ title: "System Unlock", description: "Super Admin authorized. Entering global command center." });
+        if (!userSnap.exists()) {
+          await signOut(auth);
+          toast({ 
+            variant: "destructive", 
+            title: "Access Denied", 
+            description: "No administrative profile found for this account." 
+          });
+          setLoading(false);
+          return;
+        }
+
+        const userData = userSnap.data();
+        if (userData.role !== 'super_admin') {
+          await signOut(auth);
+          toast({ 
+            variant: "destructive", 
+            title: "Forbidden", 
+            description: "This portal is reserved for Super Admins only." 
+          });
+          setLoading(false);
+          return;
+        }
+
+        toast({ title: "System Unlock", description: "Super Admin verified." });
         router.push('/admin/dashboard');
-        return;
-      }
 
-      // Normal verification for non-bypass UIDs
-      if (!userSnap.exists()) {
-        await signOut(auth);
-        toast({ 
-          variant: "destructive", 
-          title: "Access Denied", 
-          description: "No administrative profile found for this account in the database." 
-        });
+      } catch (error: any) {
+        console.error(`Login Attempt ${attempt + 1} Failed:`, error);
+
+        if (error.code === 'auth/network-request-failed' && attempt < maxRetries) {
+          attempt++;
+          // Wait before retrying (exponential backoff)
+          await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+          continue;
+        }
+
+        let errorMessage = "Invalid admin credentials or network issue.";
+        let errorTitle = "Authentication Failed";
+
+        if (error.code === 'auth/network-request-failed') {
+          errorTitle = "Network Error";
+          errorMessage = "Could not connect to authentication services. Please check your internet connection or restart your workspace session.";
+        } else if (error.code === 'auth/invalid-credential') {
+          errorMessage = "The email or password you entered is incorrect.";
+        }
+
+        toast({ variant: "destructive", title: errorTitle, description: errorMessage });
         setLoading(false);
         return;
       }
-
-      const userData = userSnap.data();
-
-      // 4. Verify role integrity
-      if (userData.role !== 'super_admin') {
-        await signOut(auth);
-        toast({ 
-          variant: "destructive", 
-          title: "Forbidden", 
-          description: "This portal is reserved for Super Admins only." 
-        });
-        setLoading(false);
-        return;
-      }
-
-      // 5. Authorized
-      toast({ title: "System Unlock", description: "Super Admin verified. Entering global command center." });
-      router.push('/admin/dashboard');
-    } catch (error: any) {
-      console.error("Auth Error:", error);
-      let errorMessage = "Invalid admin credentials or network issue.";
-      if (error.code === 'auth/invalid-credential') errorMessage = "The email or password you entered is incorrect.";
-      toast({ variant: "destructive", title: "Authentication Failed", description: errorMessage });
-    } finally {
-      setLoading(false);
     }
   };
 

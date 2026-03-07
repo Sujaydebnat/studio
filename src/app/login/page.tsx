@@ -35,109 +35,131 @@ export default function LoginPage() {
     
     const cleanId = identifier.trim().toLowerCase();
 
-    try {
-      // 1. Resolve identifier to an email if username/phone was used
-      let targetEmail = cleanId;
-      if (!cleanId.includes('@')) {
-        const usersRef = collection(db, 'users');
-        const q = query(
-          usersRef, 
-          or(
-            where('username', '==', cleanId),
-            where('phone', '==', cleanId)
-          )
-        );
-        const querySnap = await getDocs(q);
-        if (!querySnap.empty) {
-          targetEmail = querySnap.docs[0].data().email;
-        } else {
-          toast({ variant: "destructive", title: "Account Not Found", description: "No profile matches this ID or Phone." });
+    const maxRetries = 2;
+    let attempt = 0;
+    let success = false;
+
+    while (attempt <= maxRetries && !success) {
+      try {
+        // 1. Resolve identifier to an email if username/phone was used
+        let targetEmail = cleanId;
+        if (!cleanId.includes('@')) {
+          const usersRef = collection(db, 'users');
+          const q = query(
+            usersRef, 
+            or(
+              where('username', '==', cleanId),
+              where('phone', '==', cleanId)
+            )
+          );
+          const querySnap = await getDocs(q);
+          if (!querySnap.empty) {
+            targetEmail = querySnap.docs[0].data().email;
+          } else {
+            toast({ variant: "destructive", title: "Account Not Found", description: "No profile matches this ID or Phone." });
+            setLoading(false);
+            return;
+          }
+        }
+
+        // 2. Authenticate with Firebase Auth
+        const authResult = await signInWithEmailAndPassword(auth, targetEmail, password);
+        const user = authResult.user;
+        success = true;
+
+        // Recognized Super Admin UIDs for auto-provisioning
+        const superAdminUIDs = [
+          'GBknAJHg5lRKims8hdy6AC6q3qO2', 
+          'NWLuwbVTGYcpeeOu2l8zcFLOZSI3',
+          'uyNwlQz5VucqI6QXNWn9sIC89k83'
+        ];
+
+        // 3. Fetch User Profile by UID
+        const userRef = doc(db, 'users', user.uid);
+        let userSnap = await getDoc(userRef);
+
+        // Handle Super Admin Bypass/Provisioning
+        if (superAdminUIDs.includes(user.uid)) {
+          if (!userSnap.exists()) {
+            await setDoc(userRef, {
+              id: user.uid,
+              name: 'Super Admin',
+              email: user.email || targetEmail,
+              role: 'super_admin',
+              status: 'Active',
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp()
+            }).catch(async () => {
+              errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: userRef.path,
+                operation: 'create',
+                requestResourceData: { role: 'super_admin' }
+              }));
+            });
+          } else if (userSnap.data()?.role !== 'super_admin') {
+            await setDoc(userRef, { 
+              role: 'super_admin', 
+              updatedAt: serverTimestamp() 
+            }, { merge: true }).catch(async () => {
+              errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: userRef.path,
+                operation: 'update',
+                requestResourceData: { role: 'super_admin' }
+              }));
+            });
+          }
+
+          toast({ title: "System Controller Login", description: "Global access granted." });
+          router.push('/admin/dashboard');
+          return;
+        }
+
+        if (!userSnap.exists()) {
+          toast({ variant: "destructive", title: "Profile Missing", description: "Account authenticated but profile not found." });
+          await signOut(auth);
           setLoading(false);
           return;
         }
-      }
 
-      // 2. Authenticate with Firebase Auth
-      const authResult = await signInWithEmailAndPassword(auth, targetEmail, password);
-      const user = authResult.user;
+        const userData = userSnap.data();
+        const role = userData.role;
 
-      // Recognized Super Admin UIDs for auto-provisioning
-      const superAdminUIDs = [
-        'GBknAJHg5lRKims8hdy6AC6q3qO2', 
-        'NWLuwbVTGYcpeeOu2l8zcFLOZSI3',
-        'uyNwlQz5VucqI6QXNWn9sIC89k83'
-      ];
-
-      // 3. Fetch User Profile by UID
-      const userRef = doc(db, 'users', user.uid);
-      let userSnap = await getDoc(userRef);
-
-      // Handle Super Admin Bypass/Provisioning
-      if (superAdminUIDs.includes(user.uid)) {
-        if (!userSnap.exists()) {
-          setDoc(userRef, {
-            id: user.uid,
-            name: 'Super Admin',
-            email: user.email || targetEmail,
-            role: 'super_admin',
-            status: 'Active',
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp()
-          }).catch(async () => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({
-              path: userRef.path,
-              operation: 'create',
-              requestResourceData: { role: 'super_admin' }
-            }));
-          });
-        } else if (userSnap.data()?.role !== 'super_admin') {
-          setDoc(userRef, { 
-            role: 'super_admin', 
-            updatedAt: serverTimestamp() 
-          }, { merge: true }).catch(async () => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({
-              path: userRef.path,
-              operation: 'update',
-              requestResourceData: { role: 'super_admin' }
-            }));
-          });
+        // 4. Role-based Redirection
+        if (role === 'super_admin') {
+          toast({ title: "System Controller Login", description: "Global access granted." });
+          router.push('/admin/dashboard');
+        } else if (role === 'shop_owner' || role === 'admin') {
+          toast({ title: "Shop Dashboard", description: `Welcome back, ${userData.name}.` });
+          router.push('/admin/dashboard');
+        } else if (role === 'staff') {
+          toast({ title: "Production Workbench", description: `Welcome back, ${userData.name}.` });
+          router.push('/staff/dashboard');
+        } else {
+          toast({ variant: "destructive", title: "Invalid Role", description: "Your profile has no valid role assigned." });
+          await signOut(auth);
         }
 
-        toast({ title: "System Controller Login", description: "Global access granted via UID check." });
-        router.push('/admin/dashboard');
-        return;
-      }
+      } catch (error: any) {
+        console.error(`Login Attempt ${attempt + 1} Failed:`, error);
 
-      if (!userSnap.exists()) {
-        toast({ variant: "destructive", title: "Profile Missing", description: "Authenticated but no registry record found for this UID." });
-        await signOut(auth);
+        if (error.code === 'auth/network-request-failed' && attempt < maxRetries) {
+          attempt++;
+          await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+          continue;
+        }
+
+        let errorMessage = "Please check your credentials or network connection.";
+        let errorTitle = "Login Failed";
+
+        if (error.code === 'auth/network-request-failed') {
+          errorTitle = "Network Error";
+          errorMessage = "Could not connect to verification services. Please check your internet or restart the workstation session.";
+        }
+
+        toast({ variant: "destructive", title: errorTitle, description: errorMessage });
         setLoading(false);
         return;
       }
-
-      const userData = userSnap.data();
-      const role = userData.role;
-
-      // 4. Role-based Redirection
-      if (role === 'super_admin') {
-        toast({ title: "System Controller Login", description: "Global access granted." });
-        router.push('/admin/dashboard');
-      } else if (role === 'shop_owner' || role === 'admin') {
-        toast({ title: "Shop Dashboard", description: `Welcome back, ${userData.name}.` });
-        router.push('/admin/dashboard');
-      } else if (role === 'staff') {
-        toast({ title: "Production Workbench", description: `Welcome back, ${userData.name}.` });
-        router.push('/staff/dashboard');
-      } else {
-        toast({ variant: "destructive", title: "Invalid Role", description: "Your profile has no valid role assigned. Contact support." });
-        await signOut(auth);
-      }
-
-    } catch (error: any) {
-      console.error("Login Error:", error);
-      toast({ variant: "destructive", title: "Login Failed", description: "Please check your credentials or network connection." });
-    } finally {
-      setLoading(false);
     }
   };
 
