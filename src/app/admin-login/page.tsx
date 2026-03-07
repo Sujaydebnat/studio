@@ -8,9 +8,9 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { ShieldCheck, Loader2, LogIn, Lock, Mail, ArrowLeft } from 'lucide-react';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { useAuth, useFirestore } from '@/firebase';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 
@@ -29,21 +29,36 @@ export default function AdminLoginPage() {
     setLoading(true);
 
     try {
-      const usersRef = collection(db, 'users');
-      const q = query(usersRef, where('email', '==', email.toLowerCase().trim()), where('role', '==', 'super_admin'));
-      const querySnapshot = await getDocs(q);
+      // 1. Authenticate first (Security rules usually block pre-auth queries)
+      const userCredential = await signInWithEmailAndPassword(auth, email.toLowerCase().trim(), password);
+      const user = userCredential.user;
 
-      if (querySnapshot.empty) {
-        toast({ variant: "destructive", title: "Access Denied", description: "This account does not have Super Admin privileges." });
+      // 2. Fetch user profile from Firestore to verify role
+      const userRef = doc(db, 'users', user.uid);
+      const userSnap = await getDoc(userRef);
+
+      if (!userSnap.exists() || userSnap.data()?.role !== 'super_admin') {
+        // 3. If not super_admin, sign them out immediately
+        await signOut(auth);
+        toast({ 
+          variant: "destructive", 
+          title: "Access Denied", 
+          description: "This account does not have Super Admin privileges." 
+        });
         setLoading(false);
         return;
       }
 
-      await signInWithEmailAndPassword(auth, email, password);
+      // 4. Authorized
       toast({ title: "Admin Authorized", description: "Accessing global control center." });
       router.push('/admin/dashboard');
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Authentication Failed", description: "Check your email or password." });
+      console.error("Login error:", error);
+      toast({ 
+        variant: "destructive", 
+        title: "Authentication Failed", 
+        description: "Check your email or password." 
+      });
     } finally {
       setLoading(false);
     }
