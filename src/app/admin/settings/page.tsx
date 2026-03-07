@@ -24,8 +24,8 @@ import {
   ChevronDown,
   ChevronUp
 } from 'lucide-react';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, doc, setDoc, deleteDoc, serverTimestamp, query, orderBy, addDoc, updateDoc } from 'firebase/firestore';
+import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc } from '@/firebase';
+import { collection, doc, setDoc, deleteDoc, serverTimestamp, query, orderBy, addDoc, updateDoc, where } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -135,25 +135,33 @@ function SubcategoryManager({ categoryId }: { categoryId: string }) {
 
 export default function SettingsPage() {
   const db = useFirestore();
+  const { user } = useUser();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
+  const userRef = useMemoFirebase(() => user ? doc(db, 'users', user.uid) : null, [db, user]);
+  const { data: userData } = useDoc(userRef);
+
   const [categoryName, setCategoryName] = useState('');
   const [categoryDesc, setCategoryDesc] = useState('');
 
   const categoriesQuery = useMemoFirebase(() => {
-    if (!db) return null;
-    return query(collection(db, 'categories'), orderBy('name', 'asc'));
-  }, [db]);
+    if (!db || !userData?.shopId) return null;
+    return query(
+      collection(db, 'categories'), 
+      where('shopId', '==', userData.shopId),
+      orderBy('name', 'asc')
+    );
+  }, [db, userData?.shopId]);
 
   const { data: categories, isLoading: loadingCats } = useCollection(categoriesQuery);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!db) return;
+    if (!db || !userData?.shopId) return;
     
     const trimmedName = categoryName.trim();
     if (!trimmedName) {
@@ -165,6 +173,7 @@ export default function SettingsPage() {
     const targetId = editingId || doc(collection(db, 'categories')).id;
     const catData: any = {
       id: targetId,
+      shopId: userData.shopId,
       name: trimmedName.toUpperCase(),
       description: categoryDesc.trim() || "",
       updatedAt: serverTimestamp()
@@ -212,9 +221,9 @@ export default function SettingsPage() {
         <div className="space-y-1">
           <h2 className="text-3xl font-bold font-headline text-primary flex items-center gap-2">
             <LayoutGrid className="w-8 h-8" />
-            System Settings
+            Shop Configuration
           </h2>
-          <p className="text-muted-foreground text-sm">Manage dynamic work categories and unlimited subcategories.</p>
+          <p className="text-muted-foreground text-sm">Manage your shop's dynamic work categories and options.</p>
         </div>
         {!isFormOpen && (
           <Button onClick={() => setIsFormOpen(true)} className="gap-2 h-11 px-6 font-bold shadow-lg">
@@ -228,7 +237,7 @@ export default function SettingsPage() {
           <CardHeader className="border-b bg-muted/5 flex flex-row items-center justify-between">
             <div>
               <CardTitle>{editingId ? 'Edit Category' : 'Create New Category'}</CardTitle>
-              <CardDescription>Configure basic category details before adding subcategories.</CardDescription>
+              <CardDescription>Configure basic category details for your shop.</CardDescription>
             </div>
             <Button variant="ghost" size="icon" onClick={resetForm}><X className="w-5 h-5" /></Button>
           </CardHeader>
@@ -269,7 +278,7 @@ export default function SettingsPage() {
           {loadingCats ? (
             <div className="col-span-full flex flex-col items-center justify-center p-20 gap-4">
               <Loader2 className="w-12 h-12 animate-spin text-primary" />
-              <p className="text-muted-foreground font-medium animate-pulse">Loading categories...</p>
+              <p className="text-muted-foreground font-medium animate-pulse">Loading shop data...</p>
             </div>
           ) : categories?.length === 0 ? (
             <div className="col-span-full text-center py-24 border-4 border-dashed rounded-3xl space-y-4 bg-muted/10">

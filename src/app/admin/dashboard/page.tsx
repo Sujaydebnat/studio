@@ -14,19 +14,27 @@ import {
   Loader2,
   PlusCircle
 } from 'lucide-react';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy } from 'firebase/firestore';
+import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc } from '@/firebase';
+import { collection, query, orderBy, where, doc } from 'firebase/firestore';
 import { Badge } from '@/components/ui/badge';
 
 export default function AdminDashboard() {
   const db = useFirestore();
+  const { user } = useUser();
+
+  const userRef = useMemoFirebase(() => user ? doc(db, 'users', user.uid) : null, [db, user]);
+  const { data: userData } = useDoc(userRef);
 
   const ordersQuery = useMemoFirebase(() => {
-    if (!db) return null;
-    return query(collection(db, 'orders'), orderBy('createdAt', 'desc'));
-  }, [db]);
+    if (!db || !userData?.shopId) return null;
+    return query(
+      collection(db, 'orders'), 
+      where('shopId', '==', userData.shopId),
+      orderBy('createdAt', 'desc')
+    );
+  }, [db, userData?.shopId]);
 
-  const { data: orders, loading } = useCollection(ordersQuery);
+  const { data: orders, isLoading: loading } = useCollection(ordersQuery);
 
   const stats = useMemo(() => {
     const total = orders?.length || 0;
@@ -35,7 +43,7 @@ export default function AdminDashboard() {
     const completed = orders?.filter(o => o.status === 'Completed').length || 0;
 
     return [
-      { name: 'Total Orders', value: total.toString(), icon: ClipboardList, color: 'text-primary' },
+      { name: 'Shop Orders', value: total.toString(), icon: ClipboardList, color: 'text-primary' },
       { name: 'In Design', value: designing.toString(), icon: Clock, color: 'text-orange-500' },
       { name: 'Printing', value: printing.toString(), icon: Printer, color: 'text-accent' },
       { name: 'Completed', value: completed.toString(), icon: CheckCircle2, color: 'text-green-500' },
@@ -50,8 +58,8 @@ export default function AdminDashboard() {
     <div className="space-y-8">
       <div className="flex justify-between items-start">
         <div>
-          <h2 className="text-3xl font-bold font-headline text-primary">Dashboard Overview</h2>
-          <p className="text-muted-foreground">Welcome back! Here's what's happening today in your shop.</p>
+          <h2 className="text-3xl font-bold font-headline text-primary">Shop Overview</h2>
+          <p className="text-muted-foreground">Manage your shop's operations and team in one place.</p>
         </div>
         <Link href="/admin/orders/new" className="block">
           <Button className="bg-accent text-accent-foreground hover:bg-accent/90 gap-2 font-bold shadow-lg h-12 px-6">
@@ -109,7 +117,7 @@ export default function AdminDashboard() {
                           <span className="text-muted-foreground ml-2">for {order.customerName}</span>
                         </p>
                         <div className="flex flex-wrap gap-1 mt-1">
-                          {(order.workTypes || [order.workType]).map((t: string) => (
+                          {(order.workTypes || []).map((t: string) => (
                             <Badge key={t} variant="outline" className="text-[9px] h-4">{t}</Badge>
                           ))}
                         </div>
@@ -121,7 +129,7 @@ export default function AdminDashboard() {
               </div>
             ) : (
               <div className="text-center py-12 space-y-4">
-                <p className="text-muted-foreground">No orders yet. Start your workflow today!</p>
+                <p className="text-muted-foreground">No orders yet for this shop.</p>
                 <Link href="/admin/orders/new">
                   <Button variant="outline" size="sm" className="gap-2">
                     <PlusCircle className="w-4 h-4" /> Create First Order
@@ -138,17 +146,17 @@ export default function AdminDashboard() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="p-4 bg-primary/5 rounded-lg border border-primary/20">
-              <h4 className="font-bold text-sm text-primary mb-1">New Feature: Multi-Type Orders</h4>
-              <p className="text-xs text-muted-foreground">Select multiple work types for a single bill in the new order form.</p>
+              <h4 className="font-bold text-sm text-primary mb-1">Multi-Tenant Enabled</h4>
+              <p className="text-xs text-muted-foreground">Your data is securely isolated to your shop.</p>
             </div>
             <Link href="/admin/orders/new" className="block w-full">
               <Button className="w-full bg-primary gap-2 shadow-sm font-bold">
                 <PlusCircle className="w-4 h-4" /> Add New Order
               </Button>
             </Link>
-            <Link href="/admin/orders" className="block w-full">
+            <Link href="/admin/staff" className="block w-full">
               <Button variant="outline" className="w-full gap-2 font-bold">
-                <ClipboardList className="w-4 h-4" /> View All Orders
+                <ClipboardList className="w-4 h-4" /> Manage Staff
               </Button>
             </Link>
           </CardContent>

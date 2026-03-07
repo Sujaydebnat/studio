@@ -1,18 +1,31 @@
 
 {
   "entities": {
+    "Shop": {
+      "title": "Shop",
+      "type": "object",
+      "description": "Represents a tenant shop in the system.",
+      "properties": {
+        "id": { "type": "string" },
+        "shopName": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "shopName", "ownerId"]
+    },
     "User": {
       "title": "User",
       "type": "object",
-      "description": "Represents an administrative or staff user. Roles: 'admin', 'staff'.",
+      "description": "Represents an administrative or staff user associated with a shop.",
       "properties": {
         "id": { "type": "string" },
+        "shopId": { "type": "string" },
         "name": { "type": "string" },
         "username": { "type": "string" },
         "email": { "type": "string", "format": "email" },
         "phone": { "type": "string" },
         "photoUrl": { "type": "string" },
-        "role": { "type": "string", "enum": ["admin", "staff"] },
+        "role": { "type": "string", "enum": ["admin", "staff", "Designer", "Manager"] },
         "department": { "type": "string" },
         "address": { "type": "string" },
         "joiningDate": { "type": "string", "format": "date" },
@@ -22,26 +35,28 @@
         "customFields": { "type": "object" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["id", "name", "username", "email", "role"]
+      "required": ["id", "name", "email", "role", "shopId"]
     },
     "StaffField": {
       "title": "StaffField",
       "type": "object",
-      "description": "Definition for a custom staff column.",
+      "description": "Custom column definition for a shop's staff.",
       "properties": {
         "id": { "type": "string" },
+        "shopId": { "type": "string" },
         "fieldName": { "type": "string" },
         "fieldType": { "type": "string", "enum": ["text", "number", "date", "dropdown"] },
         "options": { "type": "array", "items": { "type": "string" } },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["id", "fieldName", "fieldType"]
+      "required": ["id", "fieldName", "fieldType", "shopId"]
     },
     "Order": {
       "title": "Order",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
+        "shopId": { "type": "string" },
         "billNumber": { "type": "string" },
         "customerName": { "type": "string" },
         "customerEmail": { "type": "string", "format": "email" },
@@ -70,28 +85,16 @@
         "priority": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
-      }
-    },
-    "OrderUpdate": {
-      "title": "OrderUpdate",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "orderId": { "type": "string" },
-        "senderId": { "type": "string" },
-        "senderName": { "type": "string" },
-        "senderRole": { "type": "string" },
-        "message": { "type": "string" },
-        "fileUrl": { "type": "string" },
-        "timestamp": { "type": "string", "format": "date-time" }
-      }
+      },
+      "required": ["shopId"]
     },
     "CatalogItem": {
       "title": "CatalogItem",
       "type": "object",
-      "description": "Represents a product or service offered by the shop.",
+      "description": "Shop-specific products or services.",
       "properties": {
         "id": { "type": "string" },
+        "shopId": { "type": "string" },
         "name": { "type": "string" },
         "description": { "type": "string" },
         "category": { "type": "string" },
@@ -100,42 +103,31 @@
         "startingPrice": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["id", "name", "category"]
+      "required": ["id", "name", "category", "shopId"]
     },
     "Category": {
       "title": "Category",
       "type": "object",
-      "description": "Dynamic work categories.",
+      "description": "Shop-specific work categories.",
       "properties": {
         "id": { "type": "string" },
+        "shopId": { "type": "string" },
         "name": { "type": "string" },
         "description": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["id", "name"]
-    },
-    "Subcategory": {
-      "title": "Subcategory",
-      "type": "object",
-      "description": "Subcategories nested under a category.",
-      "properties": {
-        "id": { "type": "string" },
-        "name": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["id", "name"]
+      "required": ["id", "name", "shopId"]
     }
   },
   "auth": {
     "providers": ["password", "google"]
   },
   "firestore": {
-    "/users/{userId}": { "schema": "#/backend/entities/User", "description": "Staff profiles." },
-    "/staff_fields/{fieldId}": { "schema": "#/backend/entities/StaffField", "description": "Custom staff columns." },
-    "/orders/{orderId}": { "schema": "#/backend/entities/Order", "description": "Print orders." },
-    "/orders/{orderId}/updates/{updateId}": { "schema": "#/backend/entities/OrderUpdate", "description": "Messages for an order." },
-    "/catalog/{itemId}": { "schema": "#/backend/entities/CatalogItem", "description": "Products in the catalog." },
-    "/categories/{categoryId}": { "schema": "#/backend/entities/Category", "description": "Customizable work categories." },
-    "/categories/{categoryId}/subcategories/{subcategoryId}": { "schema": "#/backend/entities/Subcategory", "description": "Subcategories for a category." }
+    "/shops/{shopId}": { "schema": "#/backend/entities/Shop", "description": "Tenants." },
+    "/users/{userId}": { "schema": "#/backend/entities/User", "description": "Profiles." },
+    "/staff_fields/{fieldId}": { "schema": "#/backend/entities/StaffField", "description": "Shop-specific custom columns." },
+    "/orders/{orderId}": { "schema": "#/backend/entities/Order", "description": "Shop-specific orders." },
+    "/catalog/{itemId}": { "schema": "#/backend/entities/CatalogItem", "description": "Shop-specific catalog items." },
+    "/categories/{categoryId}": { "schema": "#/backend/entities/Category", "description": "Shop-specific categories." }
   }
 }

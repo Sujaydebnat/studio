@@ -22,8 +22,8 @@ import {
   Camera,
   Layers
 } from 'lucide-react';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, addDoc, doc, setDoc, deleteDoc, serverTimestamp, query, orderBy } from 'firebase/firestore';
+import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc } from '@/firebase';
+import { collection, addDoc, doc, setDoc, deleteDoc, serverTimestamp, query, orderBy, where } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { CameraCapture } from '@/components/CameraCapture';
@@ -31,12 +31,16 @@ import Image from 'next/image';
 
 export default function CatalogManager() {
   const db = useFirestore();
+  const { user } = useUser();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+
+  const userRef = useMemoFirebase(() => user ? doc(db, 'users', user.uid) : null, [db, user]);
+  const { data: userData } = useDoc(userRef);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -48,14 +52,22 @@ export default function CatalogManager() {
   });
 
   const catalogQuery = useMemoFirebase(() => {
-    if (!db) return null;
-    return query(collection(db, 'catalog'), orderBy('createdAt', 'desc'));
-  }, [db]);
+    if (!db || !userData?.shopId) return null;
+    return query(
+      collection(db, 'catalog'), 
+      where('shopId', '==', userData.shopId),
+      orderBy('createdAt', 'desc')
+    );
+  }, [db, userData?.shopId]);
 
   const categoriesQuery = useMemoFirebase(() => {
-    if (!db) return null;
-    return query(collection(db, 'categories'), orderBy('name', 'asc'));
-  }, [db]);
+    if (!db || !userData?.shopId) return null;
+    return query(
+      collection(db, 'categories'), 
+      where('shopId', '==', userData.shopId),
+      orderBy('name', 'asc')
+    );
+  }, [db, userData?.shopId]);
 
   const { data: items, isLoading: loadingItems } = useCollection(catalogQuery);
   const { data: categories } = useCollection(categoriesQuery);
@@ -97,7 +109,7 @@ export default function CatalogManager() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!db) return;
+    if (!db || !userData?.shopId) return;
 
     if (!formData.name || !formData.category) {
       toast({ variant: "destructive", title: "Validation Error", description: "Product Name and Category are required." });
@@ -108,6 +120,7 @@ export default function CatalogManager() {
     try {
       const itemData: any = {
         name: formData.name.trim(),
+        shopId: userData.shopId,
         description: formData.description.trim() || "",
         category: formData.category,
         subCategory: formData.subCategory.trim() || "",
@@ -164,7 +177,7 @@ export default function CatalogManager() {
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-3xl font-bold font-headline text-primary">Catalog Manager</h2>
-          <p className="text-muted-foreground">Manage products with nested subcategories.</p>
+          <p className="text-muted-foreground">Manage products specifically for your shop.</p>
         </div>
         {!isFormOpen && (
           <Button onClick={() => setIsFormOpen(true)} className="gap-2 h-11 px-6 font-bold shadow-md">
@@ -178,7 +191,7 @@ export default function CatalogManager() {
           <CardHeader className="border-b bg-muted/5 flex flex-row items-center justify-between">
             <div>
               <CardTitle>{editingId ? 'Edit Product' : 'Add New Catalog Item'}</CardTitle>
-              <CardDescription>Select a category to see its sub-category options.</CardDescription>
+              <CardDescription>Configure product details for your shop catalog.</CardDescription>
             </div>
             <Button variant="ghost" size="icon" onClick={resetForm}><X className="w-5 h-5" /></Button>
           </CardHeader>
@@ -247,7 +260,7 @@ export default function CatalogManager() {
             </CardContent>
             <CardFooter className="border-t bg-muted/5 flex justify-end gap-3 pt-6">
               <Button type="button" variant="outline" onClick={resetForm}>Cancel</Button>
-              <Button disabled={loading} className="gap-2 px-8 font-bold shadow-lg">
+              <Button disabled={loading} className="gap-2 px-10 font-bold shadow-lg">
                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
                 {editingId ? 'Update Item' : 'Publish to Catalog'}
               </Button>

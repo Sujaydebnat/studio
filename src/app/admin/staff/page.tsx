@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useRef, useMemo } from 'react';
@@ -29,8 +30,8 @@ import {
   Plus,
   LayoutGrid
 } from 'lucide-react';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, doc, setDoc, serverTimestamp, deleteDoc, addDoc, query, orderBy } from 'firebase/firestore';
+import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc } from '@/firebase';
+import { collection, doc, setDoc, serverTimestamp, deleteDoc, addDoc, query, orderBy, where } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -54,6 +55,7 @@ import Link from 'next/link';
 
 export default function StaffManagement() {
   const db = useFirestore();
+  const { user } = useUser();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -64,6 +66,9 @@ export default function StaffManagement() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [staffToDelete, setStaffToDelete] = useState<{id: string, name: string} | null>(null);
   const [isFieldManagerOpen, setIsFieldManagerOpen] = useState(false);
+
+  const userRef = useMemoFirebase(() => user ? doc(db, 'users', user.uid) : null, [db, user]);
+  const { data: userData } = useDoc(userRef);
   
   // Custom Field Management
   const [newFieldName, setNewFieldName] = useState('');
@@ -86,8 +91,19 @@ export default function StaffManagement() {
     customFields: {} as Record<string, any>
   });
 
-  const usersQuery = useMemoFirebase(() => db ? collection(db, 'users') : null, [db]);
-  const fieldsQuery = useMemoFirebase(() => db ? query(collection(db, 'staff_fields'), orderBy('createdAt', 'asc')) : null, [db]);
+  const usersQuery = useMemoFirebase(() => {
+    if (!db || !userData?.shopId) return null;
+    return query(collection(db, 'users'), where('shopId', '==', userData.shopId));
+  }, [db, userData?.shopId]);
+
+  const fieldsQuery = useMemoFirebase(() => {
+    if (!db || !userData?.shopId) return null;
+    return query(
+      collection(db, 'staff_fields'), 
+      where('shopId', '==', userData.shopId),
+      orderBy('createdAt', 'asc')
+    );
+  }, [db, userData?.shopId]);
 
   const { data: users, isLoading: loadingUsers } = useCollection(usersQuery);
   const { data: customFields, isLoading: loadingFields } = useCollection(fieldsQuery);
@@ -104,10 +120,11 @@ export default function StaffManagement() {
   };
 
   const handleAddField = async () => {
-    if (!db || !newFieldName.trim()) return;
+    if (!db || !newFieldName.trim() || !userData?.shopId) return;
     setFieldLoading(true);
     try {
       await addDoc(collection(db, 'staff_fields'), {
+        shopId: userData.shopId,
         fieldName: newFieldName.trim(),
         fieldType: newFieldType,
         createdAt: serverTimestamp()
@@ -127,23 +144,24 @@ export default function StaffManagement() {
 
   const handleCreateOrUpdateStaff = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!db) return;
+    if (!db || !userData?.shopId) return;
 
     setLoading(true);
     try {
       const targetId = editMode && editingUserId ? editingUserId : formData.username.toLowerCase().trim();
       const userRef = doc(db, 'users', targetId);
       
-      const userData = {
+      const updatedStaffData = {
         ...formData,
         id: targetId,
+        shopId: userData.shopId,
         username: formData.username.toLowerCase().trim(),
         email: formData.email.toLowerCase().trim(),
         updatedAt: serverTimestamp(),
         ...(editMode ? {} : { createdAt: serverTimestamp() })
       };
 
-      await setDoc(userRef, userData, { merge: true });
+      await setDoc(userRef, updatedStaffData, { merge: true });
       toast({ title: editMode ? "Staff Updated" : "Staff Added" });
       resetToListView();
     } catch (error: any) {
@@ -219,8 +237,8 @@ export default function StaffManagement() {
       {viewMode === 'list' ? (
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 animate-in fade-in duration-500">
           <div>
-            <h2 className="text-3xl font-bold font-headline text-primary">Personnel Management</h2>
-            <p className="text-muted-foreground">Manage your team and define custom dynamic columns.</p>
+            <h2 className="text-3xl font-bold font-headline text-primary">Shop Personnel</h2>
+            <p className="text-muted-foreground">Manage your shop's team and custom data columns.</p>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => setIsFieldManagerOpen(true)} className="gap-2 h-11 border-2">
@@ -280,7 +298,7 @@ export default function StaffManagement() {
                     <Select value={formData.role} onValueChange={(v) => setFormData({...formData, role: v})}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="admin">Admin</SelectItem>
+                        <SelectItem value="admin">Admin / Owner</SelectItem>
                         <SelectItem value="staff">Staff</SelectItem>
                         <SelectItem value="Designer">Designer</SelectItem>
                         <SelectItem value="Manager">Manager</SelectItem>
@@ -357,9 +375,9 @@ export default function StaffManagement() {
               </CardContent>
               <CardFooter className="border-t bg-muted/5 flex justify-end gap-3 pt-6">
                 <Button type="button" variant="outline" onClick={resetToListView}>Cancel</Button>
-                <Button disabled={loading} className="px-8 font-bold shadow-lg">
+                <Button disabled={loading} className="px-10 font-bold shadow-lg">
                   {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Shield className="w-4 h-4 mr-2" />}
-                  {editMode ? 'Update Profile' : 'Create Staff Profile'}
+                  {editMode ? 'Update Profile' : 'Register Staff'}
                 </Button>
               </CardFooter>
             </form>
@@ -368,8 +386,8 @@ export default function StaffManagement() {
       ) : (
         <Card className="shadow-md animate-in fade-in">
           <CardHeader className="border-b bg-muted/5 flex flex-row items-center justify-between">
-            <CardTitle>Staff List</CardTitle>
-            <Badge variant="outline">{users?.length || 0} Registered</Badge>
+            <CardTitle>Staff Directory</CardTitle>
+            <Badge variant="outline">{users?.length || 0} Members</Badge>
           </CardHeader>
           <CardContent className="p-0 overflow-hidden">
             {loadingUsers ? (
@@ -418,7 +436,7 @@ export default function StaffManagement() {
             )}
           </CardContent>
           <CardFooter className="border-t bg-muted/5 flex justify-center py-4">
-             <p className="text-xs text-muted-foreground italic">Total {users?.length || 0} production staff members registered.</p>
+             <p className="text-xs text-muted-foreground italic">Your data is isolated to this shop.</p>
           </CardFooter>
         </Card>
       )}
@@ -427,8 +445,8 @@ export default function StaffManagement() {
       <Dialog open={isFieldManagerOpen} onOpenChange={setIsFieldManagerOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Manage Dynamic Staff Columns</DialogTitle>
-            <DialogDescription>Add or remove custom fields for all staff profiles.</DialogDescription>
+            <DialogTitle>Custom Staff Fields</DialogTitle>
+            <DialogDescription>Define shop-specific dynamic columns for your team.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 pt-4">
             <div className="flex gap-2">
@@ -466,12 +484,12 @@ export default function StaffManagement() {
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-            <AlertDialogDescription>This will permanently remove <b>{staffToDelete?.name}</b> from the system.</AlertDialogDescription>
+            <AlertDialogTitle>Remove Personnel?</AlertDialogTitle>
+            <AlertDialogDescription>This will permanently remove <b>{staffToDelete?.name}</b> from your shop's system.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteStaff} className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction>
+            <AlertDialogAction onClick={handleDeleteStaff} className="bg-destructive text-destructive-foreground">Confirm Removal</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
