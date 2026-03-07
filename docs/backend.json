@@ -9,82 +9,26 @@
         "id": { "type": "string" },
         "shopName": { "type": "string" },
         "ownerId": { "type": "string" },
-        "publicSlug": { "type": "string" },
-        "logo": { "type": "string" },
-        "description": { "type": "string" },
+        "address": { "type": "string" },
+        "phone": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "shopName", "ownerId"]
     },
-    "Attendance": {
-      "title": "Attendance",
-      "type": "object",
-      "description": "Staff attendance records.",
-      "properties": {
-        "id": { "type": "string" },
-        "shopId": { "type": "string" },
-        "staffId": { "type": "string" },
-        "checkInTime": { "type": "string", "format": "date-time" },
-        "checkOutTime": { "type": "string", "format": "date-time" },
-        "date": { "type": "string", "format": "date" }
-      },
-      "required": ["shopId", "staffId", "date"]
-    },
     "User": {
       "title": "User",
       "type": "object",
-      "description": "Represents an administrative or staff user associated with a shop.",
+      "description": "System users including super admins, shop owners, and staff.",
       "properties": {
         "id": { "type": "string" },
         "shopId": { "type": "string" },
         "name": { "type": "string" },
-        "username": { "type": "string" },
         "email": { "type": "string", "format": "email" },
-        "phone": { "type": "string" },
-        "photoUrl": { "type": "string" },
-        "role": { "type": "string", "enum": ["super_admin", "admin", "staff", "Designer", "Manager"] },
-        "department": { "type": "string" },
-        "address": { "type": "string" },
-        "joiningDate": { "type": "string", "format": "date" },
-        "salary": { "type": "string" },
+        "role": { "type": "string", "enum": ["super_admin", "shop_owner", "staff"] },
         "status": { "type": "string", "enum": ["Active", "Inactive"] },
-        "password": { "type": "string" },
-        "customFields": { "type": "object" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["id", "name", "email", "role", "shopId"]
-    },
-    "Order": {
-      "title": "Order",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "shopId": { "type": "string" },
-        "billNumber": { "type": "string" },
-        "customerName": { "type": "string" },
-        "customerEmail": { "type": "string", "format": "email" },
-        "phone": { "type": "string" },
-        "workTypes": { "type": "array", "items": { "type": "string" } },
-        "orderItems": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "type": { "type": "string" },
-              "subCategory": { "type": "string" },
-              "size": { "type": "string" },
-              "qty": { "type": "string" }
-            }
-          }
-        },
-        "status": { "type": "string" },
-        "totalBill": { "type": "string" },
-        "deliveryDate": { "type": "string", "format": "date" },
-        "additionalDetails": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" },
-        "updatedAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["shopId"]
+      "required": ["id", "name", "email", "role"]
     }
   },
   "auth": {

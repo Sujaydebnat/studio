@@ -16,8 +16,8 @@ service cloud.firestore {
       return isSignedIn() && getUserData().role == 'super_admin';
     }
 
-    function isOwnerOfShop(shopId) {
-      return isSignedIn() && getUserData().role == 'admin' && getUserData().shopId == shopId;
+    function isShopOwner(shopId) {
+      return isSignedIn() && getUserData().role == 'shop_owner' && getUserData().shopId == shopId;
     }
 
     function isStaffOfShop(shopId) {
@@ -26,17 +26,17 @@ service cloud.firestore {
 
     // Rules for Shops
     match /shops/{shopId} {
-      allow read: if isSuperAdmin() || isOwnerOfShop(shopId) || true; // Public access for catalog
+      allow read: if isSuperAdmin() || isSignedIn();
       allow create: if isSignedIn();
-      allow update, delete: if isSuperAdmin() || isOwnerOfShop(shopId);
+      allow update, delete: if isSuperAdmin() || isShopOwner(shopId);
     }
 
     // Rules for Users
     match /users/{userId} {
       allow read: if isSuperAdmin() || (isSignedIn() && (request.auth.uid == userId || getUserData().shopId == resource.data.shopId));
       allow create: if isSignedIn();
-      allow update: if isSuperAdmin() || (isSignedIn() && (request.auth.uid == userId || isOwnerOfShop(request.resource.data.shopId)));
-      allow delete: if isSuperAdmin() || (isSignedIn() && isOwnerOfShop(resource.data.shopId));
+      allow update: if isSuperAdmin() || (isSignedIn() && (request.auth.uid == userId || isShopOwner(request.resource.data.shopId)));
+      allow delete: if isSuperAdmin() || (isSignedIn() && isShopOwner(resource.data.shopId));
     }
 
     // Rules for Orders
@@ -44,35 +44,13 @@ service cloud.firestore {
       allow read: if isSuperAdmin() || (isSignedIn() && isStaffOfShop(resource.data.shopId));
       allow create: if isSignedIn() && isStaffOfShop(request.resource.data.shopId);
       allow update: if isSignedIn() && isStaffOfShop(resource.data.shopId);
-      allow delete: if isSuperAdmin() || isOwnerOfShop(resource.data.shopId);
-    }
-
-    // Rules for Catalog/Categories
-    match /categories/{categoryId} {
-      allow read: if true;
-      allow write: if isSignedIn() && isStaffOfShop(request.resource.data.shopId);
-      
-      match /subcategories/{subId} {
-        allow read: if true;
-        allow write: if isSignedIn();
-      }
-    }
-
-    match /catalog/{itemId} {
-      allow read: if true;
-      allow write: if isSignedIn() && isStaffOfShop(request.resource.data.shopId);
-    }
-
-    // Rules for Attendance
-    match /attendance/{attendanceId} {
-      allow read: if isSuperAdmin() || (isSignedIn() && isStaffOfShop(resource.data.shopId));
-      allow create: if isSignedIn() && isStaffOfShop(request.resource.data.shopId);
-      allow update: if isSuperAdmin() || isOwnerOfShop(resource.data.shopId);
+      allow delete: if isSuperAdmin() || isShopOwner(resource.data.shopId);
     }
 
     // Global catch-all
     match /{document=**} {
-      allow read, write: if isSuperAdmin();
+      allow read: if isSuperAdmin();
+      allow write: if isSuperAdmin();
     }
   }
 }

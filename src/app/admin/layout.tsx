@@ -41,18 +41,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const { data: userData, isLoading: isDataLoading } = useDoc(userRef);
 
   const isSuperAdmin = userData?.role === 'super_admin';
-  const isAdmin = userData?.role === 'admin';
+  const isShopOwner = userData?.role === 'shop_owner';
 
   const navItems = [
     { name: 'Dashboard', icon: LayoutDashboard, href: '/admin/dashboard', show: true },
     { name: 'Global Analytics', icon: TrendingUp, href: '/admin/analytics', show: isSuperAdmin },
     { name: 'Shops Directory', icon: Store, href: '/admin/shops', show: isSuperAdmin },
     { name: 'Orders', icon: ClipboardList, href: '/admin/orders', show: !isSuperAdmin },
-    { name: 'Staff Directory', icon: Users, href: '/admin/staff', show: isAdmin },
+    { name: 'Staff Directory', icon: Users, href: '/admin/staff', show: isShopOwner },
     { name: 'Attendance Log', icon: Clock, href: '/admin/attendance', show: !isSuperAdmin },
-    { name: 'Catalog Editor', icon: BookOpen, href: '/admin/catalog', show: isAdmin },
-    { name: 'QR Catalog', icon: QrCode, href: '/admin/qr', show: isAdmin },
-    { name: 'Settings', icon: Settings, href: '/admin/settings', show: isAdmin },
+    { name: 'Catalog Editor', icon: BookOpen, href: '/admin/catalog', show: isShopOwner },
+    { name: 'QR Catalog', icon: QrCode, href: '/admin/qr', show: isShopOwner },
+    { name: 'Settings', icon: Settings, href: '/admin/settings', show: isShopOwner },
   ];
 
   const handleSignOut = async () => {
@@ -75,7 +75,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </span>
         </div>
         
-        {isAdmin && (
+        {isShopOwner && (
           <div className="px-4 mb-4">
             <Link href="/admin/orders/new" className="block w-full">
               <Button className="w-full bg-accent text-accent-foreground hover:bg-accent/90 justify-start gap-2 font-black shadow-lg">
@@ -120,7 +120,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <header className="h-16 border-b bg-card/80 backdrop-blur-md flex items-center justify-between px-8 sticky top-0 z-10">
           <div className="flex flex-col">
             <h1 className="font-black text-lg font-headline text-primary uppercase tracking-widest">
-              {isSuperAdmin ? 'Master Controller' : isAdmin ? 'Shop Admin' : 'Staff Portal'}
+              {isSuperAdmin ? 'Master Controller' : isShopOwner ? 'Shop Owner' : 'Staff Portal'}
             </h1>
             {isSuperAdmin && <span className="text-[10px] font-bold text-accent uppercase -mt-1">System Overlord Access</span>}
           </div>
@@ -130,7 +130,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 {isDataLoading ? '---' : (userData?.name || 'Admin')}
               </span>
               <span className="text-[9px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter">
-                {isSuperAdmin ? 'Global Admin' : `Tenant: ${userData?.shopId?.slice(0, 8)}`}
+                {isSuperAdmin ? 'Global Admin' : `Shop: ${userData?.shopId?.slice(0, 8)}`}
               </span>
             </div>
             <Avatar className="w-10 h-10 border-2 border-primary/20 shadow-sm">
