@@ -8,16 +8,21 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // Specific Super Admin UID bypass for stability
+    function isSuperAdminUID() {
+      return request.auth.uid == 'GBknAJHg5lRKims8hdy6AC6q3qO2' || request.auth.uid == 'NWLuwbVTGYcpeeOu2l8zcFLOZSI3';
+    }
+
     function getUserData() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
     function isSuperAdmin() {
-      return isSignedIn() && getUserData().role == 'super_admin';
+      return isSuperAdminUID() || (isSignedIn() && getUserData().role == 'super_admin');
     }
 
     function isShopOwner(shopId) {
-      return isSignedIn() && getUserData().role == 'shop_owner' && getUserData().shopId == shopId;
+      return isSignedIn() && (getUserData().role == 'shop_owner' || getUserData().role == 'admin') && getUserData().shopId == shopId;
     }
 
     function isStaffOfShop(shopId) {
@@ -26,31 +31,65 @@ service cloud.firestore {
 
     // Rules for Shops
     match /shops/{shopId} {
-      allow read: if isSuperAdmin() || isSignedIn();
+      allow read: if isSignedIn();
       allow create: if isSignedIn();
       allow update, delete: if isSuperAdmin() || isShopOwner(shopId);
     }
 
     // Rules for Users
     match /users/{userId} {
-      allow read: if isSuperAdmin() || (isSignedIn() && (request.auth.uid == userId || getUserData().shopId == resource.data.shopId));
+      allow read: if isSignedIn() && (request.auth.uid == userId || isSuperAdmin() || getUserData().shopId == resource.data.shopId);
       allow create: if isSignedIn();
-      allow update: if isSuperAdmin() || (isSignedIn() && (request.auth.uid == userId || isShopOwner(request.resource.data.shopId)));
-      allow delete: if isSuperAdmin() || (isSignedIn() && isShopOwner(resource.data.shopId));
+      allow update: if isSignedIn() && (request.auth.uid == userId || isSuperAdmin() || isShopOwner(request.resource.data.shopId));
+      allow delete: if isSuperAdmin();
     }
 
     // Rules for Orders
     match /orders/{orderId} {
       allow read: if isSuperAdmin() || (isSignedIn() && isStaffOfShop(resource.data.shopId));
       allow create: if isSignedIn() && isStaffOfShop(request.resource.data.shopId);
-      allow update: if isSignedIn() && isStaffOfShop(resource.data.shopId);
+      allow update: if isSignedIn() && isStaffOfShop(request.resource.data.shopId);
       allow delete: if isSuperAdmin() || isShopOwner(resource.data.shopId);
+      
+      // Updates sub-collection
+      match /updates/{updateId} {
+        allow read: if isSuperAdmin() || (isSignedIn() && isStaffOfShop(get(/databases/$(database)/documents/orders/$(orderId)).data.shopId));
+        allow write: if isSignedIn() && isStaffOfShop(get(/databases/$(database)/documents/orders/$(orderId)).data.shopId);
+      }
     }
 
-    // Global catch-all
+    // Rules for Catalog
+    match /catalog/{itemId} {
+      allow read: if true; // Public catalog access
+      allow write: if isSignedIn() && (isSuperAdmin() || isShopOwner(request.resource.data.shopId));
+    }
+
+    // Rules for Categories
+    match /categories/{catId} {
+      allow read: if true;
+      allow write: if isSignedIn() && (isSuperAdmin() || isShopOwner(request.resource.data.shopId));
+      
+      match /subcategories/{subId} {
+        allow read: if true;
+        allow write: if isSignedIn();
+      }
+    }
+
+    // Attendance
+    match /attendance/{attId} {
+      allow read: if isSuperAdmin() || (isSignedIn() && getUserData().shopId == resource.data.shopId);
+      allow write: if isSignedIn() && getUserData().shopId == request.resource.data.shopId;
+    }
+
+    // Custom Fields
+    match /staff_fields/{fieldId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && (isSuperAdmin() || isShopOwner(request.resource.data.shopId));
+    }
+
+    // Global catch-all for Super Admin
     match /{document=**} {
-      allow read: if isSuperAdmin();
-      allow write: if isSuperAdmin();
+      allow read, write: if isSuperAdmin();
     }
   }
 }

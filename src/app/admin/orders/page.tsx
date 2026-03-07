@@ -17,8 +17,8 @@ import {
 } from '@/components/ui/table';
 import { Search, Filter, MoreVertical, Eye, Trash2, Download, Loader2, PlusCircle, AlertTriangle, ShieldAlert } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, deleteDoc, doc, query, orderBy } from 'firebase/firestore';
+import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc } from '@/firebase';
+import { collection, deleteDoc, doc, query, orderBy, where } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -37,16 +37,33 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export default function OrdersPage() {
   const db = useFirestore();
+  const { user } = useUser();
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  const userRef = useMemoFirebase(() => user ? doc(db, 'users', user.uid) : null, [db, user]);
+  const { data: userData } = useDoc(userRef);
+
+  const isSuperAdmin = userData?.role === 'super_admin';
+
   const ordersQuery = useMemoFirebase(() => {
-    if (!db) return null;
-    return query(collection(db, 'orders'), orderBy('createdAt', 'desc'));
-  }, [db]);
+    if (!db || !userData) return null;
+    
+    // If super admin, fetch all. Otherwise, must filter by shopId to avoid permission error.
+    if (isSuperAdmin) {
+      return query(collection(db, 'orders'), orderBy('createdAt', 'desc'));
+    } else if (userData.shopId) {
+      return query(
+        collection(db, 'orders'), 
+        where('shopId', '==', userData.shopId),
+        orderBy('createdAt', 'desc')
+      );
+    }
+    return null;
+  }, [db, userData, isSuperAdmin]);
 
   const { data: orders, loading, error } = useCollection(ordersQuery);
 
@@ -108,11 +125,13 @@ export default function OrdersPage() {
           <p className="text-muted-foreground">View, filter, and manage all your print orders.</p>
         </div>
         <div className="flex gap-2">
-          <Link href="/admin/orders/new">
-            <Button className="bg-accent text-accent-foreground hover:bg-accent/90 gap-2 font-bold shadow-sm">
-              <PlusCircle className="w-4 h-4" /> New Order
-            </Button>
-          </Link>
+          {!isSuperAdmin && (
+            <Link href="/admin/orders/new">
+              <Button className="bg-accent text-accent-foreground hover:bg-accent/90 gap-2 font-bold shadow-sm">
+                <PlusCircle className="w-4 h-4" /> New Order
+              </Button>
+            </Link>
+          )}
           <Button variant="outline" className="gap-2">
             <Download className="w-4 h-4" /> Export
           </Button>
@@ -122,9 +141,9 @@ export default function OrdersPage() {
       {error && (
         <Alert variant="destructive" className="animate-in fade-in slide-in-from-top-4">
           <ShieldAlert className="h-4 w-4" />
-          <AlertTitle>Permission Error</AlertTitle>
+          <AlertTitle>Database Access Restricted</AlertTitle>
           <AlertDescription>
-            You do not have permission to view the orders. Please check your Firestore Security Rules.
+            {isSuperAdmin ? "Super Admin check failed. Please ensure your UID is correct in rules." : "You only have permission to view orders from your own shop."}
           </AlertDescription>
         </Alert>
       )}
@@ -150,11 +169,6 @@ export default function OrdersPage() {
           {loading ? (
             <div className="flex items-center justify-center p-12">
               <Loader2 className="w-8 h-8 animate-spin text-primary" />
-            </div>
-          ) : error ? (
-            <div className="text-center py-20 text-muted-foreground flex flex-col items-center gap-4">
-              <ShieldAlert className="w-12 h-12 opacity-20" />
-              <p>Access Denied. Check Firestore Rules.</p>
             </div>
           ) : (
             <Table>
@@ -214,9 +228,11 @@ export default function OrdersPage() {
                                 <Eye className="w-4 h-4" /> View & Edit
                               </Link>
                             </DropdownMenuItem>
-                            <DropdownMenuItem className="gap-2 text-destructive cursor-pointer" onClick={() => confirmDelete(order.id)}>
-                              <Trash2 className="w-4 h-4" /> Delete
-                            </DropdownMenuItem>
+                            {(isSuperAdmin || userData?.shopId === order.shopId) && (
+                              <DropdownMenuItem className="gap-2 text-destructive cursor-pointer" onClick={() => confirmDelete(order.id)}>
+                                <Trash2 className="w-4 h-4" /> Delete
+                              </DropdownMenuItem>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
@@ -225,7 +241,7 @@ export default function OrdersPage() {
                 ) : (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
-                      No orders found matching your search.
+                      {error ? "Unable to load data. Check permissions." : "No orders found matching your search."}
                     </TableCell>
                   </TableRow>
                 )}
