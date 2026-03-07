@@ -29,13 +29,6 @@ import { Badge } from '@/components/ui/badge';
 import { CameraCapture } from '@/components/CameraCapture';
 import Image from 'next/image';
 
-const CATEGORIES = [
-  "GIFT", "FLEX", "DIGITAL PAPER", "PHOTOPAPER", "GUM PAPER", 
-  "LOGO", "VISITING CARD", "PLATE", "REDIEM", "VINAIL", "DTF", "UV", "OTHERS"
-];
-
-const DIGITAL_PAPER_SUBS = ["VISITING CARD", "HAND MENU CARD", "TABLE MENU CARD", "GATING CARD"];
-
 export default function CatalogManager() {
   const db = useFirestore();
   const { toast } = useToast();
@@ -48,7 +41,7 @@ export default function CatalogManager() {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    category: 'FLEX',
+    category: '',
     subCategory: '',
     imageUrl: '',
     startingPrice: ''
@@ -59,7 +52,17 @@ export default function CatalogManager() {
     return query(collection(db, 'catalog'), orderBy('createdAt', 'desc'));
   }, [db]);
 
+  const categoriesQuery = useMemoFirebase(() => {
+    if (!db) return null;
+    return query(collection(db, 'categories'), orderBy('name', 'asc'));
+  }, [db]);
+
   const { data: items, isLoading: loadingItems } = useCollection(catalogQuery);
+  const { data: categories } = useCollection(categoriesQuery);
+
+  const selectedCategoryData = useMemo(() => {
+    return categories?.find(c => c.name === formData.category);
+  }, [categories, formData.category]);
 
   const filteredItems = useMemo(() => {
     if (!items) return [];
@@ -87,7 +90,10 @@ export default function CatalogManager() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!db) return;
+    if (!db || !formData.category) {
+      toast({ variant: "destructive", title: "Missing Category", description: "Please select a category." });
+      return;
+    };
 
     setLoading(true);
     try {
@@ -134,7 +140,7 @@ export default function CatalogManager() {
   };
 
   const resetForm = () => {
-    setFormData({ name: '', description: '', category: 'FLEX', subCategory: '', imageUrl: '', startingPrice: '' });
+    setFormData({ name: '', description: '', category: '', subCategory: '', imageUrl: '', startingPrice: '' });
     setEditingId(null);
     setIsFormOpen(false);
   };
@@ -144,7 +150,7 @@ export default function CatalogManager() {
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-3xl font-bold font-headline text-primary">Catalog Manager</h2>
-          <p className="text-muted-foreground">Manage products using the same categories as orders.</p>
+          <p className="text-muted-foreground">Manage products using dynamic categories.</p>
         </div>
         {!isFormOpen && (
           <Button onClick={() => setIsFormOpen(true)} className="gap-2 h-11 px-6 font-bold shadow-md">
@@ -158,7 +164,7 @@ export default function CatalogManager() {
           <CardHeader className="border-b bg-muted/5 flex flex-row items-center justify-between">
             <div>
               <CardTitle>{editingId ? 'Edit Product' : 'Add New Catalog Item'}</CardTitle>
-              <CardDescription>Specify category and sub-category for better organization.</CardDescription>
+              <CardDescription>Select a category to see its sub-category options.</CardDescription>
             </div>
             <Button variant="ghost" size="icon" onClick={resetForm}><X className="w-5 h-5" /></Button>
           </CardHeader>
@@ -178,20 +184,20 @@ export default function CatalogManager() {
                   <div className="space-y-2">
                     <Label>Category</Label>
                     <Select value={formData.category} onValueChange={(v) => setFormData({...formData, category: v, subCategory: ''})}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder="Select Category" /></SelectTrigger>
                       <SelectContent>
-                        {CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                        {categories?.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
                     <Label>Sub-category (Optional)</Label>
                     <div className="relative">
-                      {formData.category === 'DIGITAL PAPER' ? (
+                      {selectedCategoryData?.subCategories?.length > 0 ? (
                         <Select value={formData.subCategory} onValueChange={(v) => setFormData({...formData, subCategory: v})}>
-                          <SelectTrigger className="h-10"><SelectValue placeholder="Select Type" /></SelectTrigger>
+                          <SelectTrigger className="h-10"><SelectValue placeholder="Select Sub" /></SelectTrigger>
                           <SelectContent>
-                            {DIGITAL_PAPER_SUBS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                            {selectedCategoryData.subCategories.map((s: string) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                           </SelectContent>
                         </Select>
                       ) : (

@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,21 +13,11 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Sparkles, Loader2, ArrowLeft, Save, ImageIcon, Upload, FileText, Ruler, Calendar as CalendarIcon, Hash, Banknote, Mail, Plus, Trash2, Layers, Pencil } from 'lucide-react';
 import { aiDesignBriefTool, type AIDesignBriefToolOutput } from '@/ai/flows/ai-design-brief-tool-flow';
 import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, addDoc, serverTimestamp, query, where } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, where, orderBy } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 import { CameraCapture } from '@/components/CameraCapture';
-
-// Unified Categories for Order and Catalog
-const CATEGORIES = [
-  "GIFT", "FLEX", "DIGITAL PAPER", "PHOTOPAPER", "GUM PAPER", 
-  "LOGO", "VISITING CARD", "PLATE", "REDIEM", "VINAIL", "DTF", "UV", "OTHERS"
-];
-
-const PHOTOPAPER_SIZES = ["12 × 18", "12 × 8"];
-
-const DIGITAL_PAPER_SUBS = ["VISITING CARD", "HAND MENU CARD", "TABLE MENU CARD", "GATING CARD"];
 
 interface OrderItem {
   type: string;
@@ -70,7 +60,17 @@ export default function NewOrderPage() {
     return query(collection(db, 'users'), where('role', '==', 'staff'));
   }, [db]);
 
+  const categoriesQuery = useMemoFirebase(() => {
+    if (!db) return null;
+    return query(collection(db, 'categories'), orderBy('name', 'asc'));
+  }, [db]);
+
   const { data: staffList } = useCollection(staffQuery);
+  const { data: categories } = useCollection(categoriesQuery);
+
+  const currentCategoryData = useMemo(() => {
+    return categories?.find(c => c.name === currentItem.type);
+  }, [categories, currentItem.type]);
 
   const toggleWorkType = (type: string) => {
     setFormData(prev => {
@@ -81,7 +81,6 @@ export default function NewOrderPage() {
       
       return { ...prev, workTypes: newWorkTypes };
     });
-    // Set current item type if it's the only one
     if (currentItem.type === '') setCurrentItem({ ...currentItem, type, subCategory: '' });
   };
 
@@ -182,7 +181,7 @@ export default function NewOrderPage() {
     }
 
     if (orderItems.length === 0) {
-      toast({ variant: "destructive", title: "No Items", description: "Please add at least one item detail (Category, Size, Qty)." });
+      toast({ variant: "destructive", title: "No Items", description: "Please add at least one item detail." });
       return;
     }
 
@@ -243,9 +242,8 @@ export default function NewOrderPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Bill Number (Manual)</Label>
-                  <input 
+                  <Input 
                     required 
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     placeholder="e.g. 2024-001" 
                     value={formData.billNumber} 
                     onChange={(e) => setFormData({...formData, billNumber: e.target.value})} 
@@ -292,21 +290,16 @@ export default function NewOrderPage() {
               </div>
 
               <div className="space-y-3">
-                <Label className="text-primary font-bold">Select Work Categories in this Bill</Label>
+                <Label className="text-primary font-bold">Select Work Categories</Label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 bg-muted/30 p-4 rounded-lg border">
-                  {CATEGORIES.map((type) => (
-                    <div key={type} className="flex items-center space-x-2">
+                  {categories?.map((c) => (
+                    <div key={c.id} className="flex items-center space-x-2">
                       <Checkbox 
-                        id={`type-${type}`} 
-                        checked={formData.workTypes.includes(type)}
-                        onCheckedChange={() => toggleWorkType(type)}
+                        id={`type-${c.id}`} 
+                        checked={formData.workTypes.includes(c.name)}
+                        onCheckedChange={() => toggleWorkType(c.name)}
                       />
-                      <label 
-                        htmlFor={`type-${type}`}
-                        className="text-xs font-medium leading-none cursor-pointer"
-                      >
-                        {type}
-                      </label>
+                      <label htmlFor={`type-${c.id}`} className="text-xs font-medium leading-none cursor-pointer">{c.name}</label>
                     </div>
                   ))}
                 </div>
@@ -338,7 +331,7 @@ export default function NewOrderPage() {
           </Card>
 
           <Card className={`shadow-sm border-2 ${editingItemIdx !== null ? 'border-primary ring-2 ring-primary/10' : ''}`}>
-            <CardHeader><CardTitle className="flex items-center gap-2 text-lg text-primary"><Ruler className="w-5 h-5" /> Detailed Order Items (Category & Specs)</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="flex items-center gap-2 text-lg text-primary"><Ruler className="w-5 h-5" /> Detailed Order Items</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div className="bg-muted/20 p-4 rounded-lg border-2 border-dashed space-y-4">
                 <div className="grid grid-cols-12 gap-2">
@@ -353,11 +346,11 @@ export default function NewOrderPage() {
                   </div>
                   <div className="col-span-4 space-y-1">
                     <Label className="text-[10px] font-bold">Sub-category</Label>
-                    {currentItem.type === 'DIGITAL PAPER' ? (
+                    {currentCategoryData?.subCategories?.length > 0 ? (
                       <Select value={currentItem.subCategory} onValueChange={(v) => setCurrentItem({...currentItem, subCategory: v})}>
                         <SelectTrigger className="h-9"><SelectValue placeholder="Select Type" /></SelectTrigger>
                         <SelectContent>
-                          {DIGITAL_PAPER_SUBS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                          {currentCategoryData.subCategories.map((s: string) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     ) : (
@@ -366,16 +359,7 @@ export default function NewOrderPage() {
                   </div>
                   <div className="col-span-4 space-y-1">
                     <Label className="text-[10px] font-bold">Size</Label>
-                    {currentItem.type === 'PHOTOPAPER' ? (
-                      <Select value={currentItem.size} onValueChange={(v) => setCurrentItem({...currentItem, size: v})}>
-                        <SelectTrigger className="h-9"><SelectValue placeholder="Select Size" /></SelectTrigger>
-                        <SelectContent>
-                          {PHOTOPAPER_SIZES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <Input placeholder="Size (e.g. 10x20 in)" value={currentItem.size} onChange={(e) => setCurrentItem({...currentItem, size: e.target.value})} className="h-9" />
-                    )}
+                    <Input placeholder="Size" value={currentItem.size} onChange={(e) => setCurrentItem({...currentItem, size: e.target.value})} className="h-9" />
                   </div>
                 </div>
                 <div className="flex gap-2 items-end">
@@ -441,8 +425,8 @@ export default function NewOrderPage() {
               </div>
               
               <div className="space-y-2">
-                <Label>Special Instructions / Details</Label>
-                <Textarea value={formData.additionalDetails} onChange={(e) => setFormData({...formData, additionalDetails: e.target.value})} placeholder="Any extra notes for the designers or staff..." />
+                <Label>Special Instructions</Label>
+                <Textarea value={formData.additionalDetails} onChange={(e) => setFormData({...formData, additionalDetails: e.target.value})} placeholder="Notes for production..." />
               </div>
             </CardContent>
           </Card>
@@ -450,10 +434,10 @@ export default function NewOrderPage() {
 
         <div className="md:col-span-5 space-y-6">
           <Card className="shadow-sm border-2 border-accent/20">
-            <CardHeader><CardTitle className="text-accent flex items-center gap-2 text-lg"><Sparkles className="w-5 h-5" /> AI Design Brief Generator</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-accent flex items-center gap-2 text-lg"><Sparkles className="w-5 h-5" /> AI Design Brief</CardTitle></CardHeader>
             <CardContent className="space-y-4">
-              <Label>Design Keywords (Theme, Colors, Mood)</Label>
-              <Textarea placeholder="e.g. Modern, Minimalist, Corporate Blue, Red and White, Bold Typography" value={formData.keywords} onChange={(e) => setFormData({...formData, keywords: e.target.value})} />
+              <Label>Design Keywords</Label>
+              <Textarea placeholder="e.g. Modern, Minimalist, Corporate Blue" value={formData.keywords} onChange={(e) => setFormData({...formData, keywords: e.target.value})} />
               <Button onClick={handleGenerateBrief} className="w-full bg-accent" disabled={loadingAI}>
                 {loadingAI ? <Loader2 className="animate-spin mr-2 w-4 h-4" /> : <Sparkles className="mr-2 w-4 h-4" />}
                 {loadingAI ? 'Generating...' : 'Get AI Recommendations'}
@@ -471,7 +455,7 @@ export default function NewOrderPage() {
           <Card className="shadow-sm border-2">
             <CardHeader>
               <CardTitle className="flex items-center justify-between text-sm">
-                <div className="flex items-center gap-2"><ImageIcon className="w-4 h-4 text-primary" /> Reference Files & Photos</div>
+                <div className="flex items-center gap-2"><ImageIcon className="w-4 h-4 text-primary" /> Reference Files</div>
                 <div className="flex gap-1">
                   <input type="file" ref={fileInputRef} className="hidden" accept="image/*,.pdf,.doc,.docx" onChange={handleFileChange} />
                   <Button variant="outline" size="icon" onClick={() => fileInputRef.current?.click()}>
@@ -485,7 +469,7 @@ export default function NewOrderPage() {
               {formData.referenceImages.length === 0 ? (
                 <div className="text-center py-10 bg-muted/20 rounded border-2 border-dashed">
                   <ImageIcon className="w-10 h-10 text-muted-foreground mx-auto mb-2 opacity-20" />
-                  <p className="text-xs text-muted-foreground">Attach reference images, mockups or design instructions.</p>
+                  <p className="text-xs text-muted-foreground">Attach references or design instructions.</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-3 gap-2">
@@ -499,10 +483,7 @@ export default function NewOrderPage() {
                           <span className="text-[8px] text-center">Document</span>
                         </div>
                       )}
-                      <button 
-                        onClick={() => removeRefFile(i)} 
-                        className="absolute top-1 right-1 bg-destructive p-1 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
+                      <button onClick={() => removeRefFile(i)} className="absolute top-1 right-1 bg-destructive p-1 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity">
                         <Trash2 className="w-3 h-3" />
                       </button>
                     </div>

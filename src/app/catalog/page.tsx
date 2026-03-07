@@ -13,8 +13,6 @@ import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy } from 'firebase/firestore';
 import Image from 'next/image';
 
-const CATEGORIES = ["ALL", "GIFT", "FLEX", "DIGITAL PAPER", "PHOTOPAPER", "LOGO", "VISITING CARD", "UV"];
-
 export default function PublicCatalog() {
   const db = useFirestore();
   const [searchTerm, setSearchTerm] = useState('');
@@ -25,7 +23,18 @@ export default function PublicCatalog() {
     return query(collection(db, 'catalog'), orderBy('createdAt', 'desc'));
   }, [db]);
 
+  const categoriesQuery = useMemoFirebase(() => {
+    if (!db) return null;
+    return query(collection(db, 'categories'), orderBy('name', 'asc'));
+  }, [db]);
+
   const { data: items, isLoading: loading } = useCollection(catalogQuery);
+  const { data: categoriesData } = useCollection(categoriesQuery);
+
+  const categories = useMemo(() => {
+    const cats = categoriesData?.map(c => c.name) || [];
+    return ["ALL", ...cats];
+  }, [categoriesData]);
 
   const filteredItems = useMemo(() => {
     if (!items) return [];
@@ -65,14 +74,14 @@ export default function PublicCatalog() {
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input 
-                  placeholder="Search products or sub-categories..." 
+                  placeholder="Search products..." 
                   className="pl-10 h-12"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
               <div className="flex flex-wrap gap-2">
-                {CATEGORIES.map(cat => (
+                {categories.map(cat => (
                   <Button 
                     key={cat} 
                     variant={selectedCategory === cat ? "default" : "outline"}
@@ -91,7 +100,7 @@ export default function PublicCatalog() {
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-4">
             <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-            <p className="text-muted-foreground animate-pulse">Loading amazing products...</p>
+            <p className="text-muted-foreground animate-pulse">Loading catalog...</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 mt-12">
@@ -123,12 +132,12 @@ export default function PublicCatalog() {
                   <CardHeader>
                     <CardTitle className="text-xl font-bold">{item.name}</CardTitle>
                     <p className="text-sm text-muted-foreground line-clamp-2">
-                      {item.description || "High-quality custom printing solution for your needs."}
+                      {item.description || "High-quality custom printing solution."}
                     </p>
                   </CardHeader>
                   <CardFooter className="border-t bg-muted/5 p-4 flex justify-between items-center">
                     <div className="text-primary font-extrabold">
-                      {item.startingPrice ? `Starts at BDT ${item.startingPrice}` : "Contact for Price"}
+                      {item.startingPrice ? `Starts BDT ${item.startingPrice}` : "Contact for Price"}
                     </div>
                     <Link href="/track">
                       <Button size="sm" variant="ghost" className="gap-2 text-xs font-bold">
@@ -142,7 +151,6 @@ export default function PublicCatalog() {
               <div className="col-span-full text-center py-20 space-y-4">
                 <Package className="w-16 h-16 text-muted-foreground/20 mx-auto" />
                 <h3 className="text-2xl font-bold text-muted-foreground">No products found</h3>
-                <p className="text-muted-foreground">Try adjusting your filters or search terms.</p>
                 <Button variant="outline" onClick={() => { setSearchTerm(''); setSelectedCategory('ALL'); }}>
                   Reset Filters
                 </Button>
@@ -155,7 +163,6 @@ export default function PublicCatalog() {
       <footer className="max-w-6xl mx-auto px-4 mt-20 text-center text-muted-foreground">
         <Separator className="mb-8" />
         <p className="text-sm">© 2024 PrintFlow Manage System. All rights reserved.</p>
-        <p className="text-xs mt-2">Professional Grade Printing & Design Solutions</p>
       </footer>
     </div>
   );

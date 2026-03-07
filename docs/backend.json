@@ -34,6 +34,7 @@
             "type": "object",
             "properties": {
               "type": { "type": "string" },
+              "subCategory": { "type": "string" },
               "size": { "type": "string" },
               "qty": { "type": "string" }
             }
@@ -81,6 +82,18 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "name", "category"]
+    },
+    "Category": {
+      "title": "Category",
+      "type": "object",
+      "description": "Dynamic work categories and their sub-categories.",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "subCategories": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name"]
     }
   },
   "auth": {
@@ -90,6 +103,7 @@
     "/users/{userId}": { "schema": "#/backend/entities/User", "description": "User profiles." },
     "/orders/{orderId}": { "schema": "#/backend/entities/Order", "description": "Print orders." },
     "/orders/{orderId}/updates/{updateId}": { "schema": "#/backend/entities/OrderUpdate", "description": "Messages for an order." },
-    "/catalog/{itemId}": { "schema": "#/backend/entities/CatalogItem", "description": "Products in the catalog." }
+    "/catalog/{itemId}": { "schema": "#/backend/entities/CatalogItem", "description": "Products in the catalog." },
+    "/categories/{categoryId}": { "schema": "#/backend/entities/Category", "description": "Customizable work categories." }
   }
 }
