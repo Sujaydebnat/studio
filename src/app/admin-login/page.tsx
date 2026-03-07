@@ -29,27 +29,40 @@ export default function AdminLoginPage() {
     setLoading(true);
 
     try {
-      // 1. Authenticate first (Security rules usually block pre-auth queries)
+      // 1. Authenticate first
       const userCredential = await signInWithEmailAndPassword(auth, email.toLowerCase().trim(), password);
       const user = userCredential.user;
 
-      // 2. Fetch user profile from Firestore to verify role
+      // 2. Fetch user profile from Firestore by UID to verify role
       const userRef = doc(db, 'users', user.uid);
       const userSnap = await getDoc(userRef);
 
-      if (!userSnap.exists() || userSnap.data()?.role !== 'super_admin') {
-        // 3. If not super_admin, sign them out immediately
+      if (!userSnap.exists()) {
         await signOut(auth);
         toast({ 
           variant: "destructive", 
-          title: "Access Denied", 
-          description: "This account does not have Super Admin privileges." 
+          title: "Profile Not Found", 
+          description: "No registry record found for this account UID." 
         });
         setLoading(false);
         return;
       }
 
-      // 4. Authorized
+      const userData = userSnap.data();
+
+      if (userData.role !== 'super_admin') {
+        // If not super_admin, sign them out immediately
+        await signOut(auth);
+        toast({ 
+          variant: "destructive", 
+          title: "Access Denied", 
+          description: "This portal is reserved for System Controllers with super_admin role." 
+        });
+        setLoading(false);
+        return;
+      }
+
+      // 3. Authorized
       toast({ title: "Admin Authorized", description: "Accessing global control center." });
       router.push('/admin/dashboard');
     } catch (error: any) {
@@ -57,7 +70,7 @@ export default function AdminLoginPage() {
       toast({ 
         variant: "destructive", 
         title: "Authentication Failed", 
-        description: "Check your email or password." 
+        description: "Check your admin credentials or system permissions." 
       });
     } finally {
       setLoading(false);

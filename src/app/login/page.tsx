@@ -8,9 +8,9 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Printer, Loader2, LogIn, UserCheck, User as UserIcon, Lock, ShieldCheck, Store, UserPlus, ShieldAlert } from 'lucide-react';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { useAuth, useFirestore } from '@/firebase';
-import { collection, query, where, getDocs, or } from 'firebase/firestore';
+import { collection, query, where, getDocs, or, doc, getDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 import Link from 'next/link';
@@ -26,15 +26,6 @@ export default function LoginPage() {
   const [identifier, setIdentifier] = useState(''); 
   const [password, setPassword] = useState('');
 
-  const handleAuthResult = (user: any, userData: any) => {
-    if (userData.role === 'super_admin' || userData.role === 'shop_owner') {
-      router.push('/admin/dashboard');
-    } else {
-      router.push('/staff/dashboard');
-    }
-    toast({ title: "Login Successful", description: `Welcome back, ${userData.name}.` });
-  };
-
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!auth || !db) return;
@@ -43,9 +34,8 @@ export default function LoginPage() {
     const cleanId = identifier.trim().toLowerCase();
 
     try {
+      // 1. Resolve identifier to an email if username/phone was used
       const usersRef = collection(db, 'users');
-      // For Super Admin and Owners, we usually use email. 
-      // For Staff, we support ID/Phone/Email.
       const q = query(
         usersRef, 
         or(
@@ -57,30 +47,52 @@ export default function LoginPage() {
       
       const querySnap = await getDocs(q);
       
-      if (querySnap.empty) {
-        toast({ variant: "destructive", title: "Access Denied", description: "Account not found." });
+      let targetEmail = cleanId;
+      if (!querySnap.empty) {
+        targetEmail = querySnap.docs[0].data().email;
+      } else if (!cleanId.includes('@')) {
+        // If not an email and not found in DB
+        toast({ variant: "destructive", title: "Account Not Found", description: "We couldn't find a profile with that ID." });
         setLoading(false);
         return;
       }
 
-      const userData = querySnap.docs[0].data();
-      
-      // Verification logic: match role with selected mode
-      if (mode === 'admin' && userData.role !== 'super_admin') {
-        toast({ variant: "destructive", title: "Forbidden", description: "This portal is for system administrators only." });
-        setLoading(false);
-        return;
-      }
-      if (mode === 'owner' && userData.role !== 'shop_owner') {
-        toast({ variant: "destructive", title: "Forbidden", description: "Please use the Owner Login for your shop." });
+      // 2. Authenticate with Firebase Auth
+      const authResult = await signInWithEmailAndPassword(auth, targetEmail, password);
+      const user = authResult.user;
+
+      // 3. Fetch User Document by UID
+      const userRef = doc(db, 'users', user.uid);
+      const userSnap = await getDoc(userRef);
+
+      if (!userSnap.exists()) {
+        toast({ variant: "destructive", title: "Profile Error", description: "Authenticated successfully but no Firestore profile found." });
+        await signOut(auth);
         setLoading(false);
         return;
       }
 
-      const authResult = await signInWithEmailAndPassword(auth, userData.email, password);
-      handleAuthResult(authResult.user, userData);
+      const userData = userSnap.data();
+      const role = userData.role;
+
+      // 4. Redirect based on role
+      if (role === 'super_admin') {
+        toast({ title: "Welcome, Super Admin", description: `Authorized access granted.` });
+        router.push('/admin/dashboard');
+      } else if (role === 'shop_owner') {
+        toast({ title: "Shop Dashboard", description: `Welcome back, ${userData.name}.` });
+        router.push('/admin/dashboard'); // Both owners and admins use this layout
+      } else if (role === 'staff') {
+        toast({ title: "Staff Workbench", description: `Welcome back, ${userData.name}.` });
+        router.push('/staff/dashboard');
+      } else {
+        toast({ variant: "destructive", title: "Invalid Role", description: "Your account does not have a valid role assigned. Contact support." });
+        await signOut(auth);
+      }
+
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Login Failed", description: "Invalid credentials." });
+      console.error("Login Error:", error);
+      toast({ variant: "destructive", title: "Login Failed", description: "Please check your credentials and try again." });
     } finally {
       setLoading(false);
     }
