@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState } from 'react';
@@ -13,8 +12,6 @@ import { useAuth, useFirestore } from '@/firebase';
 import { collection, query, where, getDocs, or, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
 import Link from 'next/link';
 
 export default function LoginPage() {
@@ -36,7 +33,6 @@ export default function LoginPage() {
     const cleanId = identifier.trim().toLowerCase();
 
     try {
-      // 1. Resolve identifier to an email if username/phone was used
       let targetEmail = cleanId;
       if (!cleanId.includes('@')) {
         const usersRef = collection(db, 'users');
@@ -57,41 +53,40 @@ export default function LoginPage() {
         }
       }
 
-      // 2. Authenticate
       const authResult = await signInWithEmailAndPassword(auth, targetEmail, password);
       const user = authResult.user;
 
-      // Recognized Super Admin UIDs
       const superAdminUIDs = [
         'GBknAJHg5lRKims8hdy6AC6q3qO2', 
         'NWLuwbVTGYcpeeOu2l8zcFLOZSI3',
-        'uyNwlQz5VucqI6QXNWn9sIC89k83'
+        'uyNwlQz5VucqI6QXNWn9sIC89k83',
+        'cRm3xfHwoJWpH2iL6RejsJTlREH3'
       ];
 
-      // 3. Fetch Profile
       const userRef = doc(db, 'users', user.uid);
       let userSnap = await getDoc(userRef);
 
-      // Auto-provision Super Admin
       if (superAdminUIDs.includes(user.uid)) {
-        if (!userSnap.exists() || userSnap.data()?.role !== 'super_admin') {
-          await setDoc(userRef, {
-            id: user.uid,
-            name: user.displayName || 'Super Admin',
-            email: user.email || targetEmail,
-            role: 'super_admin',
-            status: 'Active',
-            updatedAt: serverTimestamp(),
-            ...(userSnap.exists() ? {} : { createdAt: serverTimestamp() })
-          }, { merge: true });
-        }
+        await setDoc(userRef, {
+          id: user.uid,
+          name: user.displayName || 'Super Admin',
+          email: user.email || targetEmail,
+          role: 'super_admin',
+          status: 'Active',
+          updatedAt: serverTimestamp(),
+          ...(userSnap.exists() ? {} : { createdAt: serverTimestamp() })
+        }, { merge: true });
+        
+        // Sync role collection for Strategy A compliance
+        await setDoc(doc(db, 'roles_admin', user.uid), { active: true }, { merge: true });
+        
         toast({ title: "Master Access", description: "Global Controller Identity Verified." });
         router.push('/admin/dashboard');
         return;
       }
 
       if (!userSnap.exists()) {
-        toast({ variant: "destructive", title: "Profile Missing", description: "Please contact support." });
+        toast({ variant: "destructive", title: "Profile Missing", description: "Please contact your shop owner." });
         await signOut(auth);
         setLoading(false);
         return;
@@ -110,6 +105,7 @@ export default function LoginPage() {
       }
 
     } catch (error: any) {
+      console.warn("Login Error:", error.code);
       let errorMessage = "Invalid credentials or network issue.";
       if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
         errorMessage = "Email অথবা Password সঠিক নয়।";

@@ -4,146 +4,95 @@ service cloud.firestore {
 
     /**
      * PrintFlow Manage Security Rules
-     * 
-     * Core Philosophy:
-     * This ruleset implements a robust Role-Based Access Control (RBAC) model tailored for a print shop 
-     * management system. It distinguishes between Administrators, Staff, and Customers (who access via a portal).
-     * 
-     * Data Structure:
-     * - /users: Profiles for Admin and Staff.
-     * - /roles_admin & /roles_staff: Identity-based collections for O(1) role verification.
-     * - /customers: Customer records managed by staff.
-     * - /orders: Work orders with nested design files and audit logs.
-     * 
-     * Key Security Decisions:
-     * - Authorization Independence: Subcollections (DesignFiles, Logs) denormalize parent 
-     *   ownership data (orderAdminId, etc.) to allow rules to run without expensive get() calls.
-     * - Role Segregation: Admin and Staff roles are validated via document existence in 
-     *   dedicated role collections, ensuring atomic and performant checks.
-     * - Customer Access: Orders and their related files are accessible to unauthenticated/anonymous 
-     *   users to support a customer-facing "tracking portal" based on Order ID knowledge.
-     * 
-     * Denormalization for Authorization:
-     * - We avoid parent document lookups by ensuring every Order sub-document contains the 
-     *   identities of the creator (Admin) and the assignee (Staff).
+     * Optimized for Multi-Tenant Isolation and Role-Based Access.
      */
 
     // --- Helper Functions ---
 
-    /** @description Checks if the user is authenticated with any provider. */
     function isSignedIn() {
       return request.auth != null;
     }
 
-    /** @description Checks if the user has the Admin role via the roles_admin collection. */
-    function isAdmin() {
-      return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+    /** 
+     * @description Checks if user is a Super Admin.
+     * Includes hardcoded UIDs for emergency recovery and system provisioning.
+     */
+    function isSuperAdmin() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid)) ||
+        request.auth.uid == 'uyNwlQz5VucqI6QXNWn9sIC89k83' ||
+        request.auth.uid == 'NWLuwbVTGYcpeeOu2l8zcFLOZSI3' ||
+        request.auth.uid == 'GBknAJHg5lRKims8hdy6AC6q3qO2' ||
+        request.auth.uid == 'cRm3xfHwoJWpH2iL6RejsJTlREH3'
+      );
     }
 
-    /** @description Checks if the user has the Staff role via the roles_staff collection. */
-    function isStaff() {
-      return isSignedIn() && exists(/databases/$(database)/documents/roles_staff/$(request.auth.uid));
-    }
-
-    /** @description Checks if the authenticated user's UID matches the provided ID. */
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    /** @description Verifies ownership and document existence for updates or deletions. */
-    function isExistingOwner(userId) {
-      return resource != null && isOwner(userId);
+    /** @description Fetches the current user's profile document. */
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
     // --- Collection Rules ---
 
-    /**
-     * @description Rules for user profiles. Admins manage all, Staff view all, Users manage their own profile.
-     * @path /users/{userId}
-     * @allow (get) Any Staff or Admin user.
-     * @deny (update) A Staff user trying to modify an Admin's profile.
-     * @principle Ownership for self-updates, Role-based for management.
-     */
     match /users/{userId} {
-      allow get: if isSignedIn() && (isAdmin() || isStaff() || isOwner(userId));
-      allow list: if isSignedIn() && (isAdmin() || isStaff());
-      allow create: if isAdmin() && request.resource.data.id == userId;
-      allow update: if (isAdmin() || isExistingOwner(userId)) && (request.resource.data.id == resource.data.id);
-      allow delete: if isAdmin();
+      allow get: if isSignedIn();
+      /** 
+       * @description Allows listing users if the query is filtered by shopId.
+       * This unblocks the Staff Directory while maintaining multi-tenant isolation.
+       */
+      allow list: if isSignedIn() && (isSuperAdmin() || (resource == null || resource.data.shopId == getUserData().shopId));
+      allow create, update: if isSignedIn() && (request.auth.uid == userId || isSuperAdmin());
+      allow delete: if isSuperAdmin();
     }
 
-    /**
-     * @description Role collections used for DBAC (Database Access Control). Restricted to Admins.
-     * @path /roles_admin/{userId} or /roles_staff/{userId}
-     * @allow (get) Any signed-in user checking their own or others' roles.
-     * @deny (create) A Staff user trying to promote themselves to Admin.
-     * @principle Admin-only role management.
-     */
     match /roles_admin/{userId} {
-      allow get, list: if isSignedIn();
-      allow create, update, delete: if isAdmin();
+      allow read: if isSignedIn();
+      allow write: if isSuperAdmin();
     }
+
     match /roles_staff/{userId} {
-      allow get, list: if isSignedIn();
-      allow create, update, delete: if isAdmin();
+      allow read: if isSignedIn();
+      allow write: if isSuperAdmin();
     }
 
-    /**
-     * @description Customer records are managed by internal staff. Customers do not have accounts.
-     * @path /customers/{customerId}
-     * @allow (list) All Staff/Admin to find customers.
-     * @deny (write) Any non-Admin user.
-     * @principle Admin-only management of sensitive customer contact lists.
-     */
-    match /customers/{customerId} {
-      allow get, list: if isAdmin() || isStaff();
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
-    }
-
-    /**
-     * @description Orders are the core entity. Accessible by creators, assignees, and public (for portal).
-     * @path /orders/{orderId}
-     * @allow (get) Public access for customer portal tracking.
-     * @deny (create) A staff user trying to set themselves as the creating admin.
-     * @principle Creator-only management with broad staff/admin visibility.
-     */
-    match /orders/{orderId} {
-      allow get: if true; // Publicly accessible via ID for customer portal
-      allow list: if isAdmin() || isStaff();
-      allow create: if (isAdmin() || isStaff()) && request.resource.data.adminId == request.auth.uid;
-      allow update: if (isAdmin() || isStaff()) && resource != null && request.resource.data.adminId == resource.data.adminId;
-      allow delete: if isAdmin() && resource != null;
-    }
-
-    /**
-     * @description Design files related to orders. Uses denormalized fields for logic.
-     * @path /orders/{orderId}/designFiles/{fileId}
-     * @allow (create) The admin or staff assigned to the order.
-     * @deny (delete) A user who is not the original uploader or an Admin.
-     * @principle Authorization Independence via denormalized owner/staff IDs.
-     */
-    match /orders/{orderId}/designFiles/{fileId} {
-      allow get: if true; // Publicly accessible for customer preview
-      allow list: if isAdmin() || isStaff();
-      allow create: if (isAdmin() || isStaff()) && request.resource.data.uploadedByUserId == request.auth.uid;
-      allow update: if (isAdmin() || isStaff()) && resource != null && request.resource.data.uploadedByUserId == resource.data.uploadedByUserId;
-      allow delete: if (isAdmin() || (resource != null && resource.data.uploadedByUserId == request.auth.uid));
-    }
-
-    /**
-     * @description Audit logs for order progress. Usually read-only for history.
-     * @path /orders/{orderId}/orderLogEntries/{logEntryId}
-     * @allow (get) Publicly viewable for order progress tracking.
-     * @deny (update) Any modification to the audit trail.
-     * @principle Immutable log entries for operational integrity.
-     */
-    match /orders/{orderId}/orderLogEntries/{logEntryId} {
+    match /shops/{shopId} {
       allow get: if true;
-      allow list: if isAdmin() || isStaff();
-      allow create: if (isAdmin() || isStaff());
-      allow update, delete: if false; // Audit logs should be immutable
+      allow list: if isSignedIn();
+      allow write: if isSuperAdmin() || (isSignedIn() && getUserData().shopId == shopId);
+
+      match /orders/{orderId} {
+        allow read, write: if isSignedIn() && (isSuperAdmin() || getUserData().shopId == shopId);
+        
+        match /updates/{updateId} {
+          allow read, write: if isSignedIn() && (isSuperAdmin() || getUserData().shopId == shopId);
+        }
+      }
+    }
+
+    match /catalog/{itemId} {
+      allow read: if true;
+      allow write: if isSignedIn() && (isSuperAdmin() || getUserData().role == 'shop_owner');
+    }
+
+    match /categories/{catId} {
+      allow read: if true;
+      allow write: if isSignedIn() && (isSuperAdmin() || getUserData().role == 'shop_owner');
+      
+      match /subcategories/{subId} {
+        allow read: if true;
+        allow write: if isSignedIn() && (isSuperAdmin() || getUserData().role == 'shop_owner');
+      }
+    }
+
+    match /attendance/{id} {
+      allow read: if isSignedIn() && (isSuperAdmin() || getUserData().shopId == resource.data.shopId || request.auth.uid == resource.data.staffId);
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (isSuperAdmin() || getUserData().shopId == resource.data.shopId || request.auth.uid == resource.data.staffId);
+    }
+
+    match /staff_fields/{id} {
+      allow read: if isSignedIn() && (isSuperAdmin() || getUserData().shopId == resource.data.shopId);
+      allow write: if isSignedIn() && (isSuperAdmin() || getUserData().role == 'shop_owner');
     }
   }
 }
