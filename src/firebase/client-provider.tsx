@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useMemo, useState, useEffect, type ReactNode } from 'react';
@@ -10,42 +9,39 @@ interface FirebaseClientProviderProps {
 }
 
 /**
- * Ensures Firebase is only initialized and rendered on the client side 
- * to prevent Hydration Mismatch and Firestore assertion errors (ID: ca9).
+ * Ensures Firebase is ONLY initialized and rendered on the client side.
+ * This effectively prevents Hydration Mismatch and the "ca9" assertion crash.
  */
 export function FirebaseClientProvider({ children }: FirebaseClientProviderProps) {
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
-    // Component has mounted on the client, safe to render client-specific logic
+    // Flag that we are now safely running in the browser
     setIsMounted(true);
   }, []);
 
-  // We use a separate state for services to ensure they are only 
-  // calculated once the component is mounted on the browser.
+  // Compute services only once after mounting
   const services = useMemo(() => {
     if (!isMounted) return null;
     return initializeFirebase();
   }, [isMounted]);
 
-  // During SSR and initial hydration, we render a shell that matches the server
-  // to avoid DOM mismatch (Hydration Error).
+  // Render a stable shell during SSR to match the HTML structure exactly
   if (!isMounted) {
     return (
-      <div className="min-h-screen bg-background">
-        {/* Empty shell to match server */}
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
   }
 
-  // If initialization fails or is in progress, show a consistent loading state
+  // If initialization is in progress
   if (!services || !services.firebaseApp || !services.firestore || !services.auth) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center space-y-4">
-          <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
-          <p className="text-muted-foreground animate-pulse font-medium">Initializing PrintFlow Services...</p>
-        </div>
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <p className="text-muted-foreground animate-pulse font-bold tracking-widest uppercase text-xs">
+          Booting System Core...
+        </p>
       </div>
     );
   }

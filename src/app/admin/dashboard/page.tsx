@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useMemo } from 'react';
@@ -25,12 +24,15 @@ export default function AdminDashboard() {
   const db = useFirestore();
   const { user } = useUser();
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'users', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => 
+    (user && db) ? doc(db, 'users', user.uid) : null
+  , [db, user?.uid]);
+
   const { data: userData, isLoading: isUserLoading } = useDoc(userRef);
 
   const isSuperAdmin = userData?.role === 'super_admin';
 
-  // Stats Logic: Subcollection vs collectionGroup
+  // Memoize queries to prevent infinite loops and CA9 crashes
   const ordersQuery = useMemoFirebase(() => {
     if (!db || !userData) return null;
     if (isSuperAdmin) {
@@ -41,7 +43,7 @@ export default function AdminDashboard() {
       collection(db, 'shops', userData.shopId, 'orders'), 
       orderBy('createdAt', 'desc')
     );
-  }, [db, userData, isSuperAdmin]);
+  }, [db, userData?.shopId, isSuperAdmin]);
 
   const shopsQuery = useMemoFirebase(() => {
     if (!db || !isSuperAdmin) return null;
@@ -52,7 +54,7 @@ export default function AdminDashboard() {
   const { data: shops } = useCollection(shopsQuery);
 
   const stats = useMemo(() => {
-    if (!orders) return [];
+    if (!userData) return [];
     
     if (isSuperAdmin) {
       return [
@@ -73,9 +75,14 @@ export default function AdminDashboard() {
       { name: 'Completed', value: completed.toString(), icon: CheckCircle2, color: 'text-green-500' },
       { name: 'Vault State', value: 'Isolated', icon: ShieldCheck, color: 'text-accent' },
     ];
-  }, [orders, shops, isSuperAdmin]);
+  }, [orders, shops, isSuperAdmin, userData]);
 
-  if (isUserLoading) return <div className="flex items-center justify-center p-20"><Loader2 className="animate-spin text-primary" /></div>;
+  if (isUserLoading) return (
+    <div className="flex flex-col items-center justify-center p-32 gap-4">
+      <Loader2 className="w-12 h-12 animate-spin text-primary" />
+      <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Authenticating Node...</p>
+    </div>
+  );
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">

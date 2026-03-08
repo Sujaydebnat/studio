@@ -1,62 +1,53 @@
-
 'use client';
 
 import { firebaseConfig } from '@/firebase/config';
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth, Auth } from 'firebase/auth';
-import { getFirestore, Firestore, initializeFirestore, CACHE_SIZE_UNLIMITED, terminate } from 'firebase/firestore';
+import { getFirestore, Firestore, initializeFirestore, CACHE_SIZE_UNLIMITED, getFirestore as getExistingFirestore } from 'firebase/firestore';
 
-let app: FirebaseApp;
+/**
+ * Global variables to persist instances across Next.js 15 Fast Refresh cycles.
+ * This is critical for preventing "INTERNAL ASSERTION FAILED (ID: ca9)" errors.
+ */
+let firebaseApp: FirebaseApp;
 let firestore: Firestore;
 let auth: Auth;
 
 /**
- * Initializes Firebase services with strict singleton checks to prevent 
- * "INTERNAL ASSERTION FAILED (ID: ca9)" errors in Next.js 15 / Turbopack.
+ * Initializes Firebase services with strict singleton checks.
  */
 export function initializeFirebase() {
   if (typeof window === 'undefined') {
     return { firebaseApp: null as any, firestore: null as any, auth: null as any };
   }
 
-  // 1. Initialize Firebase App once
+  // 1. Initialize Firebase App
   if (!getApps().length) {
-    app = initializeApp(firebaseConfig);
+    firebaseApp = initializeApp(firebaseConfig);
   } else {
-    app = getApp();
+    firebaseApp = getApp();
   }
 
-  // 2. Initialize Firebase Auth once
-  auth = getAuth(app);
-
-  // 3. Initialize Firestore with CA9 assertion protection
-  try {
-    // If instance already exists, reuse it. This is critical for Next.js Fast Refresh.
-    const existingFirestore = getFirestore(app);
-    firestore = existingFirestore;
-  } catch (e) {
-    // initializeFirestore can ONLY be called once per app instance.
-    firestore = initializeFirestore(app, {
-      experimentalForceLongPolling: true,
-      cacheSizeBytes: CACHE_SIZE_UNLIMITED,
-    });
+  // 2. Initialize Firebase Auth
+  if (!auth) {
+    auth = getAuth(firebaseApp);
   }
 
-  return { firebaseApp: app, firestore, auth };
-}
-
-/**
- * Safely terminates and re-initializes Firebase services.
- */
-export async function reconnectFirebase() {
-  if (firestore) {
+  // 3. Initialize Firestore with CA9 protection
+  if (!firestore) {
     try {
-      await terminate(firestore);
+      // Try to get an existing instance first (important for Fast Refresh)
+      firestore = getExistingFirestore(firebaseApp);
     } catch (e) {
-      // Ignore termination errors during forced reconnect
+      // Fallback to initialization only if no instance exists
+      firestore = initializeFirestore(firebaseApp, {
+        experimentalForceLongPolling: true,
+        cacheSizeBytes: CACHE_SIZE_UNLIMITED,
+      });
     }
   }
-  return initializeFirebase();
+
+  return { firebaseApp, firestore, auth };
 }
 
 export * from './provider';

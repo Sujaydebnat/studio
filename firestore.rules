@@ -1,9 +1,8 @@
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // --- HELPER FUNCTIONS ---
+    // --- CORE HELPERS ---
     
     function isSignedIn() {
       return request.auth != null;
@@ -28,21 +27,21 @@ service cloud.firestore {
 
     // --- COLLECTION RULES ---
 
-    // Users collection
+    // Global User Profiles
     match /users/{userId} {
-      allow read: if isSignedIn() && (request.auth.uid == userId || isSuperAdmin() || getUserData().shopId == resource.data.shopId);
+      allow read: if isSignedIn() && (request.auth.uid == userId || isSuperAdmin() || belongsToShop(resource.data.shopId));
       allow create: if isSignedIn();
       allow update: if isSignedIn() && (request.auth.uid == userId || isSuperAdmin());
       allow delete: if isSuperAdmin();
     }
 
-    // Shops collection (Root)
+    // Root Shops
     match /shops/{shopId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn();
       allow update, delete: if isSuperAdmin() || (isSignedIn() && request.auth.uid == resource.data.ownerId);
 
-      // Orders: Nested inside shop for strict isolation
+      // Orders: STRICT MULTI-TENANT ISOLATION
       match /orders/{orderId} {
         allow read: if belongsToShop(shopId);
         allow create, update: if belongsToShop(shopId);
@@ -53,13 +52,13 @@ service cloud.firestore {
         }
       }
 
-      // Catalog items
+      // Catalog items (Publicly readable, controlled write)
       match /catalog/{itemId} {
         allow read: if true; 
         allow write: if isSuperAdmin() || (belongsToShop(shopId) && getUserData().role == 'shop_owner');
       }
 
-      // Categories
+      // Business Categories
       match /categories/{catId} {
         allow read: if true;
         allow write: if belongsToShop(shopId);
@@ -71,18 +70,18 @@ service cloud.firestore {
       }
     }
 
-    // Attendance records
+    // Global Attendance Logs
     match /attendance/{attId} {
       allow read: if isSuperAdmin() || (isSignedIn() && belongsToShop(resource.data.shopId));
       allow write: if isSignedIn() && belongsToShop(request.resource.data.shopId);
     }
 
-    // Staff Fields
+    // Custom Staff Fields
     match /staff_fields/{fieldId} {
       allow read, write: if belongsToShop(request.resource.data.shopId || resource.data.shopId);
     }
 
-    // Global support for Super Admin cross-querying
+    // Support for Super Admin Global Monitoring (CollectionGroup)
     match /{path=**}/orders/{orderId} {
       allow read: if isSuperAdmin();
     }
