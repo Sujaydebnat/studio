@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { DependencyList, createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
@@ -73,8 +74,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
         setUserAuthState({ user: firebaseUser, isUserLoading: false, userError: null });
       },
       (error) => {
-        console.error("FirebaseProvider: onAuthStateChanged error:", error);
-        setUserAuthState({ user: null, isUserLoading: false, userError: error });
+        console.warn("FirebaseProvider: onAuthStateChanged state change:", error.message);
         
         // Detect workspace session expiry via auth errors
         if (error.message.includes('permission-denied') || error.message.includes('auth/network-request-failed')) {

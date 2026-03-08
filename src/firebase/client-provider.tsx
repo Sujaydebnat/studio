@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useMemo, useState, useEffect, type ReactNode } from 'react';
@@ -10,7 +11,7 @@ interface FirebaseClientProviderProps {
 
 /**
  * Ensures Firebase is only initialized and rendered on the client side 
- * to prevent Hydration Mismatch errors.
+ * to prevent Hydration Mismatch and Firestore assertion errors (ID: ca9).
  */
 export function FirebaseClientProvider({ children }: FirebaseClientProviderProps) {
   const [isMounted, setIsMounted] = useState(false);
@@ -20,6 +21,8 @@ export function FirebaseClientProvider({ children }: FirebaseClientProviderProps
     setIsMounted(true);
   }, []);
 
+  // We use a separate state for services to ensure they are only 
+  // calculated once the component is mounted on the browser.
   const services = useMemo(() => {
     if (!isMounted) return null;
     return initializeFirebase();
@@ -36,7 +39,7 @@ export function FirebaseClientProvider({ children }: FirebaseClientProviderProps
   }
 
   // If initialization fails or is in progress, show a consistent loading state
-  if (!services || !services.firebaseApp) {
+  if (!services || !services.firebaseApp || !services.firestore || !services.auth) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center space-y-4">

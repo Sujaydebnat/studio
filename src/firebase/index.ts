@@ -1,9 +1,10 @@
+
 'use client';
 
 import { firebaseConfig } from '@/firebase/config';
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth, Auth } from 'firebase/auth';
-import { getFirestore, Firestore, initializeFirestore, CACHE_SIZE_UNLIMITED, enableIndexedDbPersistence, terminate } from 'firebase/firestore';
+import { getFirestore, Firestore, initializeFirestore, CACHE_SIZE_UNLIMITED, terminate } from 'firebase/firestore';
 
 let app: FirebaseApp;
 let firestore: Firestore;
@@ -11,36 +12,35 @@ let auth: Auth;
 
 /**
  * Initializes Firebase services with stability optimizations for cloud environments.
- * Uses a singleton pattern to ensure only one instance of SDKs exists.
+ * Uses a singleton pattern to ensure only one instance of SDKs exists and prevents 
+ * "INTERNAL ASSERTION FAILED (ID: ca9)" by ensuring settings are applied only once.
  */
 export function initializeFirebase() {
   if (typeof window === 'undefined') {
     return { firebaseApp: null as any, firestore: null as any, auth: null as any };
   }
 
-  // Ensure we only initialize once
+  // 1. Initialize Firebase App
   if (!getApps().length) {
     app = initializeApp(firebaseConfig);
-    
-    // Stability for Cloud IDEs: Force Long Polling to bypass potential WebSocket blocks
-    // and use unlimited cache for offline resilience.
+  } else {
+    app = getApp();
+  }
+
+  // 2. Initialize Firebase Auth
+  auth = getAuth(app);
+
+  // 3. Initialize Firestore with CA9 assertion protection
+  try {
+    // Attempt to get existing instance first. This is crucial for Next.js HMR.
+    firestore = getFirestore(app);
+  } catch (e) {
+    // If getFirestore fails, it means it hasn't been initialized yet.
+    // We initialize it here with specific settings for cloud IDE stability.
     firestore = initializeFirestore(app, {
       experimentalForceLongPolling: true,
       cacheSizeBytes: CACHE_SIZE_UNLIMITED,
     });
-    
-    auth = getAuth(app);
-  } else {
-    app = getApp();
-    auth = getAuth(app);
-    try {
-      firestore = getFirestore(app);
-    } catch (e) {
-      firestore = initializeFirestore(app, {
-        experimentalForceLongPolling: true,
-        cacheSizeBytes: CACHE_SIZE_UNLIMITED,
-      });
-    }
   }
 
   return { firebaseApp: app, firestore, auth };
