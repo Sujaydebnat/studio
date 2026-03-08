@@ -1,13 +1,29 @@
 
 "use client"
 
-import { useState } from 'export default function LoginPage() {
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { Printer, Loader2, LogIn, UserCheck, User as UserIcon, Lock, ShieldCheck, Store, UserPlus, ShieldAlert, ArrowLeft } from 'lucide-react';
+import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { useAuth, useFirestore } from '@/firebase';
+import { collection, query, where, getDocs, or, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { useToast } from '@/hooks/use-toast';
+import { Separator } from '@/components/ui/separator';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
+import Link from 'next/link';
+
+export default function LoginPage() {
   const router = useRouter();
   const auth = useAuth();
   const db = useFirestore();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [mode, setMode] = useState<'hub' | 'admin' | 'owner' | 'staff'>('hub');
+  const [mode, setMode] = useState<'hub' | 'owner' | 'staff'>('hub');
   
   const [identifier, setIdentifier] = useState(''); 
   const [password, setPassword] = useState('');
@@ -152,7 +168,7 @@ import { useState } from 'export default function LoginPage() {
   if (mode === 'hub') {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
-        <div className="mb-8 flex items-center gap-3 animate-in fade-in zoom-in duration-500">
+        <div className="mb-8 flex items-center gap-3 animate-in fade-in duration-500">
           <div className="bg-primary p-3 rounded-2xl shadow-xl ring-4 ring-primary/10">
             <Printer className="w-12 h-12 text-white" />
           </div>
@@ -243,19 +259,3 @@ import { useState } from 'export default function LoginPage() {
     </div>
   );
 }
-
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { Printer, Loader2, LogIn, UserCheck, User as UserIcon, Lock, ShieldCheck, Store, UserPlus, ShieldAlert, ArrowLeft } from 'lucide-react';
-import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { useAuth, useFirestore } from '@/firebase';
-import { collection, query, where, getDocs, or, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { useToast } from '@/hooks/use-toast';
-import { Separator } from '@/components/ui/separator';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
-import Link from 'next/link';
