@@ -7,8 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { ShieldCheck, Loader2, LogIn, Lock, Mail, ArrowLeft, ShieldAlert, Info } from 'lucide-react';
-import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { ShieldCheck, Loader2, LogIn, Lock, Mail, ArrowLeft, ShieldAlert, Info, RefreshCcw } from 'lucide-react';
+import { signInWithEmailAndPassword, signOut, sendPasswordResetEmail } from 'firebase/auth';
 import { useAuth, useFirestore } from '@/firebase';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -23,6 +23,7 @@ export default function AdminLoginPage() {
   const db = useFirestore();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
@@ -38,113 +39,103 @@ export default function AdminLoginPage() {
 
     setLoading(true);
 
-    const maxRetries = 2;
-    let attempt = 0;
-    let success = false;
+    try {
+      // 1. Authenticate with Firebase Auth
+      const userCredential = await signInWithEmailAndPassword(auth, cleanEmail, password);
+      const user = userCredential.user;
 
-    while (attempt <= maxRetries && !success) {
-      try {
-        // 1. Authenticate with Firebase Auth
-        const userCredential = await signInWithEmailAndPassword(auth, cleanEmail, password);
-        const user = userCredential.user;
-        success = true;
+      // 2. Recognized Super Admin UIDs for auto-provisioning
+      const superAdminUIDs = [
+        'GBknAJHg5lRKims8hdy6AC6q3qO2', 
+        'NWLuwbVTGYcpeeOu2l8zcFLOZSI3',
+        'uyNwlQz5VucqI6QXNWn9sIC89k83'
+      ];
 
-        // 2. Recognized Super Admin UIDs for auto-provisioning
-        const superAdminUIDs = [
-          'GBknAJHg5lRKims8hdy6AC6q3qO2', 
-          'NWLuwbVTGYcpeeOu2l8zcFLOZSI3',
-          'uyNwlQz5VucqI6QXNWn9sIC89k83'
-        ];
+      // 3. Fetch user profile from Firestore by UID
+      const userRef = doc(db, 'users', user.uid);
+      let userSnap = await getDoc(userRef);
 
-        // 3. Fetch user profile from Firestore by UID
-        const userRef = doc(db, 'users', user.uid);
-        let userSnap = await getDoc(userRef);
-
-        // Handle Super Admin Logic & Auto-provisioning
-        if (superAdminUIDs.includes(user.uid)) {
-          if (!userSnap.exists()) {
-            setDoc(userRef, {
-              id: user.uid,
-              name: 'Super Admin',
-              email: user.email || cleanEmail,
-              role: 'super_admin',
-              status: 'Active',
-              createdAt: serverTimestamp(),
-              updatedAt: serverTimestamp()
-            }).catch(async () => {
-              errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: userRef.path,
-                operation: 'create',
-                requestResourceData: { role: 'super_admin' }
-              }));
-            });
-          } else if (userSnap.data()?.role !== 'super_admin') {
-            setDoc(userRef, { 
-              role: 'super_admin', 
-              updatedAt: serverTimestamp() 
-            }, { merge: true }).catch(async () => {
-              errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: userRef.path,
-                operation: 'update',
-                requestResourceData: { role: 'super_admin' }
-              }));
-            });
-          }
-
-          toast({ title: "System Unlock", description: "Super Admin authorized. Entering global command center." });
-          router.push('/admin/dashboard');
-          return;
-        }
-
+      // Handle Super Admin Logic & Auto-provisioning
+      if (superAdminUIDs.includes(user.uid)) {
         if (!userSnap.exists()) {
-          await signOut(auth);
-          toast({ 
-            variant: "destructive", 
-            title: "Access Denied", 
-            description: "No administrative profile found for this account." 
+          await setDoc(userRef, {
+            id: user.uid,
+            name: 'Super Admin',
+            email: user.email || cleanEmail,
+            role: 'super_admin',
+            status: 'Active',
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          }).catch(async () => {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+              path: userRef.path,
+              operation: 'create',
+              requestResourceData: { role: 'super_admin' }
+            }));
           });
-          setLoading(false);
-          return;
+        } else if (userSnap.data()?.role !== 'super_admin') {
+          await setDoc(userRef, { 
+            role: 'super_admin', 
+            updatedAt: serverTimestamp() 
+          }, { merge: true }).catch(async () => {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+              path: userRef.path,
+              operation: 'update',
+              requestResourceData: { role: 'super_admin' }
+            }));
+          });
         }
 
-        const userData = userSnap.data();
-        if (userData.role !== 'super_admin') {
-          await signOut(auth);
-          toast({ 
-            variant: "destructive", 
-            title: "Forbidden", 
-            description: "This portal is reserved for Super Admins only." 
-          });
-          setLoading(false);
-          return;
-        }
-
-        toast({ title: "System Unlock", description: "Super Admin verified." });
+        toast({ title: "System Unlock", description: "Super Admin authorized. Entering global command center." });
         router.push('/admin/dashboard');
+        return;
+      }
 
-      } catch (error: any) {
-        console.warn(`Login attempt ${attempt + 1} failed:`, error.code);
-
-        if (error.code === 'auth/network-request-failed' && attempt < maxRetries) {
-          attempt++;
-          await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
-          continue;
-        }
-
-        let errorTitle = "Authentication Failed";
-        let errorMessage = "Invalid admin credentials or network issue.";
-
-        if (error.code === 'auth/network-request-failed') {
-          errorTitle = "Network Error";
-          errorMessage = "Could not connect to authentication services. Please check your internet connection.";
-        } else if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
-          errorMessage = "The email or password you entered is incorrect.";
-        }
-
-        toast({ variant: "destructive", title: errorTitle, description: errorMessage });
+      // Check if profile exists and role is super_admin
+      if (!userSnap.exists() || userSnap.data()?.role !== 'super_admin') {
+        await signOut(auth);
+        toast({ 
+          variant: "destructive", 
+          title: "Access Denied", 
+          description: "This account is not authorized as a Super Admin." 
+        });
         setLoading(false);
         return;
       }
+
+      toast({ title: "System Unlock", description: "Super Admin verified." });
+      router.push('/admin/dashboard');
+
+    } catch (error: any) {
+      console.warn("Login Error:", error.code);
+      let errorMessage = "Invalid admin credentials or network issue.";
+
+      if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
+        errorMessage = "Email অথবা Password সঠিক নয়। দয়া করে আবার চেষ্টা করুন।";
+      } else if (error.code === 'auth/network-request-failed') {
+        errorMessage = "নেটওয়ার্ক কানেকশন চেক করুন এবং আবার চেষ্টা করুন।";
+      } else if (error.code === 'auth/too-many-requests') {
+        errorMessage = "অনেকবার ভুল চেষ্টার কারণে একাউন্ট সাময়িকভাবে লক হয়েছে। কিছুক্ষণ পর ট্রাই করুন।";
+      }
+
+      toast({ variant: "destructive", title: "Authentication Failed", description: errorMessage });
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email) {
+      toast({ variant: "destructive", title: "Email Required", description: "পাসওয়ার্ড রিসেট করতে আগে আপনার ইমেইলটি লিখুন।" });
+      return;
+    }
+    setResetLoading(true);
+    try {
+      await sendPasswordResetEmail(auth, email.trim());
+      toast({ title: "Email Sent", description: "আপনার ইমেইলে পাসওয়ার্ড রিসেট লিংক পাঠানো হয়েছে।" });
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Reset Failed", description: "পাসওয়ার্ড রিসেট ইমেইল পাঠানো সম্ভব হয়নি।" });
+    } finally {
+      setResetLoading(false);
     }
   };
 
@@ -161,7 +152,7 @@ export default function AdminLoginPage() {
         <span className="text-4xl font-black text-white font-headline tracking-tighter italic">MasterFlow</span>
       </div>
 
-      <Card className="w-full max-md shadow-2xl border-2 bg-slate-900 border-slate-800 text-white">
+      <Card className="w-full max-w-md shadow-2xl border-2 bg-slate-900 border-slate-800 text-white">
         <CardHeader className="text-center border-b border-slate-800 pb-6">
           <CardTitle className="text-2xl font-black flex items-center justify-center gap-2">
             <ShieldCheck className="w-6 h-6 text-primary" /> Root Controller
@@ -193,7 +184,7 @@ export default function AdminLoginPage() {
                       <Info className="w-3.5 h-3.5 text-slate-500 cursor-help" />
                     </TooltipTrigger>
                     <TooltipContent className="bg-slate-800 border-slate-700 text-white text-xs">
-                      This is the password for your Super Admin account in Firebase Auth.
+                      This is your Firebase Authentication password.
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
@@ -210,6 +201,20 @@ export default function AdminLoginPage() {
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600" />
               </div>
             </div>
+            
+            <div className="flex justify-end">
+              <Button 
+                type="button" 
+                variant="link" 
+                className="text-primary text-xs font-bold p-0 h-auto"
+                onClick={handleForgotPassword}
+                disabled={resetLoading}
+              >
+                {resetLoading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <RefreshCcw className="w-3 h-3 mr-1" />}
+                Forgot Password?
+              </Button>
+            </div>
+
             <Button type="submit" className="w-full h-14 text-lg font-black shadow-xl bg-primary hover:bg-primary/90" disabled={loading}>
               {loading ? <Loader2 className="animate-spin w-5 h-5" /> : <LogIn className="mr-2 w-5 h-5" />}
               {loading ? 'VERIFYING...' : 'UNLOCK SYSTEM'}
