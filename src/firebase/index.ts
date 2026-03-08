@@ -2,52 +2,42 @@
 
 import { firebaseConfig } from '@/firebase/config';
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
-import { getAuth, Auth } from 'firebase/auth';
-import { getFirestore, Firestore, initializeFirestore, CACHE_SIZE_UNLIMITED, getFirestore as getExistingFirestore } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore'
 
-/**
- * Global variables to persist instances across Next.js 15 Fast Refresh cycles.
- * This is critical for preventing "INTERNAL ASSERTION FAILED (ID: ca9)" errors.
- */
-let firebaseApp: FirebaseApp;
-let firestore: Firestore;
-let auth: Auth;
-
-/**
- * Initializes Firebase services with strict singleton checks.
- */
+// IMPORTANT: DO NOT MODIFY THIS FUNCTION
 export function initializeFirebase() {
-  if (typeof window === 'undefined') {
-    return { firebaseApp: null as any, firestore: null as any, auth: null as any };
-  }
-
-  // 1. Initialize Firebase App
   if (!getApps().length) {
-    firebaseApp = initializeApp(firebaseConfig);
-  } else {
-    firebaseApp = getApp();
-  }
-
-  // 2. Initialize Firebase Auth
-  if (!auth) {
-    auth = getAuth(firebaseApp);
-  }
-
-  // 3. Initialize Firestore with CA9 protection
-  if (!firestore) {
+    // Important! initializeApp() is called without any arguments because Firebase App Hosting
+    // integrates with the initializeApp() function to provide the environment variables needed to
+    // populate the FirebaseOptions in production. It is critical that we attempt to call initializeApp()
+    // without arguments.
+    let firebaseApp;
     try {
-      // Try to get an existing instance first (important for Fast Refresh)
-      firestore = getExistingFirestore(firebaseApp);
+      // Attempt to initialize via Firebase App Hosting environment variables
+      firebaseApp = initializeApp();
     } catch (e) {
-      // Fallback to initialization only if no instance exists
-      firestore = initializeFirestore(firebaseApp, {
-        experimentalForceLongPolling: true,
-        cacheSizeBytes: CACHE_SIZE_UNLIMITED,
-      });
+      // Only warn in production because it's normal to use the firebaseConfig to initialize
+      // during development
+      if (process.env.NODE_ENV === "production") {
+        console.warn('Automatic initialization failed. Falling back to firebase config object.', e);
+      }
+      firebaseApp = initializeApp(firebaseConfig);
     }
+
+    return getSdks(firebaseApp);
   }
 
-  return { firebaseApp, firestore, auth };
+  // If already initialized, return the SDKs with the already initialized App
+  return getSdks(getApp());
+}
+
+export function getSdks(firebaseApp: FirebaseApp) {
+  return {
+    firebaseApp,
+    auth: getAuth(firebaseApp),
+    firestore: getFirestore(firebaseApp)
+  };
 }
 
 export * from './provider';

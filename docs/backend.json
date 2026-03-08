@@ -1,54 +1,376 @@
-
 {
   "entities": {
-    "Shop": {
-      "title": "Shop",
-      "type": "object",
-      "description": "Represents a tenant shop in the system.",
-      "properties": {
-        "id": { "type": "string" },
-        "shopName": { "type": "string" },
-        "ownerId": { "type": "string" },
-        "address": { "type": "string" },
-        "phone": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["id", "shopName", "ownerId"]
-    },
     "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "User",
       "type": "object",
-      "description": "System users including super admins, shop owners, and staff.",
+      "description": "Represents an administrative or staff user within the PrintFlow Manage system, with assigned roles and contact information. This entity does not store authentication credentials.",
       "properties": {
-        "id": { "type": "string" },
-        "shopId": { "type": "string" },
-        "name": { "type": "string" },
-        "email": { "type": "string", "format": "email" },
-        "role": { "type": "string", "enum": ["super_admin", "shop_owner", "staff"] },
-        "status": { "type": "string", "enum": ["Active", "Inactive"] },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the User entity."
+        },
+        "firstName": {
+          "type": "string",
+          "description": "The first name of the user."
+        },
+        "lastName": {
+          "type": "string",
+          "description": "The last name of the user."
+        },
+        "email": {
+          "type": "string",
+          "description": "The unique email address of the user, used for identification.",
+          "format": "email"
+        },
+        "phoneNumber": {
+          "type": "string",
+          "description": "The contact phone number of the user."
+        },
+        "role": {
+          "type": "string",
+          "description": "The assigned role of the user (e.g., 'Admin', 'Staff')."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the user account was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the user account was last updated.",
+          "format": "date-time"
+        }
       },
-      "required": ["id", "name", "email", "role"]
+      "required": [
+        "id",
+        "firstName",
+        "lastName",
+        "email",
+        "role",
+        "createdAt"
+      ]
+    },
+    "Customer": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Customer",
+      "type": "object",
+      "description": "Represents a customer who places an order, storing their contact details. Customers do not have accounts in the system.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Customer entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The full name of the customer."
+        },
+        "phoneNumber": {
+          "type": "string",
+          "description": "The primary contact phone number for the customer."
+        },
+        "email": {
+          "type": "string",
+          "description": "The email address of the customer (optional).",
+          "format": "email"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "phoneNumber"
+      ]
     },
     "Order": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Order",
       "type": "object",
+      "description": "Represents a work order for printing or design services, tracking its details, status, and assignments.",
       "properties": {
-        "id": { "type": "string" },
-        "shopId": { "type": "string" },
-        "customerName": { "type": "string" },
-        "status": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" }
-      }
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Order entity."
+        },
+        "customerId": {
+          "type": "string",
+          "description": "Reference to the Customer who placed this order. (Relationship: Customer 1:N Order)"
+        },
+        "adminId": {
+          "type": "string",
+          "description": "Reference to the Admin user who created this order. (Relationship: User 1:N Order)"
+        },
+        "assignedStaffId": {
+          "type": "string",
+          "description": "Reference to the Staff user currently assigned to this order. (Relationship: User 1:N Order)"
+        },
+        "title": {
+          "type": "string",
+          "description": "A brief title or summary for the order."
+        },
+        "orderDescription": {
+          "type": "string",
+          "description": "Detailed description of the work requested by the customer."
+        },
+        "workTypes": {
+          "type": "array",
+          "description": "An array of types of work included in this order (e.g., 'Banner', 'Logo Design').",
+          "items": {
+            "type": "string"
+          }
+        },
+        "status": {
+          "type": "string",
+          "description": "Current status of the order (e.g., 'Pending', 'Designing', 'Printing', 'Completed')."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the order was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the order was last updated.",
+          "format": "date-time"
+        },
+        "dueDate": {
+          "type": "string",
+          "description": "The requested or estimated due date for the order.",
+          "format": "date-time"
+        },
+        "completionDate": {
+          "type": "string",
+          "description": "Timestamp when the order was marked as completed.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "customerId",
+        "adminId",
+        "title",
+        "orderDescription",
+        "workTypes",
+        "status",
+        "createdAt"
+      ]
+    },
+    "DesignFile": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "DesignFile",
+      "type": "object",
+      "description": "Represents a file (e.g., design proof, preview image, completed work) associated with a specific order.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the DesignFile entity."
+        },
+        "orderId": {
+          "type": "string",
+          "description": "Reference to the Order this file belongs to. (Relationship: Order 1:N DesignFile)"
+        },
+        "uploadedByUserId": {
+          "type": "string",
+          "description": "Reference to the User (Admin or Staff) who uploaded this file. (Relationship: User 1:N DesignFile)"
+        },
+        "fileName": {
+          "type": "string",
+          "description": "The original name of the uploaded file."
+        },
+        "fileURL": {
+          "type": "string",
+          "description": "The URL where the file is stored (e.g., in cloud storage).",
+          "format": "uri"
+        },
+        "fileType": {
+          "type": "string",
+          "description": "The type of file (e.g., 'design_source', 'preview_image', 'completed_work')."
+        },
+        "description": {
+          "type": "string",
+          "description": "An optional description or notes about the file."
+        },
+        "uploadedAt": {
+          "type": "string",
+          "description": "Timestamp when the file was uploaded.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "orderId",
+        "uploadedByUserId",
+        "fileName",
+        "fileURL",
+        "fileType",
+        "uploadedAt"
+      ]
+    },
+    "OrderLogEntry": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "OrderLogEntry",
+      "type": "object",
+      "description": "Records significant events and status changes related to an order, providing a history of its progress for internal tracking and customer updates.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the OrderLogEntry entity."
+        },
+        "orderId": {
+          "type": "string",
+          "description": "Reference to the Order this log entry belongs to. (Relationship: Order 1:N OrderLogEntry)"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the User (Admin or Staff) who performed the action, if applicable. (Relationship: User 1:N OrderLogEntry)"
+        },
+        "eventType": {
+          "type": "string",
+          "description": "The type of event (e.g., 'status_change', 'file_upload', 'staff_assignment', 'comment')."
+        },
+        "message": {
+          "type": "string",
+          "description": "A descriptive message detailing the event."
+        },
+        "previousValue": {
+          "type": "string",
+          "description": "The previous value of a changed field (e.g., old status, old assigned staff ID)."
+        },
+        "newValue": {
+          "type": "string",
+          "description": "The new value of a changed field (e.g., new status, new assigned staff ID)."
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "Timestamp when the event occurred.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "orderId",
+        "eventType",
+        "message",
+        "timestamp"
+      ]
     }
   },
   "auth": {
-    "providers": ["password", "google"]
+    "providers": [
+      "password",
+      "anonymous"
+    ]
   },
   "firestore": {
-    "/shops/{shopId}": { "schema": "#/backend/entities/Shop", "description": "Shop documents." },
-    "/shops/{shopId}/orders/{orderId}": { "schema": "#/backend/entities/Order", "description": "Shop-specific orders." },
-    "/shops/{shopId}/catalog/{itemId}": { "schema": "#/backend/entities/CatalogItem", "description": "Shop products." },
-    "/users/{userId}": { "schema": "#/backend/entities/User", "description": "Global user profiles for authentication." }
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "user",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores individual Admin and Staff user profiles. Access is typically owner-restricted for updates to their own profile, with Admins having full read/write access to all profiles and Staff having read access to all profiles."
+        }
+      },
+      {
+        "path": "/roles_admin/{userId}",
+        "definition": {
+          "entityName": "user",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Dedicated collection for administrative roles. An empty document at this path signifies that the {userId} is an Admin. Used for efficient, atomic role-based security rule checks.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique ID of the user who has the Admin role."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/roles_staff/{userId}",
+        "definition": {
+          "entityName": "user",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Dedicated collection for staff roles. An empty document at this path signifies that the {userId} is Staff. Used for efficient, atomic role-based security rule checks.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique ID of the user who has the Staff role."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/customers/{customerId}",
+        "definition": {
+          "entityName": "customer",
+          "schema": {
+            "$ref": "#/backend/entities/Customer"
+          },
+          "description": "Stores details for customers. This collection is managed by Admin users and can be read by Staff users. Customers do not have direct access to these documents, instead accessing order data via a separate portal."
+        }
+      },
+      {
+        "path": "/orders/{orderId}",
+        "definition": {
+          "entityName": "order",
+          "schema": {
+            "$ref": "#/backend/entities/Order"
+          },
+          "description": "Stores details for each work order. Includes 'adminId' (creator), 'assignedStaffId', 'customerId', and 'customerPhoneNumber' for robust authorization and customer tracking. Access is restricted to the creating admin, assigned staff, and can be publicly read by customers using 'orderId' and 'customerPhoneNumber' combination.",
+          "params": [
+            {
+              "name": "orderId",
+              "description": "The unique identifier for the order."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/orders/{orderId}/designFiles/{fileId}",
+        "definition": {
+          "entityName": "designFile",
+          "schema": {
+            "$ref": "#/backend/entities/DesignFile"
+          },
+          "description": "Stores design files and images associated with a specific order. Includes denormalized 'orderAdminId', 'orderAssignedStaffId', 'orderCustomerId', and 'orderCustomerPhoneNumber' from the parent Order document to ensure Authorization Independence for rule evaluation and customer tracking.",
+          "params": [
+            {
+              "name": "orderId",
+              "description": "The unique identifier of the parent order."
+            },
+            {
+              "name": "fileId",
+              "description": "The unique identifier for the design file."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/orders/{orderId}/orderLogEntries/{logEntryId}",
+        "definition": {
+          "entityName": "orderLogEntry",
+          "schema": {
+            "$ref": "#/backend/entities/OrderLogEntry"
+          },
+          "description": "Stores log entries for events related to a specific order, providing an audit trail. Includes denormalized 'orderAdminId', 'orderAssignedStaffId', 'orderCustomerId', and 'orderCustomerPhoneNumber' from the parent Order document for Authorization Independence and customer tracking.",
+          "params": [
+            {
+              "name": "orderId",
+              "description": "The unique identifier of the parent order."
+            },
+            {
+              "name": "logEntryId",
+              "description": "The unique identifier for the order log entry."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure for PrintFlow Manage prioritizes **Authorization Independence** and **Clarity of Intent** by strategically denormalizing authorization-critical fields and segregating data based on security posture. \n\n**Authorization Independence via Denormalization (Strategy A):**\nThis is the most critical aspect. To avoid `get()` calls in security rules, which break atomic operations and complicate debugging, we denormalize key authorization fields:\n*   **User Roles:** Instead of relying on the `role` field within the `/users/{userId}` document for security rules, we introduce dedicated top-level collections: `/roles_admin/{userId}` and `/roles_staff/{userId}`. The *existence* of a document at these paths directly grants the corresponding role, making rule evaluation simple and atomic.\n*   **Order Subcollections:** For `DesignFile` and `OrderLogEntry` documents (residing in subcollections `/orders/{orderId}/designFiles/{fileId}` and `/orders/{orderId}/orderLogEntries/{logEntryId}` respectively), their access control depends on the parent `Order`'s `adminId`, `assignedStaffId`, `customerId`, and `customerPhoneNumber`. To maintain Authorization Independence, these fields (`orderAdminId`, `orderAssignedStaffId`, `orderCustomerId`, `orderCustomerPhoneNumber`) are explicitly denormalized and stored within each `DesignFile` and `OrderLogEntry` document. This ensures that a rule evaluating access to a subcollection document does not need to perform a `get()` on its parent `Order` to retrieve these fields, allowing for atomic writes and reads.\n\n**Structural Segregation & QAPs (Strategy B & C):**\n*   **User Profiles (`/users/{userId}`):** Stores administrative and staff user profiles. Access is typically owner-restricted for updates, with Admins having broader management capabilities and Staff having broader read access to all users. \n*   **Role Collections (`/roles_admin/{userId}`, `/roles_staff/{userId}`):** These collections act as the primary source of truth for security roles, enabling direct existence checks in rules for DBAC (Database Access Control). This design directly supports **QAPs** for role-based filtering (e.g., \"show me all users who are staff\").\n*   **Customers (`/customers/{customerId}`):** A top-level collection for customer details. As customers do not have accounts, this data is exclusively managed by Admins and viewed by Staff. This ensures a homogeneous security posture for all customer documents.\n*   **Orders (`/orders/{orderId}`):** The core collection for work orders. Each order explicitly contains `adminId` (creator), `assignedStaffId`, `customerId`, and `customerPhoneNumber`. These fields are crucial for granular authorization and customer tracking. This structure supports **QAPs** by allowing efficient queries for orders assigned to a specific staff member (`where 'assignedStaffId' == 'staffId'`) or orders created by an admin (`where 'adminId' == 'adminId'`).\n*   **Design Files (`/orders/{orderId}/designFiles/{fileId}`):** Nested under orders. By denormalizing `orderAdminId`, `orderAssignedStaffId`, `orderCustomerId`, `orderCustomerPhoneNumber`, this structure supports **QAPs** for customer order tracking. A customer can query `designFiles` within their specific order using just `orderId` and `customerPhoneNumber` without needing a `get()` on the parent `Order`. Staff can also efficiently query design files belonging to their assigned orders. \n*   **Order Log Entries (`/orders/{orderId}/orderLogEntries/{logEntryId}`):** Similar to Design Files, these are nested under orders and denormalize parent order details. This supports **QAPs** for customer tracking of order progress and ensures that Admin/Staff can view logs without `get()` calls.\n\n**Data Clarity and Predictability (Strategy D):**\n*   Consistent naming conventions like `{userId}`, `{orderId}`, `{fileId}` are used for wildcards.\n*   Explicit fields such as `status` in the `Order` entity, `role` in `User`, and `fileType` in `DesignFile` provide clear state modeling.\n*   Standardized authorization fields like `adminId`, `assignedStaffId`, `uploadedByUserId` ensure predictability.\n\nThis comprehensive design minimizes rule complexity, enhances debuggability, and scales effectively by adhering to the core principles and mandates, especially critical denormalization for authorization independence and QAP support for all user roles including customer tracking."
   }
 }
