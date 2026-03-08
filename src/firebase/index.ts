@@ -30,13 +30,12 @@ export function initializeFirebase() {
   auth = getAuth(app);
 
   // 3. Initialize Firestore with CA9 assertion protection
-  // In Next.js 15 / Turbopack, HMR can cause this function to run multiple times.
-  // We must ensure settings are only applied if the instance doesn't exist.
   try {
+    // If instance already exists, reuse it. This is critical for Next.js Fast Refresh.
     const existingFirestore = getFirestore(app);
     firestore = existingFirestore;
   } catch (e) {
-    // initializeFirestore can only be called once.
+    // initializeFirestore can ONLY be called once per app instance.
     firestore = initializeFirestore(app, {
       experimentalForceLongPolling: true,
       cacheSizeBytes: CACHE_SIZE_UNLIMITED,

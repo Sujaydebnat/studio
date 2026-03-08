@@ -9,12 +9,12 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Sparkles, Loader2, ArrowLeft, Save, ImageIcon, Upload, Hash, Ruler } from 'lucide-react';
+import { Sparkles, Loader2, ArrowLeft, Save, Hash, Ruler, Plus, Trash2 } from 'lucide-react';
 import { aiDesignBriefTool, type AIDesignBriefToolOutput } from '@/ai/flows/ai-design-brief-tool-flow';
 import { useFirestore, useUser, useCollection, useMemoFirebase, useDoc } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, where, orderBy, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
+import { Separator } from '@/components/ui/separator';
 
 export default function NewOrderPage() {
   const router = useRouter();
@@ -31,140 +31,187 @@ export default function NewOrderPage() {
   const [formData, setFormData] = useState({
     billNumber: '',
     customerName: '',
-    customerEmail: '',
     phone: '',
-    workTypes: [] as string[],
-    keywords: '',
-    priority: 'Normal',
-    assignedStaffId: '',
-    totalBill: '',
+    customerEmail: '',
     deliveryDate: '',
-    additionalDetails: '',
-    referenceImages: [] as string[]
+    totalBill: '',
+    keywords: '',
+    additionalDetails: ''
   });
 
   const [orderItems, setOrderItems] = useState<any[]>([]);
-  const [currentItem, setCurrentItem] = useState({ type: '', subCategory: '', size: '', qty: '1' });
+  const [currentItem, setCurrentItem] = useState({ type: '', size: '', qty: '1' });
 
-  // Use nested catalog/categories path
-  const categoriesQuery = useMemoFirebase(() => {
-    if (!db || !userData?.shopId) return null;
-    return query(collection(db, 'shops', userData.shopId, 'categories'), orderBy('name', 'asc'));
-  }, [db, userData?.shopId]);
-
-  const { data: categories } = useCollection(categoriesQuery);
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!db || !user || !userData?.shopId || orderItems.length === 0) return;
+    if (!db || !userData?.shopId || orderItems.length === 0) {
+      toast({ variant: "destructive", title: "Error", description: "At least one item is required." });
+      return;
+    }
 
     setSaving(true);
     const orderData = {
       ...formData,
       orderItems,
       shopId: userData.shopId,
-      adminId: user.uid,
+      createdBy: user?.uid,
       status: 'Pending',
       designBrief: designBrief || null,
       createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
     };
 
-    // Save to shops/{shopId}/orders
-    const ordersRef = collection(db, 'shops', userData.shopId, 'orders');
-    addDoc(ordersRef, orderData)
-      .then(() => {
-        toast({ title: "Order Created" });
-        router.push('/admin/dashboard');
-      })
-      .catch(() => {
-        setSaving(false);
-        toast({ variant: "destructive", title: "Error creating order" });
-      });
+    try {
+      // Correct nested path for multi-tenant isolation
+      const ordersRef = collection(db, 'shops', userData.shopId, 'orders');
+      await addDoc(ordersRef, orderData);
+      toast({ title: "Order Finalized", description: `Bill #${formData.billNumber || 'New'} saved successfully.` });
+      router.push('/admin/dashboard');
+    } catch (err) {
+      toast({ variant: "destructive", title: "Save Error", description: "Could not write to database." });
+      setSaving(false);
+    }
   };
 
-  const addOrderItem = () => {
+  const addItem = () => {
     if (!currentItem.type || !currentItem.size) return;
     setOrderItems([...orderItems, currentItem]);
-    setCurrentItem({ type: '', subCategory: '', size: '', qty: '1' });
+    setCurrentItem({ type: '', size: '', qty: '1' });
   };
 
-  if (!userData?.shopId) return <div className="p-20 text-center"><Loader2 className="animate-spin mx-auto" /></div>;
+  const removeItem = (idx: number) => {
+    setOrderItems(orderItems.filter((_, i) => i !== idx));
+  };
+
+  if (!userData) return <div className="p-20 text-center"><Loader2 className="animate-spin mx-auto text-primary" /></div>;
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 pb-20">
+    <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in duration-500">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => router.back()}><ArrowLeft className="w-5 h-5" /></Button>
-          <h2 className="text-3xl font-bold font-headline">New Order • {userData.shopId.slice(0, 8)}</h2>
+          <Button variant="ghost" size="icon" onClick={() => router.back()} className="rounded-full"><ArrowLeft className="w-5 h-5" /></Button>
+          <div>
+            <h2 className="text-3xl font-black font-headline text-primary tracking-tighter">New Production Ticket</h2>
+            <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Shop Node: {userData.shopId.slice(0, 12)}</p>
+          </div>
         </div>
-        <Button onClick={handleSubmit} className="bg-primary gap-2 h-11 px-6 font-bold shadow-md" disabled={saving || orderItems.length === 0}>
-          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-          Finalize Order
+        <Button onClick={handleSave} className="bg-primary gap-2 h-12 px-8 font-black shadow-xl rounded-2xl" disabled={saving || orderItems.length === 0}>
+          {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+          FINALIZE & SAVE
         </Button>
       </div>
 
-      <div className="grid md:grid-cols-12 gap-6">
-        <div className="md:col-span-7 space-y-6">
-          <Card className="border-2 shadow-sm">
-            <CardHeader><CardTitle className="text-lg flex items-center gap-2"><Hash className="w-5 h-5 text-primary" /> Basic Info</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+      <div className="grid md:grid-cols-12 gap-8">
+        <div className="md:col-span-7 space-y-8">
+          <Card className="border-2 shadow-lg rounded-2xl overflow-hidden">
+            <CardHeader className="bg-muted/5 border-b"><CardTitle className="text-sm font-black uppercase flex items-center gap-2"><Hash className="w-4 h-4 text-primary" /> Customer Logistics</CardTitle></CardHeader>
+            <CardContent className="pt-6 space-y-6">
+              <div className="grid grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label>Bill Number</Label>
-                  <Input value={formData.billNumber} onChange={(e) => setFormData({...formData, billNumber: e.target.value})} />
+                  <Label className="text-[10px] font-black uppercase">Bill Reference #</Label>
+                  <Input value={formData.billNumber} onChange={(e) => setFormData({...formData, billNumber: e.target.value})} placeholder="e.g. 2024-001" className="h-11 border-2" />
                 </div>
                 <div className="space-y-2">
-                  <Label>Customer Name</Label>
-                  <Input required value={formData.customerName} onChange={(e) => setFormData({...formData, customerName: e.target.value})} />
+                  <Label className="text-[10px] font-black uppercase">Customer Identity</Label>
+                  <Input required value={formData.customerName} onChange={(e) => setFormData({...formData, customerName: e.target.value})} placeholder="John Doe" className="h-11 border-2" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label>Phone</Label>
-                  <Input required value={formData.phone} onChange={(e) => setFormData({...formData, phone: e.target.value})} />
+                  <Label className="text-[10px] font-black uppercase">Mobile Connectivity</Label>
+                  <Input required value={formData.phone} onChange={(e) => setFormData({...formData, phone: e.target.value})} placeholder="+880..." className="h-11 border-2" />
                 </div>
                 <div className="space-y-2">
-                  <Label>Total Bill (BDT)</Label>
-                  <Input type="number" value={formData.totalBill} onChange={(e) => setFormData({...formData, totalBill: e.target.value})} />
+                  <Label className="text-[10px] font-black uppercase">Email Node</Label>
+                  <Input value={formData.customerEmail} onChange={(e) => setFormData({...formData, customerEmail: e.target.value})} placeholder="client@host.com" className="h-11 border-2" />
+                </div>
+              </div>
+              <Separator />
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase">Delivery Deadline</Label>
+                  <Input type="date" value={formData.deliveryDate} onChange={(e) => setFormData({...formData, deliveryDate: e.target.value})} className="h-11 border-2" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase">Total Bill (BDT)</Label>
+                  <Input type="number" value={formData.totalBill} onChange={(e) => setFormData({...formData, totalBill: e.target.value})} className="h-11 border-2" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="border-2 shadow-sm">
-            <CardHeader><CardTitle className="text-lg text-primary flex items-center gap-2"><Ruler className="w-5 h-5" /> Line Items</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-3 gap-2 bg-muted/20 p-4 rounded-lg border-2 border-dashed">
-                <Input placeholder="Work Type" value={currentItem.type} onChange={(e) => setCurrentItem({...currentItem, type: e.target.value})} />
-                <Input placeholder="Size" value={currentItem.size} onChange={(e) => setCurrentItem({...currentItem, size: e.target.value})} />
-                <Button variant="outline" onClick={addOrderItem}>Add Item</Button>
+          <Card className="border-2 shadow-lg rounded-2xl overflow-hidden">
+            <CardHeader className="bg-primary/5 border-b"><CardTitle className="text-sm font-black uppercase text-primary flex items-center gap-2"><Ruler className="w-4 h-4" /> Production Line Items</CardTitle></CardHeader>
+            <CardContent className="pt-6 space-y-6">
+              <div className="grid grid-cols-3 gap-3 bg-muted/20 p-4 rounded-xl border-2 border-dashed">
+                <Input placeholder="Work (e.g. Flex)" value={currentItem.type} onChange={(e) => setCurrentItem({...currentItem, type: e.target.value})} className="bg-white border-2" />
+                <Input placeholder="Size (e.g. 10x12)" value={currentItem.size} onChange={(e) => setCurrentItem({...currentItem, size: e.target.value})} className="bg-white border-2" />
+                <Button variant="outline" onClick={addItem} className="h-10 border-primary text-primary font-black hover:bg-primary hover:text-white transition-all"><Plus className="w-4 h-4" /></Button>
               </div>
-              {orderItems.map((item, i) => (
-                <div key={i} className="flex justify-between p-2 bg-muted rounded">
-                  <span className="font-bold">{item.type}</span>
-                  <span className="text-xs">{item.size} ({item.qty})</span>
-                </div>
-              ))}
+              <div className="space-y-3">
+                {orderItems.map((item, i) => (
+                  <div key={i} className="flex justify-between items-center p-4 bg-muted/30 rounded-xl border-2 hover:border-primary/30 transition-colors group">
+                    <div>
+                      <span className="font-black text-primary">{item.type}</span>
+                      <span className="text-xs font-bold ml-3 text-muted-foreground">Dimensions: {item.size} ({item.qty} Pcs)</span>
+                    </div>
+                    <Button variant="ghost" size="icon" onClick={() => removeItem(i)} className="text-destructive opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 className="w-4 h-4" /></Button>
+                  </div>
+                ))}
+              </div>
             </CardContent>
           </Card>
         </div>
 
-        <div className="md:col-span-5">
-          <Card className="border-accent/20 border-2">
-            <CardHeader><CardTitle className="text-accent flex items-center gap-2"><Sparkles className="w-5 h-5" /> AI Brief</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-              <Label>Description / Keywords</Label>
-              <Textarea placeholder="Modern logo for a tech shop..." value={formData.keywords} onChange={(e) => setFormData({...formData, keywords: e.target.value})} />
-              <Button variant="outline" className="w-full border-accent text-accent" onClick={async () => {
-                setLoadingAI(true);
-                const brief = await aiDesignBriefTool({ projectType: formData.workTypes.join(", "), keywords: formData.keywords });
-                setDesignBrief(brief);
-                setLoadingAI(false);
-              }} disabled={loadingAI}>
-                {loadingAI ? <Loader2 className="animate-spin w-4 h-4" /> : <Sparkles className="w-4 h-4 mr-2" />}
-                Generate Suggestion
+        <div className="md:col-span-5 space-y-8">
+          <Card className="border-accent/20 border-2 shadow-xl rounded-2xl overflow-hidden">
+            <CardHeader className="bg-accent/5 border-b"><CardTitle className="text-accent flex items-center gap-2 text-sm font-black uppercase"><Sparkles className="w-5 h-5" /> AI Creative Brief</CardTitle></CardHeader>
+            <CardContent className="pt-6 space-y-6">
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase text-accent-foreground">Visual Intent / Keywords</Label>
+                <Textarea 
+                  placeholder="e.g. Modern minimalist logo for a tech startup, vibrant blue colors, professional feel..." 
+                  value={formData.keywords} 
+                  onChange={(e) => setFormData({...formData, keywords: e.target.value})} 
+                  className="min-h-[120px] border-2 focus-visible:ring-accent"
+                />
+              </div>
+              <Button 
+                variant="outline" 
+                className="w-full h-14 border-accent text-accent font-black hover:bg-accent hover:text-accent-foreground shadow-lg rounded-xl transition-all" 
+                onClick={async () => {
+                  if (!formData.keywords) return;
+                  setLoadingAI(true);
+                  try {
+                    const brief = await aiDesignBriefTool({ projectType: orderItems[0]?.type || "General", keywords: formData.keywords });
+                    setDesignBrief(brief);
+                    toast({ title: "AI Strategy Ready", description: "Design brief has been optimized." });
+                  } finally { setLoadingAI(false); }
+                }} 
+                disabled={loadingAI || !formData.keywords}
+              >
+                {loadingAI ? <Loader2 className="animate-spin w-5 h-5" /> : <Sparkles className="w-5 h-5 mr-2" />}
+                {designBrief ? 'REFINE SUGGESTION' : 'GENERATE AI BRIEF'}
               </Button>
+
+              {designBrief && (
+                <div className="p-5 bg-accent/5 rounded-2xl border-2 border-accent/10 space-y-4 animate-in slide-in-from-top-4">
+                  <div><p className="text-[10px] font-black uppercase text-accent">Strategic Overview</p><p className="text-sm font-medium leading-relaxed">{designBrief.overview}</p></div>
+                  <div><p className="text-[10px] font-black uppercase text-accent">Visual Aesthetic</p><p className="text-sm font-bold text-accent-foreground">{designBrief.visualStyle}</p></div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="border-2 shadow-lg rounded-2xl overflow-hidden">
+            <CardHeader className="bg-muted/5 border-b"><CardTitle className="text-[10px] font-black uppercase">Production Notes</CardTitle></CardHeader>
+            <CardContent className="pt-6">
+              <Textarea 
+                placeholder="Internal instructions for the design team..." 
+                value={formData.additionalDetails} 
+                onChange={(e) => setFormData({...formData, additionalDetails: e.target.value})} 
+                className="min-h-[100px] border-2"
+              />
             </CardContent>
           </Card>
         </div>

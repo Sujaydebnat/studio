@@ -5,12 +5,10 @@ service cloud.firestore {
     
     // --- HELPER FUNCTIONS ---
     
-    // চেক করে ইউজার লগইন করা আছে কি না
     function isSignedIn() {
       return request.auth != null;
     }
 
-    // চেক করে ইউজার কি সুপার অ্যাডমিন কি না (নির্দিষ্ট UID এর মাধ্যমে)
     function isSuperAdmin() {
       let superAdminUIDs = [
         'GBknAJHg5lRKims8hdy6AC6q3qO2', 
@@ -20,19 +18,17 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid in superAdminUIDs;
     }
 
-    // ইউজারের প্রোফাইল ডেটা নিয়ে আসে
     function getUserData() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
-    // চেক করে ইউজার ওই নির্দিষ্ট শপের মেম্বার কি না
     function belongsToShop(shopId) {
       return isSignedIn() && (isSuperAdmin() || getUserData().shopId == shopId);
     }
 
     // --- COLLECTION RULES ---
 
-    // Users collection: নিজের প্রোফাইল নিজে এডিট করতে পারবে, অ্যাডমিন সব পারবে
+    // Users collection
     match /users/{userId} {
       allow read: if isSignedIn() && (request.auth.uid == userId || isSuperAdmin() || getUserData().shopId == resource.data.shopId);
       allow create: if isSignedIn();
@@ -40,31 +36,30 @@ service cloud.firestore {
       allow delete: if isSuperAdmin();
     }
 
-    // Shops collection
+    // Shops collection (Root)
     match /shops/{shopId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn();
       allow update, delete: if isSuperAdmin() || (isSignedIn() && request.auth.uid == resource.data.ownerId);
 
-      // Orders subcollection: শপের মেম্বাররা অ্যাক্সেস পাবে
+      // Orders: Nested inside shop for strict isolation
       match /orders/{orderId} {
         allow read: if belongsToShop(shopId);
         allow create, update: if belongsToShop(shopId);
         allow delete: if isSuperAdmin() || (belongsToShop(shopId) && getUserData().role == 'shop_owner');
         
-        // অর্ডারের ভেতরকার আপডেট বা চ্যাট মেসেজ
         match /updates/{updateId} {
           allow read, write: if belongsToShop(shopId);
         }
       }
 
-      // Catalog subcollection: পাবলিকলি দেখা যাবে, কিন্তু শপ ওনার ছাড়া কেউ এডিট করতে পারবে না
+      // Catalog items
       match /catalog/{itemId} {
         allow read: if true; 
         allow write: if isSuperAdmin() || (belongsToShop(shopId) && getUserData().role == 'shop_owner');
       }
 
-      // Categories: শপ কনফিগারেশন
+      // Categories
       match /categories/{catId} {
         allow read: if true;
         allow write: if belongsToShop(shopId);
@@ -82,12 +77,12 @@ service cloud.firestore {
       allow write: if isSignedIn() && belongsToShop(request.resource.data.shopId);
     }
 
-    // Staff Fields: কাস্টম কলাম সেটিংস
+    // Staff Fields
     match /staff_fields/{fieldId} {
       allow read, write: if belongsToShop(request.resource.data.shopId || resource.data.shopId);
     }
 
-    // Global support for Super Admin to query across collections
+    // Global support for Super Admin cross-querying
     match /{path=**}/orders/{orderId} {
       allow read: if isSuperAdmin();
     }

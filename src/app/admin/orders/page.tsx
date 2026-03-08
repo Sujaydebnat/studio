@@ -49,35 +49,32 @@ export default function OrdersPage() {
 
   const isSuperAdmin = userData?.role === 'super_admin';
 
-  // Logic: Use nested collection path shops/{shopId}/orders
+  // Use NESTED collection path: shops/{shopId}/orders
   const ordersQuery = useMemoFirebase(() => {
     if (!db || !userData) return null;
     
     if (isSuperAdmin) {
-      // Super Admin uses collectionGroup to see ALL orders across ALL shops
+      // Super Admin uses collectionGroup to see ALL nested orders
       return query(collectionGroup(db, 'orders'), orderBy('createdAt', 'desc'));
     } else if (userData.shopId) {
-      // Shop Owners fetch from their specific nested path
+      // Shop Owners fetch from their specific subcollection
       return query(
         collection(db, 'shops', userData.shopId, 'orders'), 
         orderBy('createdAt', 'desc')
       );
     }
     return null;
-  }, [db, userData?.shopId, isSuperAdmin]);
+  }, [db, userData, isSuperAdmin]);
 
   const { data: orders, isLoading: loading, error } = useCollection(ordersQuery);
 
   const filteredOrders = useMemo(() => {
     if (!orders) return [];
     return orders.filter(order => {
-      const types = order.workTypes ? order.workTypes.join(" ") : (order.workType || "");
-      return (
-        order.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        order.billNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        types.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+      const customer = order.customerName?.toLowerCase() || "";
+      const bill = order.billNumber?.toLowerCase() || "";
+      const s = searchTerm.toLowerCase();
+      return customer.includes(s) || bill.includes(s);
     });
   }, [orders, searchTerm]);
 
@@ -87,7 +84,7 @@ export default function OrdersPage() {
       case 'Designing': return 'bg-blue-100 text-blue-800 border-blue-200';
       case 'Printing': return 'bg-orange-100 text-orange-800 border-orange-200';
       case 'Completed': return 'bg-green-100 text-green-800 border-green-200';
-      default: return '';
+      default: return 'bg-muted text-muted-foreground';
     }
   };
 
@@ -95,12 +92,11 @@ export default function OrdersPage() {
     if (!db || !deleteId || !userData?.shopId) return;
     
     setDeleting(true);
-    // Note: Must use nested path for deletion too
     const orderRef = doc(db, 'shops', userData.shopId, 'orders', deleteId);
     
     try {
       await deleteDoc(orderRef);
-      toast({ title: "Order Deleted" });
+      toast({ title: "Order Deleted", description: "Record has been removed from shop database." });
     } catch (error: any) {
       errorEmitter.emit('permission-error', new FirestorePermissionError({
         path: orderRef.path,
@@ -113,20 +109,22 @@ export default function OrdersPage() {
     }
   };
 
-  if (isUserLoading) return <div className="flex items-center justify-center p-20"><Loader2 className="animate-spin" /></div>;
+  if (isUserLoading) return <div className="flex items-center justify-center p-20"><Loader2 className="animate-spin text-primary" /></div>;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h2 className="text-3xl font-bold font-headline text-primary">Manage Orders</h2>
-          <p className="text-muted-foreground">Shop: {userData?.shopId?.slice(0, 8) || 'Global'}</p>
+          <p className="text-muted-foreground">
+            {isSuperAdmin ? 'Global Network View' : `Shop: ${userData?.shopId?.slice(0, 8)}`}
+          </p>
         </div>
         <div className="flex gap-2">
           {!isSuperAdmin && (
             <Link href="/admin/orders/new">
-              <Button className="bg-accent text-accent-foreground hover:bg-accent/90 gap-2 font-bold shadow-sm">
-                <PlusCircle className="w-4 h-4" /> New Order
+              <Button className="bg-accent text-accent-foreground hover:bg-accent/90 gap-2 font-black shadow-lg h-11 px-6">
+                <PlusCircle className="w-5 h-5" /> CREATE ORDER
               </Button>
             </Link>
           )}
@@ -136,19 +134,19 @@ export default function OrdersPage() {
       {error && (
         <Alert variant="destructive">
           <ShieldAlert className="h-4 w-4" />
-          <AlertTitle>Database Sync Issue</AlertTitle>
-          <AlertDescription>Please check your connection or permissions.</AlertDescription>
+          <AlertTitle>Sync Issue Detected</AlertTitle>
+          <AlertDescription>Security rules may be blocking access. Ensure you are authorized for this shop.</AlertDescription>
         </Alert>
       )}
 
-      <Card>
-        <CardHeader className="pb-3 border-b">
+      <Card className="border-2 shadow-xl overflow-hidden">
+        <CardHeader className="pb-3 border-b bg-muted/5">
           <div className="flex flex-col md:flex-row gap-4 items-center">
             <div className="relative flex-1 w-full">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input 
-                placeholder="Search orders..." 
-                className="pl-10" 
+                placeholder="Search by customer or bill #..." 
+                className="pl-10 h-11 border-none bg-transparent shadow-none focus-visible:ring-0" 
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -157,48 +155,54 @@ export default function OrdersPage() {
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
-            <div className="flex items-center justify-center p-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+            <div className="flex items-center justify-center p-24 flex-col gap-4">
+              <Loader2 className="w-10 h-10 animate-spin text-primary" />
+              <p className="text-xs font-black uppercase text-muted-foreground animate-pulse tracking-widest">Querying Vault...</p>
+            </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/50">
-                  <TableHead>Bill #</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Delivery</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
+                  <TableHead className="pl-6 uppercase text-[10px] font-black">Bill Reference</TableHead>
+                  <TableHead className="uppercase text-[10px] font-black">Customer Entity</TableHead>
+                  <TableHead className="uppercase text-[10px] font-black">Workflow Status</TableHead>
+                  <TableHead className="uppercase text-[10px] font-black">Timeline</TableHead>
+                  <TableHead className="text-right pr-6 uppercase text-[10px] font-black">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredOrders.length > 0 ? (
                   filteredOrders.map((order) => (
-                    <TableRow key={order.id}>
-                      <TableCell className="font-bold">
+                    <TableRow key={order.id} className="hover:bg-primary/5 transition-colors border-b">
+                      <TableCell className="pl-6 font-bold text-primary">
                         {order.billNumber || `#${order.id.slice(0, 5)}`}
                       </TableCell>
-                      <TableCell>{order.customerName}</TableCell>
+                      <TableCell>
+                        <p className="font-bold text-sm">{order.customerName}</p>
+                        <p className="text-[10px] text-muted-foreground font-mono">{order.phone}</p>
+                      </TableCell>
                       <TableCell>
                         <Badge variant="outline" className={getStatusColor(order.status)}>
                           {order.status}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {order.deliveryDate ? format(new Date(order.deliveryDate), 'MMM d') : 'N/A'}
+                      <TableCell className="text-muted-foreground text-xs font-medium">
+                        {order.deliveryDate ? format(new Date(order.deliveryDate), 'MMM d, yyyy') : 'NO DEADLINE'}
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right pr-6">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon"><MoreVertical className="w-4 h-4" /></Button>
+                            <Button variant="ghost" size="icon" className="hover:bg-primary/10 text-primary"><MoreVertical className="w-4 h-4" /></Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
+                          <DropdownMenuContent align="end" className="w-48 font-bold border-2">
                             <DropdownMenuItem asChild>
-                              <Link href={`/admin/orders/${order.id}`}>View & Edit</Link>
+                              <Link href={`/admin/orders/${order.id}`} className="flex items-center gap-2">
+                                <Eye className="w-4 h-4" /> Open Workbench
+                              </Link>
                             </DropdownMenuItem>
-                            {!isSuperAdmin && (
-                              <DropdownMenuItem className="text-destructive" onClick={() => {setDeleteId(order.id); setShowDeleteDialog(true)}}>
-                                Delete
-                              </DropdownMenuItem>
-                            )}
+                            <DropdownMenuItem className="text-destructive flex items-center gap-2" onClick={() => {setDeleteId(order.id); setShowDeleteDialog(true)}}>
+                              <Trash2 className="w-4 h-4" /> Purge Record
+                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
@@ -206,8 +210,8 @@ export default function OrdersPage() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-12 text-muted-foreground italic">
-                      No orders found in this shop.
+                    <TableCell colSpan={5} className="text-center py-32 text-muted-foreground italic">
+                      No matching records found in this shop's database.
                     </TableCell>
                   </TableRow>
                 )}
@@ -218,15 +222,20 @@ export default function OrdersPage() {
       </Card>
 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent>
+        <AlertDialogContent className="border-2 border-destructive/20 shadow-2xl">
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Order?</AlertDialogTitle>
-            <AlertDialogDescription>Permanent removal from shop database.</AlertDialogDescription>
+            <div className="flex items-center gap-3 text-destructive mb-2">
+              <AlertTriangle className="w-8 h-8" />
+              <AlertDialogTitle className="text-2xl font-black">Confirm Purge?</AlertDialogTitle>
+            </div>
+            <AlertDialogDescription className="font-medium text-slate-600">
+              You are about to permanently delete this order and all its communication logs. This action cannot be reversed.
+            </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive" disabled={deleting}>
-              {deleting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null} Confirm
+          <AlertDialogFooter className="gap-3">
+            <AlertDialogCancel disabled={deleting} className="font-bold">Abort</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90 font-black px-8" disabled={deleting}>
+              {deleting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null} CONFIRM DELETE
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
