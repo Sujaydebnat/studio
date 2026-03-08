@@ -1,8 +1,8 @@
 "use client"
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { 
   ClipboardList, 
@@ -13,16 +13,25 @@ import {
   Loader2,
   PlusCircle,
   ShieldCheck,
-  Store
+  Store,
+  Terminal,
+  Sparkles,
+  AlertTriangle,
+  Zap
 } from 'lucide-react';
 import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc } from '@/firebase';
 import { collection, query, orderBy, where, doc, collectionGroup } from 'firebase/firestore';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
+import { Input } from '@/components/ui/input';
+import { masterControlPortal, type MCPOutput } from '@/ai/flows/mcp-server-flow';
 
 export default function AdminDashboard() {
   const db = useFirestore();
   const { user } = useUser();
+  const [mcpQuery, setMcpQuery] = useState('');
+  const [mcpResult, setMcpResult] = useState<MCPOutput | null>(null);
+  const [loadingMcp, setLoadingMcp] = useState(false);
 
   const userRef = useMemoFirebase(() => 
     (user && db) ? doc(db, 'users', user.uid) : null
@@ -32,7 +41,6 @@ export default function AdminDashboard() {
 
   const isSuperAdmin = userData?.role === 'super_admin';
 
-  // Memoize queries to prevent infinite loops and CA9 crashes
   const ordersQuery = useMemoFirebase(() => {
     if (!db || !userData) return null;
     if (isSuperAdmin) {
@@ -77,6 +85,24 @@ export default function AdminDashboard() {
     ];
   }, [orders, shops, isSuperAdmin, userData]);
 
+  const handleMcpQuery = async () => {
+    if (!mcpQuery.trim()) return;
+    setLoadingMcp(true);
+    try {
+      const res = await masterControlPortal({
+        query: mcpQuery,
+        systemStats: {
+          activeShops: shops?.length || 0,
+          totalOrders: orders?.length || 0,
+          systemHealth: 'Optimal'
+        }
+      });
+      setMcpResult(res);
+    } finally {
+      setLoadingMcp(false);
+    }
+  };
+
   if (isUserLoading) return (
     <div className="flex flex-col items-center justify-center p-32 gap-4">
       <Loader2 className="w-12 h-12 animate-spin text-primary" />
@@ -85,7 +111,7 @@ export default function AdminDashboard() {
   );
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
+    <div className="space-y-8 animate-in fade-in duration-500 pb-20">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
         <div>
           <h2 className="text-4xl font-black font-headline text-primary uppercase tracking-tighter italic">
@@ -117,6 +143,80 @@ export default function AdminDashboard() {
           </Card>
         ))}
       </div>
+
+      {isSuperAdmin && (
+        <Card className="border-2 border-primary/20 shadow-2xl overflow-hidden rounded-3xl bg-slate-950 text-white">
+          <CardHeader className="border-b border-white/10 bg-primary/5 py-6">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-xl font-black uppercase tracking-widest flex items-center gap-2">
+                <Terminal className="w-6 h-6 text-primary" /> 
+                Master Control AI Server (MCP)
+              </CardTitle>
+              <Badge variant="outline" className="border-primary text-primary font-black uppercase">Active Engine: Gemini 2.5</Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="p-6 space-y-6">
+            <div className="flex gap-3">
+              <Input 
+                placeholder="Ask MCP for global insights or system maintenance commands..." 
+                className="bg-white/5 border-white/10 text-white h-14 text-lg focus-visible:ring-primary"
+                value={mcpQuery}
+                onChange={(e) => setMcpQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleMcpQuery()}
+              />
+              <Button onClick={handleMcpQuery} disabled={loadingMcp || !mcpQuery.trim()} className="h-14 px-8 font-black bg-primary hover:bg-primary/90">
+                {loadingMcp ? <Loader2 className="animate-spin" /> : <Zap className="w-5 h-5" />}
+              </Button>
+            </div>
+
+            {mcpResult && (
+              <div className="space-y-6 animate-in slide-in-from-top-4 duration-500">
+                <div className="p-6 bg-white/5 rounded-2xl border border-white/10 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-black text-xs uppercase text-primary flex items-center gap-2">
+                      <Sparkles className="w-4 h-4" /> Global Intelligence Analysis
+                    </h4>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold opacity-50 uppercase">Security Posture:</span>
+                      <div className="w-32 h-2 bg-white/10 rounded-full overflow-hidden">
+                        <div className="h-full bg-green-500" style={{ width: `${mcpResult.securityScore}%` }} />
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-sm leading-relaxed text-white/80 italic">"{mcpResult.analysis}"</p>
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div className="space-y-3">
+                    <h5 className="text-[10px] font-black uppercase text-red-400 flex items-center gap-2">
+                      <AlertTriangle className="w-3 h-3" /> Potential System Anomalies
+                    </h5>
+                    <div className="space-y-2">
+                      {mcpResult.alerts.map((a, i) => (
+                        <div key={i} className="text-xs p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-200">
+                          • {a}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <h5 className="text-[10px] font-black uppercase text-green-400 flex items-center gap-2">
+                      <TrendingUp className="w-3 h-3" /> Growth & Scale Ops
+                    </h5>
+                    <div className="space-y-2">
+                      {mcpResult.recommendations.map((r, i) => (
+                        <div key={i} className="text-xs p-3 bg-green-500/10 border border-green-500/20 rounded-xl text-green-200">
+                          • {r}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="border-2 shadow-2xl overflow-hidden rounded-3xl">
         <CardHeader className="border-b bg-muted/5 py-6">

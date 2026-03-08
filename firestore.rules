@@ -4,7 +4,7 @@ service cloud.firestore {
 
     /**
      * PrintFlow Manage Security Rules
-     * Optimized for Multi-Tenant Isolation and Role-Based Access.
+     * Optimized for Multi-Tenant Isolation and CollectionGroup support for Admins.
      */
 
     // --- Helper Functions ---
@@ -32,16 +32,27 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
-    // --- Collection Rules ---
+    // --- CollectionGroup Rules (CRITICAL for Global Admin Dashboard) ---
+
+    match /{path=**}/orders/{orderId} {
+      allow read: if isSignedIn() && (isSuperAdmin() || resource.data.shopId == getUserData().shopId);
+      allow write: if isSignedIn() && (isSuperAdmin() || (resource != null && resource.data.shopId == getUserData().shopId) || (request.resource.data.shopId == getUserData().shopId));
+    }
+
+    match /{path=**}/updates/{updateId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    // --- Standard Collection Rules ---
 
     match /users/{userId} {
       allow get: if isSignedIn();
       /** 
-       * @description Allows listing users if the query is filtered by shopId.
-       * This unblocks the Staff Directory while maintaining multi-tenant isolation.
+       * @description Allows listing users if filtered by shopId or if Super Admin.
        */
-      allow list: if isSignedIn() && (isSuperAdmin() || (resource == null || resource.data.shopId == getUserData().shopId));
-      allow create, update: if isSignedIn() && (request.auth.uid == userId || isSuperAdmin());
+      allow list: if isSignedIn() && (isSuperAdmin() || (resource != null && resource.data.shopId == getUserData().shopId));
+      allow create, update: if isSignedIn() && (request.auth.uid == userId || isSuperAdmin() || (getUserData().role == 'shop_owner' && request.resource.data.shopId == getUserData().shopId));
       allow delete: if isSuperAdmin();
     }
 
@@ -59,28 +70,20 @@ service cloud.firestore {
       allow get: if true;
       allow list: if isSignedIn();
       allow write: if isSuperAdmin() || (isSignedIn() && getUserData().shopId == shopId);
-
-      match /orders/{orderId} {
-        allow read, write: if isSignedIn() && (isSuperAdmin() || getUserData().shopId == shopId);
-        
-        match /updates/{updateId} {
-          allow read, write: if isSignedIn() && (isSuperAdmin() || getUserData().shopId == shopId);
-        }
-      }
     }
 
     match /catalog/{itemId} {
       allow read: if true;
-      allow write: if isSignedIn() && (isSuperAdmin() || getUserData().role == 'shop_owner');
+      allow write: if isSignedIn() && (isSuperAdmin() || getUserData().shopId == resource.data.shopId || getUserData().shopId == request.resource.data.shopId);
     }
 
     match /categories/{catId} {
       allow read: if true;
-      allow write: if isSignedIn() && (isSuperAdmin() || getUserData().role == 'shop_owner');
+      allow write: if isSignedIn() && (isSuperAdmin() || getUserData().shopId == resource.data.shopId || getUserData().shopId == request.resource.data.shopId);
       
       match /subcategories/{subId} {
         allow read: if true;
-        allow write: if isSignedIn() && (isSuperAdmin() || getUserData().role == 'shop_owner');
+        allow write: if isSignedIn() && (isSuperAdmin() || getUserData().shopId == get(/databases/$(database)/documents/categories/$(catId)).data.shopId);
       }
     }
 
