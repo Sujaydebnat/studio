@@ -94,6 +94,7 @@ export default function StaffManagement() {
     customFields: {} as Record<string, any>
   });
 
+  // Ensure we only query once userData.shopId is available
   const usersQuery = useMemoFirebase(() => {
     if (!db || !userData?.shopId) return null;
     return query(collection(db, 'users'), where('shopId', '==', userData.shopId));
@@ -478,7 +479,7 @@ export default function StaffManagement() {
             <Badge variant="outline" className="font-bold border-primary text-primary">{users?.length || 0} Members</Badge>
           </CardHeader>
           <CardContent className="p-0 overflow-hidden">
-            {loadingUsers ? (
+            {loadingUsers || !userData ? (
               <div className="p-20 flex justify-center"><Loader2 className="w-10 h-10 animate-spin text-primary" /></div>
             ) : (
               <Table>
@@ -493,35 +494,43 @@ export default function StaffManagement() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {users?.map((u) => (
-                    <TableRow key={u.id} className="hover:bg-primary/5 transition-colors">
-                      <TableCell className="pl-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-10 w-10 border shadow-sm">
-                            <AvatarImage src={u.photoUrl} />
-                            <AvatarFallback className="font-bold bg-primary/10 text-primary">{u.name?.charAt(0)}</AvatarFallback>
-                          </Avatar>
-                          <div className="flex flex-col">
-                            <span className="font-bold text-sm">{u.name}</span>
-                            <span className="text-[10px] text-muted-foreground">{u.email}</span>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="font-mono text-xs text-muted-foreground">{u.username}</TableCell>
-                      <TableCell className="text-sm font-medium">{u.department || 'N/A'}</TableCell>
-                      <TableCell>
-                        <Badge variant="secondary" className="text-[10px] font-bold uppercase">{u.role}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={u.status === 'Active' ? 'bg-green-500' : 'bg-destructive'}>{u.status}</Badge>
-                      </TableCell>
-                      <TableCell className="text-right pr-6 space-x-1">
-                        <Link href={`/admin/staff/${u.id}`}><Button variant="ghost" size="icon" className="h-8 w-8 text-primary hover:bg-primary/10"><Eye className="w-4 h-4" /></Button></Link>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-primary hover:bg-primary/10" onClick={() => handleEdit(u)}><Pencil className="w-4 h-4" /></Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={() => {setStaffToDelete({id: u.id, name: u.name}); setShowDeleteDialog(true)}}><Trash2 className="w-4 h-4" /></Button>
+                  {users?.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-20 text-muted-foreground italic">
+                        No staff members found for your shop.
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ) : (
+                    users?.map((u) => (
+                      <TableRow key={u.id} className="hover:bg-primary/5 transition-colors">
+                        <TableCell className="pl-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <Avatar className="h-10 w-10 border shadow-sm">
+                              <AvatarImage src={u.photoUrl} />
+                              <AvatarFallback className="font-bold bg-primary/10 text-primary">{u.name?.charAt(0)}</AvatarFallback>
+                            </Avatar>
+                            <div className="flex flex-col">
+                              <span className="font-bold text-sm">{u.name}</span>
+                              <span className="text-[10px] text-muted-foreground">{u.email}</span>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-mono text-xs text-muted-foreground">{u.username}</TableCell>
+                        <TableCell className="text-sm font-medium">{u.department || 'N/A'}</TableCell>
+                        <TableCell>
+                          <Badge variant="secondary" className="text-[10px] font-bold uppercase">{u.role}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={u.status === 'Active' ? 'bg-green-500' : 'bg-destructive'}>{u.status}</Badge>
+                        </TableCell>
+                        <TableCell className="text-right pr-6 space-x-1">
+                          <Link href={`/admin/staff/${u.id}`}><Button variant="ghost" size="icon" className="h-8 w-8 text-primary hover:bg-primary/10"><Eye className="w-4 h-4" /></Button></Link>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-primary hover:bg-primary/10" onClick={() => handleEdit(u)}><Pencil className="w-4 h-4" /></Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={() => {setStaffToDelete({id: u.id, name: u.name}); setShowDeleteDialog(true)}}><Trash2 className="w-4 h-4" /></Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
             )}

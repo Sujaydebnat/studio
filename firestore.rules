@@ -10,50 +10,49 @@ service cloud.firestore {
 
     // List of recognized super admins for global oversight
     function isSuperAdmin() {
-      let superAdminUIDs = [
+      return isSignedIn() && request.auth.uid in [
         'GBknAJHg5lRKims8hdy6AC6q3qO2', 
         'NWLuwbVTGYcpeeOu2l8zcFLOZSI3', 
         'uyNwlQz5VucqI6QXNWn9sIC89k83'
       ];
-      return isSignedIn() && request.auth.uid in superAdminUIDs;
     }
 
     function getUserData() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      let userPath = /databases/$(database)/documents/users/$(request.auth.uid);
+      return exists(userPath) ? get(userPath).data : null;
     }
 
     // Helper to check if a user belongs to a shop or is a super admin
     function belongsToShop(shopId) {
-      return isSignedIn() && (isSuperAdmin() || getUserData().shopId == shopId);
+      return isSignedIn() && (isSuperAdmin() || (getUserData() != null && getUserData().shopId == shopId));
     }
 
     // --- COLLECTION RULES ---
 
     // Global User Profiles: Multi-tenant aware
     match /users/{userId} {
-      // Allowed to read if: it's your own profile, you're a super admin, or you're the shop owner of that user
+      // Allowed to read if: it's your own profile, you're a super admin, or you're in the same shop
       allow read: if isSignedIn() && (
         request.auth.uid == userId || 
         isSuperAdmin() || 
-        (getUserData().role == 'shop_owner' && getUserData().shopId == resource.data.shopId) ||
-        (getUserData().role == 'staff' && getUserData().shopId == resource.data.shopId)
+        (getUserData() != null && getUserData().shopId == resource.data.shopId)
       );
       
-      // Allowed to create if: you're signing up (self) OR you're a shop owner creating staff for your shop
+      // Allowed to create if: self-signup OR shop owner creating staff
       allow create: if isSignedIn() && (
         request.auth.uid == userId ||
         isSuperAdmin() ||
-        (request.resource.data.role == 'staff' && getUserData().role == 'shop_owner' && getUserData().shopId == request.resource.data.shopId)
+        (getUserData() != null && getUserData().role == 'shop_owner' && getUserData().shopId == request.resource.data.shopId)
       );
       
-      // Allowed to update if: it's your own profile, or you're a super admin, or you're the shop owner managing your staff
+      // Allowed to update if: self-edit OR shop owner managing their shop's personnel
       allow update: if isSignedIn() && (
         request.auth.uid == userId || 
         isSuperAdmin() ||
-        (getUserData().role == 'shop_owner' && getUserData().shopId == resource.data.shopId)
+        (getUserData() != null && getUserData().role == 'shop_owner' && getUserData().shopId == resource.data.shopId)
       );
       
-      allow delete: if isSuperAdmin() || (getUserData().role == 'shop_owner' && getUserData().shopId == resource.data.shopId);
+      allow delete: if isSuperAdmin() || (isSignedIn() && getUserData() != null && getUserData().role == 'shop_owner' && getUserData().shopId == resource.data.shopId);
     }
 
     // Root Shops
@@ -99,8 +98,8 @@ service cloud.firestore {
 
     // Custom Staff Fields
     match /staff_fields/{fieldId} {
-      allow read: if belongsToShop(resource.data.shopId);
-      allow write: if belongsToShop(request.resource.data.shopId);
+      allow read: if isSignedIn() && (isSuperAdmin() || (getUserData() != null && getUserData().shopId == resource.data.shopId));
+      allow write: if isSignedIn() && (isSuperAdmin() || (getUserData() != null && getUserData().shopId == request.resource.data.shopId));
     }
 
     // Support for Super Admin Global Monitoring (CollectionGroup)
