@@ -8,6 +8,7 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // List of recognized super admins for global oversight
     function isSuperAdmin() {
       let superAdminUIDs = [
         'GBknAJHg5lRKims8hdy6AC6q3qO2', 
@@ -21,18 +22,38 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
+    // Helper to check if a user belongs to a shop or is a super admin
     function belongsToShop(shopId) {
       return isSignedIn() && (isSuperAdmin() || getUserData().shopId == shopId);
     }
 
     // --- COLLECTION RULES ---
 
-    // Global User Profiles
+    // Global User Profiles: Multi-tenant aware
     match /users/{userId} {
-      allow read: if isSignedIn() && (request.auth.uid == userId || isSuperAdmin() || belongsToShop(resource.data.shopId));
-      allow create: if isSignedIn();
-      allow update: if isSignedIn() && (request.auth.uid == userId || isSuperAdmin());
-      allow delete: if isSuperAdmin();
+      // Allowed to read if: it's your own profile, you're a super admin, or you're the shop owner of that user
+      allow read: if isSignedIn() && (
+        request.auth.uid == userId || 
+        isSuperAdmin() || 
+        (getUserData().role == 'shop_owner' && getUserData().shopId == resource.data.shopId) ||
+        (getUserData().role == 'staff' && getUserData().shopId == resource.data.shopId)
+      );
+      
+      // Allowed to create if: you're signing up (self) OR you're a shop owner creating staff for your shop
+      allow create: if isSignedIn() && (
+        request.auth.uid == userId ||
+        isSuperAdmin() ||
+        (request.resource.data.role == 'staff' && getUserData().role == 'shop_owner' && getUserData().shopId == request.resource.data.shopId)
+      );
+      
+      // Allowed to update if: it's your own profile, or you're a super admin, or you're the shop owner managing your staff
+      allow update: if isSignedIn() && (
+        request.auth.uid == userId || 
+        isSuperAdmin() ||
+        (getUserData().role == 'shop_owner' && getUserData().shopId == resource.data.shopId)
+      );
+      
+      allow delete: if isSuperAdmin() || (getUserData().role == 'shop_owner' && getUserData().shopId == resource.data.shopId);
     }
 
     // Root Shops
@@ -41,7 +62,7 @@ service cloud.firestore {
       allow create: if isSignedIn();
       allow update, delete: if isSuperAdmin() || (isSignedIn() && request.auth.uid == resource.data.ownerId);
 
-      // Orders: STRICT MULTI-TENANT ISOLATION
+      // Orders: Nested inside shops for isolation
       match /orders/{orderId} {
         allow read: if belongsToShop(shopId);
         allow create, update: if belongsToShop(shopId);
@@ -52,13 +73,13 @@ service cloud.firestore {
         }
       }
 
-      // Catalog items (Publicly readable, controlled write)
+      // Catalog items
       match /catalog/{itemId} {
         allow read: if true; 
         allow write: if isSuperAdmin() || (belongsToShop(shopId) && getUserData().role == 'shop_owner');
       }
 
-      // Business Categories
+      // Categories & Subcategories
       match /categories/{catId} {
         allow read: if true;
         allow write: if belongsToShop(shopId);
@@ -78,7 +99,8 @@ service cloud.firestore {
 
     // Custom Staff Fields
     match /staff_fields/{fieldId} {
-      allow read, write: if belongsToShop(request.resource.data.shopId || resource.data.shopId);
+      allow read: if belongsToShop(resource.data.shopId);
+      allow write: if belongsToShop(request.resource.data.shopId);
     }
 
     // Support for Super Admin Global Monitoring (CollectionGroup)

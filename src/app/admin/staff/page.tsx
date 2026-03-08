@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useRef, useMemo } from 'react';
@@ -179,14 +178,17 @@ export default function StaffManagement() {
     if (!db || !userData?.shopId) return;
 
     setLoading(true);
-    const targetId = editMode && editingUserId ? editingUserId : formData.username.toLowerCase().trim();
+    
+    // Create a unique document ID to prevent collisions in multi-tenant setup
+    const cleanUsername = formData.username.toLowerCase().trim();
+    const targetId = editMode && editingUserId ? editingUserId : `${userData.shopId}_${cleanUsername}`;
     const staffRef = doc(db, 'users', targetId);
     
     const updatedStaffData = {
       ...formData,
       id: targetId,
       shopId: userData.shopId,
-      username: formData.username.toLowerCase().trim(),
+      username: cleanUsername,
       email: formData.email.toLowerCase().trim(),
       updatedAt: serverTimestamp(),
       ...(editMode ? {} : { createdAt: serverTimestamp() })
@@ -198,9 +200,10 @@ export default function StaffManagement() {
         resetToListView();
       })
       .catch(async (err) => {
+        // Emit rich error for debugging security rules
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: staffRef.path,
-          operation: 'write',
+          operation: editMode ? 'update' : 'create',
           requestResourceData: updatedStaffData
         } satisfies SecurityRuleContext));
       })
