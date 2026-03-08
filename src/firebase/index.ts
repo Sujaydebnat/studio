@@ -11,32 +11,32 @@ let firestore: Firestore;
 let auth: Auth;
 
 /**
- * Initializes Firebase services with stability optimizations for cloud environments.
- * Uses a singleton pattern to ensure only one instance of SDKs exists and prevents 
- * "INTERNAL ASSERTION FAILED (ID: ca9)" by ensuring settings are applied only once.
+ * Initializes Firebase services with strict singleton checks to prevent 
+ * "INTERNAL ASSERTION FAILED (ID: ca9)" errors in Next.js 15 / Turbopack.
  */
 export function initializeFirebase() {
   if (typeof window === 'undefined') {
     return { firebaseApp: null as any, firestore: null as any, auth: null as any };
   }
 
-  // 1. Initialize Firebase App
+  // 1. Initialize Firebase App once
   if (!getApps().length) {
     app = initializeApp(firebaseConfig);
   } else {
     app = getApp();
   }
 
-  // 2. Initialize Firebase Auth
+  // 2. Initialize Firebase Auth once
   auth = getAuth(app);
 
   // 3. Initialize Firestore with CA9 assertion protection
+  // In Next.js 15 / Turbopack, HMR can cause this function to run multiple times.
+  // We must ensure settings are only applied if the instance doesn't exist.
   try {
-    // Attempt to get existing instance first. This is crucial for Next.js HMR.
-    firestore = getFirestore(app);
+    const existingFirestore = getFirestore(app);
+    firestore = existingFirestore;
   } catch (e) {
-    // If getFirestore fails, it means it hasn't been initialized yet.
-    // We initialize it here with specific settings for cloud IDE stability.
+    // initializeFirestore can only be called once.
     firestore = initializeFirestore(app, {
       experimentalForceLongPolling: true,
       cacheSizeBytes: CACHE_SIZE_UNLIMITED,
@@ -48,7 +48,6 @@ export function initializeFirebase() {
 
 /**
  * Safely terminates and re-initializes Firebase services.
- * Useful for recovering from deep workspace connection failures.
  */
 export async function reconnectFirebase() {
   if (firestore) {

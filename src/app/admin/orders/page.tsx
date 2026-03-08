@@ -18,7 +18,7 @@ import {
 import { Search, Filter, MoreVertical, Eye, Trash2, Download, Loader2, PlusCircle, AlertTriangle, ShieldAlert } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc } from '@/firebase';
-import { collection, deleteDoc, doc, query, orderBy, where } from 'firebase/firestore';
+import { collection, deleteDoc, doc, query, orderBy, where, collectionGroup } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -45,27 +45,28 @@ export default function OrdersPage() {
   const [deleting, setDeleting] = useState(false);
 
   const userRef = useMemoFirebase(() => user ? doc(db, 'users', user.uid) : null, [db, user]);
-  const { data: userData } = useDoc(userRef);
+  const { data: userData, isLoading: isUserLoading } = useDoc(userRef);
 
   const isSuperAdmin = userData?.role === 'super_admin';
 
+  // Logic: Use nested collection path shops/{shopId}/orders
   const ordersQuery = useMemoFirebase(() => {
     if (!db || !userData) return null;
     
-    // If super admin, fetch all. Otherwise, must filter by shopId to avoid permission error.
     if (isSuperAdmin) {
-      return query(collection(db, 'orders'), orderBy('createdAt', 'desc'));
+      // Super Admin uses collectionGroup to see ALL orders across ALL shops
+      return query(collectionGroup(db, 'orders'), orderBy('createdAt', 'desc'));
     } else if (userData.shopId) {
+      // Shop Owners fetch from their specific nested path
       return query(
-        collection(db, 'orders'), 
-        where('shopId', '==', userData.shopId),
+        collection(db, 'shops', userData.shopId, 'orders'), 
         orderBy('createdAt', 'desc')
       );
     }
     return null;
-  }, [db, userData, isSuperAdmin]);
+  }, [db, userData?.shopId, isSuperAdmin]);
 
-  const { data: orders, loading, error } = useCollection(ordersQuery);
+  const { data: orders, isLoading: loading, error } = useCollection(ordersQuery);
 
   const filteredOrders = useMemo(() => {
     if (!orders) return [];
@@ -90,26 +91,21 @@ export default function OrdersPage() {
     }
   };
 
-  const confirmDelete = (id: string) => {
-    setDeleteId(id);
-    setShowDeleteDialog(true);
-  };
-
   const handleDelete = async () => {
-    if (!db || !deleteId) return;
+    if (!db || !deleteId || !userData?.shopId) return;
     
     setDeleting(true);
-    const orderRef = doc(db, 'orders', deleteId);
+    // Note: Must use nested path for deletion too
+    const orderRef = doc(db, 'shops', userData.shopId, 'orders', deleteId);
     
     try {
       await deleteDoc(orderRef);
-      toast({ title: "Order Deleted", description: "The order has been removed from the database." });
+      toast({ title: "Order Deleted" });
     } catch (error: any) {
-      const permissionError = new FirestorePermissionError({
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
         path: orderRef.path,
         operation: 'delete',
-      });
-      errorEmitter.emit('permission-error', permissionError);
+      }));
     } finally {
       setDeleting(false);
       setShowDeleteDialog(false);
@@ -117,12 +113,14 @@ export default function OrdersPage() {
     }
   };
 
+  if (isUserLoading) return <div className="flex items-center justify-center p-20"><Loader2 className="animate-spin" /></div>;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h2 className="text-3xl font-bold font-headline text-primary">Manage Orders</h2>
-          <p className="text-muted-foreground">View, filter, and manage all your print orders.</p>
+          <p className="text-muted-foreground">Shop: {userData?.shopId?.slice(0, 8) || 'Global'}</p>
         </div>
         <div className="flex gap-2">
           {!isSuperAdmin && (
@@ -132,19 +130,14 @@ export default function OrdersPage() {
               </Button>
             </Link>
           )}
-          <Button variant="outline" className="gap-2">
-            <Download className="w-4 h-4" /> Export
-          </Button>
         </div>
       </div>
 
       {error && (
-        <Alert variant="destructive" className="animate-in fade-in slide-in-from-top-4">
+        <Alert variant="destructive">
           <ShieldAlert className="h-4 w-4" />
-          <AlertTitle>Database Access Restricted</AlertTitle>
-          <AlertDescription>
-            {isSuperAdmin ? "Super Admin check failed. Please ensure your UID is correct in rules." : "You only have permission to view orders from your own shop."}
-          </AlertDescription>
+          <AlertTitle>Database Sync Issue</AlertTitle>
+          <AlertDescription>Please check your connection or permissions.</AlertDescription>
         </Alert>
       )}
 
@@ -154,31 +147,24 @@ export default function OrdersPage() {
             <div className="relative flex-1 w-full">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input 
-                placeholder="Search by Bill #, Customer, or Type..." 
+                placeholder="Search orders..." 
                 className="pl-10" 
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            <Button variant="outline" className="gap-2">
-              <Filter className="w-4 h-4" /> Filter
-            </Button>
           </div>
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
-            <div className="flex items-center justify-center p-12">
-              <Loader2 className="w-8 h-8 animate-spin text-primary" />
-            </div>
+            <div className="flex items-center justify-center p-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/50">
-                  <TableHead className="w-[120px]">Bill #</TableHead>
+                  <TableHead>Bill #</TableHead>
                   <TableHead>Customer</TableHead>
-                  <TableHead>Work Types</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Priority</TableHead>
                   <TableHead>Delivery</TableHead>
                   <TableHead className="text-right">Action</TableHead>
                 </TableRow>
@@ -186,51 +172,31 @@ export default function OrdersPage() {
               <TableBody>
                 {filteredOrders.length > 0 ? (
                   filteredOrders.map((order) => (
-                    <TableRow key={order.id} className="hover:bg-muted/30 transition-colors">
-                      <TableCell className="font-bold text-xs">
-                        {order.billNumber ? `#${order.billNumber}` : `#${order.id.slice(0, 5)}`}
+                    <TableRow key={order.id}>
+                      <TableCell className="font-bold">
+                        {order.billNumber || `#${order.id.slice(0, 5)}`}
                       </TableCell>
+                      <TableCell>{order.customerName}</TableCell>
                       <TableCell>
-                        <span className="font-semibold">{order.customerName}</span>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {(order.workTypes || [order.workType]).map((type: string) => (
-                            <Badge key={type} variant="secondary" className="text-[10px] px-1.5 py-0">
-                              {type}
-                            </Badge>
-                          ))}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={`${getStatusColor(order.status)} font-bold`}>
+                        <Badge variant="outline" className={getStatusColor(order.status)}>
                           {order.status}
                         </Badge>
                       </TableCell>
-                      <TableCell>
-                        <Badge variant={order.priority === 'High' || order.priority === 'Urgent' ? 'destructive' : 'secondary'}>
-                          {order.priority}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-xs">
+                      <TableCell className="text-muted-foreground">
                         {order.deliveryDate ? format(new Date(order.deliveryDate), 'MMM d') : 'N/A'}
                       </TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <MoreVertical className="w-4 h-4" />
-                            </Button>
+                            <Button variant="ghost" size="icon"><MoreVertical className="w-4 h-4" /></Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem asChild className="gap-2 cursor-pointer">
-                              <Link href={`/admin/orders/${order.id}`}>
-                                <Eye className="w-4 h-4" /> View & Edit
-                              </Link>
+                            <DropdownMenuItem asChild>
+                              <Link href={`/admin/orders/${order.id}`}>View & Edit</Link>
                             </DropdownMenuItem>
-                            {(isSuperAdmin || userData?.shopId === order.shopId) && (
-                              <DropdownMenuItem className="gap-2 text-destructive cursor-pointer" onClick={() => confirmDelete(order.id)}>
-                                <Trash2 className="w-4 h-4" /> Delete
+                            {!isSuperAdmin && (
+                              <DropdownMenuItem className="text-destructive" onClick={() => {setDeleteId(order.id); setShowDeleteDialog(true)}}>
+                                Delete
                               </DropdownMenuItem>
                             )}
                           </DropdownMenuContent>
@@ -240,8 +206,8 @@ export default function OrdersPage() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
-                      {error ? "Unable to load data. Check permissions." : "No orders found matching your search."}
+                    <TableCell colSpan={5} className="text-center py-12 text-muted-foreground italic">
+                      No orders found in this shop.
                     </TableCell>
                   </TableRow>
                 )}
@@ -254,22 +220,13 @@ export default function OrdersPage() {
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <div className="flex items-center gap-3 text-destructive mb-2">
-              <AlertTriangle className="w-6 h-6" />
-              <AlertDialogTitle>Delete Order Permanently?</AlertDialogTitle>
-            </div>
-            <AlertDialogHeader>
-              <AlertDialogDescription>
-                Are you sure you want to delete order <strong>{deleteId?.slice(0, 8)}</strong>? 
-                This action cannot be undone and the data will be removed from your database.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
+            <AlertDialogTitle>Delete Order?</AlertDialogTitle>
+            <AlertDialogDescription>Permanent removal from shop database.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-bold" disabled={deleting}>
-              {deleting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-              Confirm Delete
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive" disabled={deleting}>
+              {deleting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null} Confirm
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

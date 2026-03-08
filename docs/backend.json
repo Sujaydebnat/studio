@@ -29,15 +29,26 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "name", "email", "role"]
+    },
+    "Order": {
+      "title": "Order",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "shopId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
     }
   },
   "auth": {
     "providers": ["password", "google"]
   },
   "firestore": {
-    "/shops/{shopId}": { "schema": "#/backend/entities/Shop", "description": "Tenants." },
-    "/users/{userId}": { "schema": "#/backend/entities/User", "description": "Profiles." },
-    "/orders/{orderId}": { "schema": "#/backend/entities/Order", "description": "Shop-specific orders." },
-    "/attendance/{attendanceId}": { "schema": "#/backend/entities/Attendance", "description": "Attendance logs." }
+    "/shops/{shopId}": { "schema": "#/backend/entities/Shop", "description": "Shop documents." },
+    "/shops/{shopId}/orders/{orderId}": { "schema": "#/backend/entities/Order", "description": "Shop-specific orders." },
+    "/shops/{shopId}/catalog/{itemId}": { "schema": "#/backend/entities/CatalogItem", "description": "Shop products." },
+    "/users/{userId}": { "schema": "#/backend/entities/User", "description": "Global user profiles for authentication." }
   }
 }
