@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { ShieldCheck, Loader2, LogIn, Lock, Mail, ArrowLeft, ShieldAlert } from 'lucide-react';
+import { ShieldCheck, Loader2, LogIn, Lock, Mail, ArrowLeft, ShieldAlert, Info } from 'lucide-react';
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { useAuth, useFirestore } from '@/firebase';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
@@ -15,6 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import Link from 'next/link';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -122,12 +123,10 @@ export default function AdminLoginPage() {
         router.push('/admin/dashboard');
 
       } catch (error: any) {
-        // Log to console for debugging but handle gracefully for UI
         console.warn(`Login attempt ${attempt + 1} failed:`, error.code);
 
         if (error.code === 'auth/network-request-failed' && attempt < maxRetries) {
           attempt++;
-          // Wait before retrying (exponential backoff)
           await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
           continue;
         }
@@ -162,7 +161,7 @@ export default function AdminLoginPage() {
         <span className="text-4xl font-black text-white font-headline tracking-tighter italic">MasterFlow</span>
       </div>
 
-      <Card className="w-full max-w-md shadow-2xl border-2 bg-slate-900 border-slate-800 text-white">
+      <Card className="w-full max-md shadow-2xl border-2 bg-slate-900 border-slate-800 text-white">
         <CardHeader className="text-center border-b border-slate-800 pb-6">
           <CardTitle className="text-2xl font-black flex items-center justify-center gap-2">
             <ShieldCheck className="w-6 h-6 text-primary" /> Root Controller
@@ -186,7 +185,19 @@ export default function AdminLoginPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label className="text-slate-400 text-xs font-bold uppercase">System Key</Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-slate-400 text-xs font-bold uppercase">System Key (Password)</Label>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="w-3.5 h-3.5 text-slate-500 cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-slate-800 border-slate-700 text-white text-xs">
+                      This is the password for your Super Admin account in Firebase Auth.
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
               <div className="relative">
                 <Input 
                   type="password" 
